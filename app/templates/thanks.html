@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Заказ принят{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-body text-center py-5">
+    <div class="mb-4">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#198754" stroke-width="2" class="mx-auto">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+    </div>
+    
+    <h1 class="h4 mb-2">Заказ #{{ order.id }} принят!</h1>
+    <p class="text-muted mb-4">Спасибо за ваш заказ</p>
+
+    <div class="text-start mx-auto" style="max-width: 400px;">
+      <div class="d-flex justify-content-between mb-2">
+        <span class="text-muted">Статус:</span>
+        <span class="badge bg-secondary">{{ order.status.value }}</span>
+      </div>
+      
+      <div class="d-flex justify-content-between mb-2">
+        <span class="text-muted">Доставка:</span>
+        <span>
+          {% if order.delivery_mode.value == "asap" %}
+            Как можно скорее ({{ asap_text }})
+          {% else %}
+            {{ order.delivery_slot }}
+            {% if order.delivery_date %}
+              ({{ order.delivery_date.strftime('%d.%m.%Y') }})
+            {% endif %}
+          {% endif %}
+        </span>
+      </div>
+      
+      <div class="d-flex justify-content-between mb-2">
+        <span class="text-muted">Оплата:</span>
+        <span>
+          {% if order.payment_method.value == "sbp_transfer" %}
+            СБП (перевод)
+          {% else %}
+            Наличными
+          {% endif %}
+        </span>
+      </div>
+      
+      <div class="d-flex justify-content-between mb-2">
+        <span class="text-muted">Сумма:</span>
+        <span class="fw-bold">{{ order.total_rub }} ₽</span>
+      </div>
+    </div>
+
+    {% if order.payment_method.value == "sbp_transfer" %}
+      <div class="alert alert-info mt-4 mx-auto" style="max-width: 400px;">
+        <div class="fw-semibold mb-2">Оплата по СБП</div>
+        <p class="mb-2 small">После подтверждения заказа менеджер отправит вам реквизиты для оплаты.</p>
+        <div class="text-muted small">Статус оплаты будет обновлен вручную.</div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="mt-4 text-center">
+  <a class="btn btn-primary" href="/">Вернуться в меню</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof cartClear === 'function') {
+      cartClear();
+    }
+  });
+</script>
+{% endblock %}

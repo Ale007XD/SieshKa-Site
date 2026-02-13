@@ -1,0 +1,254 @@
+{
+  "manifest_version": "1.0.0",
+  "project_name": "SieshKa-Site",
+  "project_description": "FastAPI-based food delivery service with PostgreSQL, Redis, SQLAdmin, Telegram notifications, and Nginx",
+  "baseline_version": "v3.0.0",
+  "final_version": "v3.0.0-final",
+  "created_at": "2026-02-13T13:00:00Z",
+  "versions": {
+    "v1": {
+      "path": "SieshKa-Site-v1",
+      "description": "Initial version with basic FastAPI setup",
+      "status": "archived"
+    },
+    "v2": {
+      "path": "SieshKa-Site-v2",
+      "description": "Added Alembic migrations and basic admin panel",
+      "status": "archived"
+    },
+    "v3": {
+      "path": "SieshKa-Site-v3",
+      "description": "Production-ready version with Redis, monitoring, and security improvements",
+      "status": "baseline"
+    },
+    "final": {
+      "path": "SieshKa-Site-final",
+      "description": "Assembled final release with documentation and deployment scripts",
+      "status": "release"
+    }
+  },
+  "files": {
+    "configuration": {
+      ".env.example": {
+        "type": "environment_template",
+        "description": "Environment variables template",
+        "required": true,
+        "checksum_required": true
+      },
+      "docker-compose.yml": {
+        "type": "docker_compose",
+        "description": "Docker Compose configuration for all services",
+        "required": true,
+        "checksum_required": true,
+        "services": ["db", "redis", "api", "nginx", "certbot", "backup"]
+      },
+      "Dockerfile": {
+        "type": "dockerfile",
+        "description": "Multi-stage Docker build for API service",
+        "required": true,
+        "checksum_required": true
+      },
+      "alembic.ini": {
+        "type": "alembic_config",
+        "description": "Alembic migration tool configuration",
+        "required": true,
+        "checksum_required": false
+      },
+      "Makefile": {
+        "type": "build_automation",
+        "description": "Common development and deployment commands",
+        "required": false,
+        "checksum_required": false
+      }
+    },
+    "application": {
+      "app/main.py": {
+        "type": "fastapi_app",
+        "description": "Main FastAPI application with routes and middleware",
+        "required": true
+      },
+      "app/models.py": {
+        "type": "sqlalchemy_models",
+        "description": "SQLAlchemy ORM models",
+        "required": true
+      },
+      "app/schemas.py": {
+        "type": "pydantic_schemas",
+        "description": "Pydantic validation schemas",
+        "required": true
+      },
+      "app/db.py": {
+        "type": "database_config",
+        "description": "Database connection and session management",
+        "required": true
+      },
+      "app/admin.py": {
+        "type": "sqladmin_config",
+        "description": "SQLAdmin admin panel configuration",
+        "required": true
+      },
+      "app/telegram.py": {
+        "type": "notification_service",
+        "description": "Telegram bot notification service",
+        "required": true
+      },
+      "config/settings.py": {
+        "type": "pydantic_settings",
+        "description": "Application configuration with validation",
+        "required": true
+      },
+      "config/constants.py": {
+        "type": "constants",
+        "description": "Application constants",
+        "required": true
+      }
+    },
+    "migrations": {
+      "alembic/env.py": {
+        "type": "alembic_environment",
+        "description": "Alembic environment configuration",
+        "required": true
+      },
+      "alembic/versions/0001_full_schema.py": {
+        "type": "database_migration",
+        "description": "Initial database schema migration",
+        "required": true,
+        "version": "0001_full_schema"
+      }
+    },
+    "frontend": {
+      "app/templates/base.html": {
+        "type": "jinja2_template",
+        "description": "Base HTML template",
+        "required": true
+      },
+      "app/templates/index.html": {
+        "type": "jinja2_template",
+        "description": "Menu page template",
+        "required": true
+      },
+      "app/templates/cart.html": {
+        "type": "jinja2_template",
+        "description": "Shopping cart template",
+        "required": true
+      },
+      "app/templates/checkout.html": {
+        "type": "jinja2_template",
+        "description": "Checkout page template",
+        "required": true
+      },
+      "app/templates/thanks.html": {
+        "type": "jinja2_template",
+        "description": "Order confirmation template",
+        "required": true
+      },
+      "app/templates/closed.html": {
+        "type": "jinja2_template",
+        "description": "Restaurant closed page template",
+        "required": true
+      },
+      "app/static/app.js": {
+        "type": "javascript",
+        "description": "Frontend JavaScript for cart functionality",
+        "required": true
+      }
+    },
+    "infrastructure": {
+      "nginx/default.conf": {
+        "type": "nginx_config",
+        "description": "Nginx reverse proxy configuration with SSL",
+        "required": true
+      },
+      "scripts/backup.sh": {
+        "type": "shell_script",
+        "description": "Database backup script",
+        "required": true
+      }
+    },
+    "documentation": {
+      "README.md": {
+        "type": "documentation",
+        "description": "Project documentation and setup instructions",
+        "required": true
+      }
+    },
+    "ignore_files": {
+      ".gitignore": {
+        "type": "git_ignore",
+        "description": "Git ignore patterns",
+        "required": true
+      },
+      ".dockerignore": {
+        "type": "docker_ignore",
+        "description": "Docker build ignore patterns",
+        "required": true
+      }
+    }
+  },
+  "dependencies": {
+    "python": {
+      "version": "3.12",
+      "requirements_file": "requirements.txt",
+      "key_packages": [
+        "fastapi==0.115.8",
+        "uvicorn[standard]==0.30.6",
+        "SQLAlchemy==2.0.36",
+        "psycopg==3.2.3",
+        "alembic==1.13.2",
+        "redis==5.0.1"
+      ]
+    },
+    "docker": {
+      "services": {
+        "db": "postgres:16-alpine",
+        "redis": "redis:7-alpine",
+        "nginx": "nginx:alpine",
+        "certbot": "certbot/certbot:latest"
+      }
+    }
+  },
+  "health_checks": {
+    "api": "http://localhost:8000/health",
+    "db": "pg_isready -U food -d food",
+    "redis": "redis-cli ping"
+  },
+  "build_instructions": {
+    "steps": [
+      {
+        "step": 1,
+        "command": "docker compose build",
+        "description": "Build all Docker images"
+      },
+      {
+        "step": 2,
+        "command": "docker compose up -d",
+        "description": "Start all services"
+      },
+      {
+        "step": 3,
+        "command": "docker compose run --rm api alembic upgrade head",
+        "description": "Run database migrations"
+      },
+      {
+        "step": 4,
+        "command": "docker compose ps",
+        "description": "Verify all services are running"
+      }
+    ]
+  },
+  "cleanup_exclusions": [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    ".pytest_cache",
+    "*.pyc",
+    "*.log",
+    "*.tmp",
+    "backups/*.sql.gz",
+    "logs/*.log"
+  ]
+}

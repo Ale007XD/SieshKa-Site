@@ -1,0 +1,126 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: food
+      POSTGRES_USER: food
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U food -d food"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
+    user: "999:999"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://food:${POSTGRES_PASSWORD}@db:5432/food
+      REDIS_URL: redis://redis:6379/0
+      BASE_URL: https://siesh-ka.ru
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: >
+      sh -c 'trap exit TERM;
+      while :; do
+        certbot renew --webroot -w /var/www/certbot --quiet;
+        sleep 24h & wait $${!};
+      done'
+    restart: unless-stopped
+    networks:
+      - backend
+
+  backup:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: food
+      POSTGRES_USER: food
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_RETENTION_DAYS: "7"
+    volumes:
+      - pgdata:/data:ro
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    command: >
+      sh -c 'chmod +x /backup.sh && /backup.sh'
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+  letsencrypt:
+  certbot-webroot:
+
+networks:
+  backend:
+    driver: bridge
+    internal: false
