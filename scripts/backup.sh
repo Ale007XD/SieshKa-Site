@@ -14,6 +14,7 @@ while true; do
   
   echo "Creating backup: $BACKUP_FILE"
   
+  export PGPASSWORD="$POSTGRES_PASSWORD"
   if pg_dump -h db -U "$POSTGRES_USER" -d "$POSTGRES_DB" > "$BACKUP_FILE"; then
     gzip "$BACKUP_FILE"
     echo "Backup completed: ${BACKUP_FILE}.gz"

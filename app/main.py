@@ -28,6 +28,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.utils import get_openapi
+from sqlalchemy import text
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -359,7 +360,7 @@ async def health():
     """Health check endpoint for monitoring"""
     try:
         with SessionLocal() as db:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
         return HealthResponse(
             status="ok",
             version=VERSION,
