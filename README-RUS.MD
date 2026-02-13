@@ -30,7 +30,17 @@
 
 ---
 
-## 🚀 Быстрый старт (5 шагов)
+## 🚀 Быстрый старт (6 шагов)
+
+### Необходимые программы
+
+Перед началом установи:
+- 🐳 Docker
+- 📦 Apache2-utils (для команды `htpasswd`)
+
+```bash
+sudo apt update && sudo apt install apache2-utils -y
+```
 
 ### Шаг 1: Открой папку проекта 📂
 
@@ -59,7 +69,9 @@ POSTGRES_PASSWORD=твой_сложный_пароль_123
 # 🌐 Напиши адрес твоего сайта
 BASE_URL=https://твой-сайт.ru
 
-# 👤 Логин и пароль для админ-панели
+# 👤 Логин и пароль для админ-панели (SQLAdmin)
+# Важно: Для входа по адресу /admin используется файл nginx/.htpasswd
+# Эти переменные нужны для внутренней авторизации в панели
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=твой_пароль_админа
 
@@ -122,7 +134,19 @@ docker compose ps
 
 ---
 
-### Шаг 5: Проверь что всё работает 🧪
+### Шаг 5: Настрой пароль для админ-панели 🔐
+
+```bash
+# Создай файл с паролем
+htpasswd -cb nginx/.htpasswd admin твой_пароль
+
+# Перезапусти nginx
+docker compose restart nginx
+```
+
+🔑 Теперь админка защищена! Логин: `admin`, Пароль: твой пароль
+
+### Шаг 6: Проверь что всё работает 🧪
 
 Открой браузер и зайди на:
 
@@ -285,9 +309,11 @@ docker compose restart nginx
 ### Что обязательно изменить в .env:
 - [x] `POSTGRES_PASSWORD` - пароль от базы данных (сложный!)
 - [x] `BASE_URL` - адрес твоего сайта
-- [x] `ADMIN_USERNAME` - логин для админки
-- [x] `ADMIN_PASSWORD` - пароль для админки
+- [x] `ADMIN_USERNAME` - логин для админ-панели (SQLAdmin)
+- [x] `ADMIN_PASSWORD` - пароль для админ-панели (SQLAdmin)
 - [x] Telegram токены (если используешь)
+
+⚠️ **Важно**: Для защиты входа на /admin используется отдельный файл `nginx/.htpasswd` (настраивается командой `htpasswd`)
 
 ---
 
@@ -307,6 +333,29 @@ docker compose exec -T db pg_dump -U food food | gzip > мой_бэкап.sql.gz
 gunzip -c мой_бэкап.sql.gz | docker compose exec -T db psql -U food -d food
 ```
 ⏮️ Возвращает всё как было в момент бэкапа
+
+---
+
+## 📦 Python Зависимости
+
+Основные библиотеки используемые в проекте:
+
+| Библиотека | Версия | Назначение |
+|---------|---------|---------|
+| FastAPI | 0.115.8 | Веб-фреймворк |
+| SQLAlchemy | 2.0.36 | ORM для PostgreSQL |
+| psycopg | 3.2.3 | Драйвер PostgreSQL |
+| uvicorn | 0.30.6 | ASGI сервер |
+| sqladmin | 0.20.1 | Админ-панель |
+| alembic | 1.13.2 | Миграции БД |
+| slowapi | 0.1.9 | Rate limiting |
+| redis | 5.0.1 | Кэш |
+| httpx | 0.27.2 | HTTP клиент (Telegram) |
+| phonenumbers | 9.0.23 | Валидация телефонов |
+| bleach | 6.1.0 | Санитизация HTML |
+| prometheus-client | 0.20.0 | Метрики |
+
+Полный список в файле `requirements.txt`
 
 ---
 

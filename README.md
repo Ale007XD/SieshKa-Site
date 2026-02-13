@@ -39,7 +39,13 @@ All services are running successfully:
 
 - Docker Engine 24.0+
 - Docker Compose 2.20+
+- Apache2-utils (for `htpasswd` command)
 - Git (optional, for version control)
+
+**Install htpasswd on Ubuntu/Debian:**
+```bash
+sudo apt update && sudo apt install apache2-utils -y
+```
 
 ### 1. Clone/Extract the Project
 
@@ -93,6 +99,20 @@ docker compose run --rm certbot certonly --webroot -w /var/www/certbot -d siesh-
 
 # Reload nginx to apply certificates
 docker compose restart nginx
+```
+
+### 6. Setup Admin Panel Access
+
+```bash
+# Create password file for admin panel
+htpasswd -cb nginx/.htpasswd admin your_secure_password
+
+# Restart nginx to apply
+docker compose restart nginx
+
+# Access admin panel at: https://your-domain.ru/admin
+# Login: admin
+# Password: your_secure_password
 ```
 
 ## 📋 Available Commands
@@ -195,6 +215,11 @@ DEBUG=false
 TELEGRAM_BOT_TOKEN=your_bot_token
 TG_MANAGER_CHAT_ID=your_chat_id
 
+# Admin Panel (SQLAdmin)
+# Note: Basic Auth for /admin endpoint is configured via nginx/.htpasswd file
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change_me_in_production
+
 # Menu Schedule (Asia/Irkutsk timezone)
 MORNING_START=07:00
 MORNING_END=10:00
@@ -216,6 +241,27 @@ PHONE_RATE_LIMIT_PER_MINUTE=3
 | nginx | nginx:alpine | Reverse proxy & SSL | 80, 443 |
 | certbot | certbot/certbot | SSL certificate renewal | - |
 | backup | postgres:16-alpine | Automated backups | - |
+
+### Python Dependencies
+
+Key libraries used in this project:
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| FastAPI | 0.115.8 | Web framework |
+| SQLAlchemy | 2.0.36 | ORM for PostgreSQL |
+| psycopg | 3.2.3 | PostgreSQL driver |
+| uvicorn | 0.30.6 | ASGI server |
+| sqladmin | 0.20.1 | Admin panel |
+| alembic | 1.13.2 | Database migrations |
+| slowapi | 0.1.9 | Rate limiting |
+| redis | 5.0.1 | Cache layer |
+| httpx | 0.27.2 | HTTP client (Telegram) |
+| phonenumbers | 9.0.23 | Phone validation |
+| bleach | 6.1.0 | HTML sanitization |
+| prometheus-client | 0.20.0 | Metrics |
+
+See `requirements.txt` for complete list.
 
 ## 🔒 Security Features
 
