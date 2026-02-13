@@ -16,11 +16,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    user: "999:999"
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/run/postgresql
 
   redis:
     image: redis:7-alpine
