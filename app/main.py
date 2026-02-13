@@ -99,17 +99,10 @@ async def request_response_logging_middleware(request: Request, call_next):
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
     
-    old_factory = logging.getLogRecordFactory()
-    def record_factory(*args, **kwargs):
-        record = old_factory(*args, **kwargs)
-        record.request_id = request_id
-        return record
-    logging.setLogRecordFactory(record_factory)
-    
     start_time = datetime.now()
     
     body = await request.body()
-    logger.info(f"Request {request.method} {request.url.path} - Body: {body[:1000] if body else 'empty'}")
+    logger.info(f"[{request_id}] Request {request.method} {request.url.path} - Body: {body[:1000] if body else 'empty'}")
     
     try:
         response = await call_next(request)
@@ -122,10 +115,10 @@ async def request_response_logging_middleware(request: Request, call_next):
         ).inc()
         REQUEST_DURATION.observe(duration)
         
-        logger.info(f"Response {response.status_code} in {duration:.3f}s")
+        logger.info(f"[{request_id}] Response {response.status_code} in {duration:.3f}s")
         return response
     except Exception as e:
-        logger.error(f"Request failed: {e}", exc_info=True)
+        logger.error(f"[{request_id}] Request failed: {e}", exc_info=True)
         raise
 
 @asynccontextmanager
