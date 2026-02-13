@@ -100,7 +100,7 @@ services:
       - ./backups:/backups
       - ./scripts/backup.sh:/backup.sh:ro
     command: >
-      sh -c 'chmod +x /backup.sh && /backup.sh'
+      sh -c '/backup.sh'
     depends_on:
       db:
         condition: service_healthy
