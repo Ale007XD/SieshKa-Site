@@ -2,6 +2,37 @@
 
 Production-ready FastAPI-based food delivery service with PostgreSQL, Redis, SQLAdmin admin panel, Telegram notifications, Nginx reverse proxy with SSL/TLS, and automated backups.
 
+## 📋 Deployment Status
+
+**Last Updated:** February 13, 2026
+
+### ✅ Current Status: OPERATIONAL
+
+All services are running successfully:
+- ✅ **API Service** - FastAPI backend (healthy)
+- ✅ **PostgreSQL** - Database running (healthy)
+- ✅ **Redis** - Cache layer running (healthy)
+- ✅ **Nginx** - SSL/TLS enabled, serving HTTPS
+- ✅ **Admin Panel** - Accessible at `/admin`
+- ✅ **Let's Encrypt SSL** - Certificates active
+
+### 🔧 Recent Fixes Applied (2026-02-13)
+
+1. **PostgreSQL Permissions** - Removed `read_only: true` causing permission errors
+2. **API Dockerfile** - Fixed path permissions for uvicorn (now using system paths)
+3. **Backup Script** - Added `PGPASSWORD` export for pg_dump authentication
+4. **Health Check** - Fixed SQLAlchemy 2.x compatibility (`text()` wrapper)
+5. **Logging** - Fixed recursion error in request middleware
+6. **SSL Certificates** - Obtained via Let's Encrypt certbot
+7. **Database Tables** - Created via Alembic migrations
+
+### 🌐 Live Endpoints
+
+- **Main Site**: https://siesh-ka.ru
+- **Admin Panel**: https://siesh-ka.ru/admin
+- **Health Check**: https://siesh-ka.ru/health
+- **Metrics**: https://siesh-ka.ru/metrics
+
 ## 🚀 Quick Start
 
 ### Prerequisites

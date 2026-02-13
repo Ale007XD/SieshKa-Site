@@ -2,6 +2,8 @@
 
 Привет! 👋 Это инструкция как запустить сайт для ресторана "Сиешка". Не бойся, всё просто! Просто следуй шагам ниже.
 
+**Последнее обновление:** 13 февраля 2026 ✅ Сайт успешно запущен!
+
 ---
 
 ## 🎯 Что это такое?
@@ -23,6 +25,8 @@
    - Установи как обычную программу
 
 2. 📁 **Файлы проекта** - папка `SieshKa-Site-final`
+
+3. 🔑 **SSL Сертификаты** - для безопасного https:// (мы получим их вместе)
 
 ---
 
@@ -55,6 +59,10 @@ POSTGRES_PASSWORD=твой_сложный_пароль_123
 # 🌐 Напиши адрес твоего сайта
 BASE_URL=https://твой-сайт.ru
 
+# 👤 Логин и пароль для админ-панели
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=твой_пароль_админа
+
 # 🤖 Настрой Telegram бота (необязательно, но круто!)
 TELEGRAM_BOT_TOKEN=токен_от_botfather
 TG_MANAGER_CHAT_ID=айди_чата
@@ -62,7 +70,26 @@ TG_MANAGER_CHAT_ID=айди_чата
 
 ---
 
-### Шаг 3: Запусти волшебную команду ✨
+### Шаг 3: Получи SSL сертификат 🔒
+
+Это делает сайт безопасным (https вместо http):
+
+```bash
+# Получи сертификаты через certbot
+sudo apt install certbot
+sudo certbot certonly --standalone -d твой-сайт.ru --agree-tos --email твой@email.com
+
+# Скопируй сертификаты в Docker
+sudo mkdir -p /var/lib/docker/volumes/sieshka-site_letsencrypt/_data/live/твой-сайт.ru
+sudo bash -c 'cp /etc/letsencrypt/live/твой-сайт.ru/*.pem /var/lib/docker/volumes/sieshka-site_letsencrypt/_data/live/твой-сайт.ru/'
+sudo chmod 644 /var/lib/docker/volumes/sieshka-site_letsencrypt/_data/live/твой-сайт.ru/privkey.pem
+```
+
+✅ **Важно**: Без этого шага сайт не будет работать по https://
+
+---
+
+### Шаг 4: Запусти волшебную команду ✨
 
 ```bash
 ./deploy.sh
@@ -74,31 +101,36 @@ TG_MANAGER_CHAT_ID=айди_чата
 - Запустит сам сайт 🚀
 - Проверит что всё работает ✅
 
+**Или вручную:**
+```bash
+# Собрать образы
+docker compose build
+
+# Запустить сервисы
+docker compose up -d
+
+# Создать таблицы в базе данных
+docker compose exec api python -c "
+from app.db import Base, engine
+Base.metadata.create_all(bind=engine)
+print('Таблицы созданы!')
+"
+
+# Проверить статус
+docker compose ps
+```
+
 ---
 
-### Шаг 4: Проверь что всё работает 🧪
+### Шаг 5: Проверь что всё работает 🧪
 
 Открой браузер и зайди на:
 
-- 🏠 **Главная страница**: http://localhost
-- 🔧 **Проверка здоровья**: http://localhost/health
-- 👨‍💼 **Админ-панель**: http://localhost/admin
+- 🏠 **Главная страница**: https://твой-сайт.ru
+- 👨‍💼 **Админ-панель**: https://твой-сайт.ru/admin
+- 🔧 **Проверка здоровья**: https://твой-сайт.ru/health
 
 Если видишь страницы - УРА! 🎉 Всё работает!
-
----
-
-### Шаг 5: Получи SSL сертификат 🔒
-
-Это делает сайт безопасным (https вместо http):
-
-```bash
-# Первый раз
-docker compose run --rm certbot certonly --webroot -w /var/www/certbot -d твой-сайт.ru
-
-# Перезапусти nginx
-docker compose restart nginx
-```
 
 ---
 
@@ -128,6 +160,18 @@ docker compose exec api /bin/sh
 ```
 🔧 Как зайти внутрь компьютера сайта
 
+### Сделать бэкап базы данных
+```bash
+docker compose exec -T db pg_dump -U food food | gzip > мой_бэкап.sql.gz
+```
+💾 Сохраняет все заказы и настройки
+
+### Восстановить из бэкапа
+```bash
+gunzip -c мой_бэкап.sql.gz | docker compose exec -T db psql -U food -d food
+```
+⏮️ Возвращает всё как было в момент бэкапа
+
 ---
 
 ## 🗂️ Из чего состоит сайт?
@@ -137,7 +181,8 @@ docker compose exec api /bin/sh
 ├── 📄 docker-compose.yml     ← Главный файл, говорит что запускать
 ├── 📄 Dockerfile            ← Как собрать сайт
 ├── 📄 .env                  ← Секретные настройки (пароли)
-├── 📄 README.md             ← Эта инструкция
+├── 📄 README.md             ← Инструкция на английском
+├── 📄 README-rus.md         ← Эта инструкция на русском
 │
 ├── 📁 app/                  ← Сам сайт
 │   ├── 📄 main.py          ← Главный файл сайта
@@ -146,6 +191,7 @@ docker compose exec api /bin/sh
 │
 ├── 📁 config/               ← Настройки
 ├── 📁 nginx/                ← Настройки сервера
+├── 📁 scripts/              ← Вспомогательные скрипты
 └── 📁 backups/              ← Резервные копии базы
 ```
 
@@ -153,25 +199,46 @@ docker compose exec api /bin/sh
 
 ## 🛠️ Если что-то пошло не так
 
-### ❌ Ошибка: "Не найден файл .env"
-**Решение**: Ты забыл сделать Шаг 2!
+### ❌ Ошибка: "dependency failed to start: container sieshka-site-db-1 is unhealthy"
+**Решение**: Проблема с правами PostgreSQL
 ```bash
-cp .env.example .env
+# Уже исправлено в docker-compose.yml!
+# Просто перезапусти:
+docker compose down
+docker compose up -d
+```
+
+### ❌ Ошибка: "can't open file '/root/.local/bin/uvicorn'"
+**Решение**: Проблема с правами в Dockerfile
+```bash
+# Пересобрать образ API
+docker compose build --no-cache api
+docker compose up -d api
+```
+
+### ❌ Ошибка: "pg_dump: error: connection to server ... failed"
+**Решение**: Бэкап не может подключиться к базе
+```bash
+# Проверь что сервисы работают
+docker compose ps
+# Должны быть статусы: healthy или running
+```
+
+### ❌ Ошибка: "maximum recursion depth exceeded"
+**Решение**: Проблема с логированием (уже исправлена!)
+```bash
+# Пересобрать и перезапусти
+docker compose build api
+docker compose up -d api
 ```
 
 ### ❌ Ошибка: "Port already in use"
 **Решение**: У тебя уже что-то работает на порту 80
 ```bash
 # Найди что занимает порт
-docker compose down
-# Или перезагрузи компьютер
-```
-
-### ❌ Ошибка: "Permission denied"
-**Решение**: Нет прав на выполнение
-```bash
-chmod +x deploy.sh
-chmod +x cleanup.sh
+sudo lsof -i :80
+# Или перезагрузи сервер
+sudo reboot
 ```
 
 ### ❌ Сайт не открывается
@@ -187,24 +254,47 @@ docker compose up -d
 ### ❌ База данных не подключается
 **Решение**: Подожди 30 секунд и попробуй снова. База данных долго просыпается 😴
 
+### ❌ Не работает HTTPS (нет замочка в браузере)
+**Решение**: Проблема с SSL сертификатами
+```bash
+# Проверь что сертификаты на месте
+sudo ls -la /var/lib/docker/volumes/sieshka-site_letsencrypt/_data/live/твой-сайт.ru/
+
+# Исправь права доступа
+sudo chmod 644 /var/lib/docker/volumes/sieshka-site_letsencrypt/_data/live/твой-сайт.ru/privkey.pem
+
+# Перезапусти nginx
+docker compose restart nginx
+```
+
 ---
 
 ## 🔐 Безопасность (важно!)
 
 ### Установи пароль на админ-панель
 ```bash
+# Создать файл с паролем
 htpasswd -c nginx/.htpasswd admin
+# Введи пароль 2 раза
+
+# Перезапустить nginx
+docker compose restart nginx
 ```
-🔑 Введи пароль 2 раза. Теперь админка защищена!
+🔑 Теперь админка защищена логином и паролем!
 
 ### Что обязательно изменить в .env:
-- [x] `POSTGRES_PASSWORD` - пароль от базы данных
+- [x] `POSTGRES_PASSWORD` - пароль от базы данных (сложный!)
 - [x] `BASE_URL` - адрес твоего сайта
+- [x] `ADMIN_USERNAME` - логин для админки
+- [x] `ADMIN_PASSWORD` - пароль для админки
 - [x] Telegram токены (если используешь)
 
 ---
 
 ## 💾 Резервное копирование (бэкапы)
+
+### Автоматические бэкапы
+Сайт сам делает бэкапы каждые 24 часа! 💾
 
 ### Сделать бэкап вручную
 ```bash
@@ -238,17 +328,17 @@ gunzip -c мой_бэкап.sql.gz | docker compose exec -T db psql -U food -d f
 ## 📊 Мониторинг (смотри как сайт работает)
 
 ### Проверка здоровья
-Открой в браузере: http://localhost/health
+Открой в браузере: https://твой-сайт.ru/health
 
 ✅ Должно показать: `{"status": "ok"}`
 
 ### Версия сайта
-Открой: http://localhost/version
+Открой: https://твой-сайт.ru/version
 
 📋 Покажет какая версия работает
 
 ### Метрики (для взрослых)
-Открой: http://localhost/metrics
+Открой: https://твой-сайт.ru/metrics
 
 📈 Много цифр о работе сайта
 
@@ -264,6 +354,8 @@ gunzip -c мой_бэкап.sql.gz | docker compose exec -T db psql -U food -d f
 | 🔒 **SSL** | Защита сайта (замочек в браузере) |
 | 🔄 **Бэкап** | Копия данных на всякий случай |
 | 📊 **Логи** | Записи о том, что делает сайт |
+| 🔑 **SSH** | Способ подключения к серверу |
+| 📜 **SSL Сертификат** | Документ, подтверждающий, что сайт безопасен |
 
 ---
 
@@ -273,8 +365,9 @@ gunzip -c мой_бэкап.sql.gz | docker compose exec -T db psql -U food -d f
 - [ ] 📂 Открыта папка проекта
 - [ ] ⚙️ Создан файл .env
 - [ ] 🔐 Изменены пароли в .env
+- [ ] 🔒 Получены SSL сертификаты
 - [ ] 🚀 Выполнена команда `./deploy.sh`
-- [ ] ✅ Сайт открывается в браузере
+- [ ] ✅ Сайт открывается в браузере по https://
 - [ ] 🔒 Установлен пароль на админку
 - [ ] 🤖 Настроен Telegram бот (опционально)
 
@@ -291,6 +384,21 @@ gunzip -c мой_бэкап.sql.gz | docker compose exec -T db psql -U food -d f
 3. 🧑‍💻 Покажи тому, кто разбирается в компьютерах
 4. 📧 Или поищи решение в интернете
 
+**Полезные команды для диагностики:**
+```bash
+# Посмотреть статус всех сервисов
+docker compose ps
+
+# Посмотреть последние ошибки
+docker compose logs --tail 50
+
+# Проверить место на диске
+df -h
+
+# Проверить память
+free -h
+```
+
 ---
 
 ## 🎮 Готово!
@@ -305,8 +413,9 @@ gunzip -c мой_бэкап.sql.gz | docker compose exec -T db psql -U food -d f
 ---
 
 **Версия**: 3.0.0-final  
+**Последний деплой**: 13 февраля 2026 ✅  
 **Сделано с ❤️ для ресторана Сиешка**  
-**Перевод для пятиклассников** 🎒
+**Статус**: Все системы работают! 🟢
 
 ---
 
