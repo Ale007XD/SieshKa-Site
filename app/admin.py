@@ -1,6 +1,7 @@
 from sqladmin import Admin, ModelView
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from markupsafe import Markup
 import logging
 import json
 
@@ -209,7 +210,7 @@ def format_status_with_buttons(order: Order) -> str:
             '''
         html += '</div>'
     
-    return html
+    return Markup(html)
 
 async def update_order_status_endpoint(request: Request):
     """AJAX endpoint to update order status"""
