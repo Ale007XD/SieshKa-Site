@@ -189,7 +189,13 @@ class OrderAdmin(ModelView, model=Order):
         
         if not is_created and "status" in data:
             old_status = model.status
-            new_status = data["status"]
+            new_status_str = data["status"]
+            
+            # Convert string to enum for validation
+            try:
+                new_status = OrderStatus(new_status_str)
+            except ValueError:
+                raise ValueError(f"Invalid status value: {new_status_str}")
             
             # Validate status transitions
             if not self._is_valid_transition(old_status, new_status):
