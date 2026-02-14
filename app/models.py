@@ -29,7 +29,7 @@ class MenuPeriod(str, enum.Enum):
 
 class Category(Base):
     __tablename__ = "categories"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     sort: Mapped[int] = mapped_column(Integer, default=100)
@@ -37,6 +37,9 @@ class Category(Base):
     menu_period: Mapped[MenuPeriod] = mapped_column(Enum(MenuPeriod), default=MenuPeriod.both, index=True)
 
     products: Mapped[list["Product"]] = relationship(back_populates="category")
+
+    def __repr__(self) -> str:
+        return f"<Category(id={self.id}, name='{self.name}')>"
 
 class Product(Base):
     __tablename__ = "products"
