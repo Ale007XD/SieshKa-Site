@@ -60,20 +60,58 @@ class CategoryAdmin(ModelView, model=Category):
     column_list = [
         Category.id, 
         Category.name, 
+        Category.parent,
         Category.menu_period, 
         Category.sort, 
         Category.is_active
     ]
     column_sortable_list = [Category.sort, Category.id]
     column_searchable_list = [Category.name]
-    form_columns = ["name", "sort", "is_active", "menu_period"]
+    column_filters = [Category.parent_id, Category.menu_period, Category.is_active]
+    form_columns = ["name", "parent", "sort", "is_active", "menu_period"]
     name = "Категория"
     name_plural = "Категории"
     icon = "fa-solid fa-folder"
     
     async def on_model_change(self, data: dict, model: Category, is_created: bool, request: Request) -> None:
         action = "create" if is_created else "update"
+        
+        # Validate self-reference
+        parent_id = data.get("parent_id")
+        if parent_id and parent_id == model.id:
+            raise ValueError("Категория не может быть родителем самой себя")
+        
+        # Validate circular reference
+        if parent_id and not is_created:
+            # Check if parent is not a descendant of current category
+            if self._is_circular_reference(model, parent_id):
+                raise ValueError("Нельзя выбрать дочернюю категорию как родителя (циклическая ссылка)")
+        
         log_admin_action(request, action, "Category", model.id, None, data)
+    
+    def _is_circular_reference(self, category: Category, new_parent_id: int) -> bool:
+        """Check if new_parent_id is a descendant of category (circular reference)"""
+        from .db import SessionLocal
+        
+        with SessionLocal() as db:
+            current_id = new_parent_id
+            visited = set()
+            
+            while current_id:
+                if current_id in visited:
+                    break  # Safety check for data inconsistency
+                visited.add(current_id)
+                
+                if current_id == category.id:
+                    return True
+                
+                # Get parent of current category
+                parent = db.query(Category).filter(Category.id == current_id).first()
+                if not parent:
+                    break
+                current_id = parent.parent_id
+        
+        return False
 
 class ProductAdmin(ModelView, model=Product):
     column_list = [

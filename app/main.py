@@ -420,27 +420,62 @@ async def index(request: Request, preview_period: str = Query(None)):
         })
     
     with SessionLocal() as db:
-        cats = db.query(Category).filter(Category.is_active == True).order_by(Category.sort).all()
-        products_by_cat = {}
+        # Load only root categories (no parent) and their subcategories
+        root_cats = db.query(Category).filter(
+            Category.is_active == True,
+            Category.parent_id == None
+        ).order_by(Category.sort).all()
         
-        for cat in cats:
-            products = db.query(Product).filter(
-                Product.category_id == cat.id,
+        # Build hierarchical structure
+        categories_data = []
+        
+        for root_cat in root_cats:
+            cat_data = {
+                'category': root_cat,
+                'subcategories': [],
+                'products': []
+            }
+            
+            # Get products directly in this category
+            direct_products = db.query(Product).filter(
+                Product.category_id == root_cat.id,
                 Product.is_active == True
             ).all()
             
-            filtered_products = []
-            for p in products:
-                period = p.menu_period_override or cat.menu_period
+            for p in direct_products:
+                period = p.menu_period_override or root_cat.menu_period
                 if period == MenuPeriod.both or period.value == current_period:
-                    filtered_products.append(p)
+                    cat_data['products'].append(p)
             
-            if filtered_products:
-                products_by_cat[cat.id] = filtered_products
+            # Get subcategories and their products
+            for subcat in root_cat.children:
+                if not subcat.is_active:
+                    continue
+                    
+                subcat_data = {
+                    'category': subcat,
+                    'products': []
+                }
+                
+                subcat_products = db.query(Product).filter(
+                    Product.category_id == subcat.id,
+                    Product.is_active == True
+                ).all()
+                
+                for p in subcat_products:
+                    period = p.menu_period_override or subcat.menu_period
+                    if period == MenuPeriod.both or period.value == current_period:
+                        subcat_data['products'].append(p)
+                
+                if subcat_data['products']:
+                    cat_data['subcategories'].append(subcat_data)
+            
+            # Only add category if it has products or subcategories with products
+            if cat_data['products'] or cat_data['subcategories']:
+                categories_data.append(cat_data)
     
     data = {
-        "cats": cats,
-        "products_by_cat": products_by_cat,
+        "categories_data": categories_data,
         "current_period_label": current_period,
         "preview_period": preview_period,
     }
