@@ -1,11 +1,12 @@
 from sqladmin import Admin, ModelView
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 import logging
 import json
 
 from .models import Category, Product, Order, OrderItem, OrderStatus, DeliverySlot, AdminAuditLog
 from .telegram import notify_order_status
-from .db import SessionLocal
+from .db import SessionLocal, engine
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,131 @@ class OrderItemAdmin(ModelView, model=OrderItem):
     can_edit = False
     can_delete = False
 
+def format_status_with_buttons(order: Order) -> str:
+    """Format status column with action buttons for valid transitions"""
+    current_status = order.status
+    valid_next = VALID_STATUS_TRANSITIONS.get(current_status, [])
+    
+    status_colors = {
+        OrderStatus.new: "warning",
+        OrderStatus.accepted: "info", 
+        OrderStatus.cooking: "primary",
+        OrderStatus.on_the_way: "secondary",
+        OrderStatus.delivered: "success",
+        OrderStatus.cancelled: "danger"
+    }
+    
+    status_labels = {
+        OrderStatus.new: "Новый",
+        OrderStatus.accepted: "Принят",
+        OrderStatus.cooking: "Готовится",
+        OrderStatus.on_the_way: "В пути",
+        OrderStatus.delivered: "Доставлен",
+        OrderStatus.cancelled: "Отменен"
+    }
+    
+    next_labels = {
+        OrderStatus.accepted: "Принять",
+        OrderStatus.cooking: "Готовить",
+        OrderStatus.on_the_way: "В путь",
+        OrderStatus.delivered: "Доставлен",
+        OrderStatus.cancelled: "Отменить"
+    }
+    
+    color = status_colors.get(current_status, "secondary")
+    current_label = status_labels.get(current_status, current_status.value)
+    
+    html = f'<span class="badge bg-{color}">{current_label}</span>'
+    
+    if valid_next:
+        html += '<div class="btn-group btn-group-sm mt-1" role="group">'
+        for next_status in valid_next:
+            btn_color = "danger" if next_status == OrderStatus.cancelled else "outline-primary"
+            label = next_labels.get(next_status, next_status.value)
+            html += f'''
+                <button type="button" 
+                        class="btn btn-{btn_color}"
+                        onclick="updateOrderStatus({order.id}, '{next_status.value}', this)"
+                        data-status="{next_status.value}">
+                    {label}
+                </button>
+            '''
+        html += '</div>'
+    
+    return html
+
+async def update_order_status_endpoint(request: Request):
+    """AJAX endpoint to update order status"""
+    try:
+        data = await request.json()
+        order_id = data.get('order_id')
+        new_status_str = data.get('status')
+        
+        if not order_id or not new_status_str:
+            return JSONResponse(
+                {"success": False, "error": "Missing order_id or status"},
+                status_code=400
+            )
+        
+        with SessionLocal() as db:
+            order = db.query(Order).filter(Order.id == order_id).first()
+            if not order:
+                return JSONResponse(
+                    {"success": False, "error": "Order not found"},
+                    status_code=404
+                )
+            
+            old_status = order.status
+            try:
+                new_status = OrderStatus(new_status_str)
+            except ValueError:
+                return JSONResponse(
+                    {"success": False, "error": f"Invalid status: {new_status_str}"},
+                    status_code=400
+                )
+            
+            # Validate transition
+            valid_next = VALID_STATUS_TRANSITIONS.get(old_status, [])
+            if new_status not in valid_next and old_status != new_status:
+                return JSONResponse(
+                    {"success": False, "error": f"Invalid transition: {old_status.value} -> {new_status.value}"},
+                    status_code=400
+                )
+            
+            # Update status
+            order.status = new_status
+            db.commit()
+            
+            # Send notification
+            if old_status != new_status:
+                try:
+                    await notify_order_status(order.id, new_status.value)
+                except Exception as e:
+                    logger.error(f"Failed to send status notification: {e}")
+            
+            # Log action
+            log_admin_action(
+                request, 
+                "update_status", 
+                "Order", 
+                order.id,
+                {"status": old_status.value},
+                {"status": new_status.value}
+            )
+            
+            return JSONResponse({
+                "success": True,
+                "new_status": new_status.value,
+                "order_id": order.id
+            })
+            
+    except Exception as e:
+        logger.error(f"Error updating order status: {e}")
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+
 class OrderAdmin(ModelView, model=Order):
     column_list = [
         Order.id, 
@@ -164,11 +290,15 @@ class OrderAdmin(ModelView, model=Order):
         Order.status, 
         Order.total_rub, 
         Order.payment_method, 
-        Order.payment_confirmed
+        Order.payment_confirmed,
+        Order.customer_name
     ]
     column_searchable_list = [Order.phone_e164, Order.address]
     column_sortable_list = [Order.created_at, Order.id, Order.total_rub]
     column_filters = [Order.status, Order.payment_method, Order.delivery_mode]
+    column_formatters = {
+        Order.status: lambda m, a: format_status_with_buttons(m)
+    }
     form_columns = [
         "customer_name",
         "phone_e164",
@@ -263,4 +393,87 @@ def setup_admin(app, engine):
     admin.add_view(OrderItemAdmin)
     admin.add_view(DeliverySlotAdmin)
     admin.add_view(AdminAuditLogAdmin)
+    
+    # Add AJAX endpoint for status updates
+    admin.add_route(
+        "/admin/api/orders/update-status",
+        update_order_status_endpoint,
+        methods=["POST"],
+        name="admin_update_order_status"
+    )
+    
+    # Add custom CSS and JavaScript
+    admin.add_head_content('''
+    <style>
+    .status-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .status-actions .badge {
+        font-size: 0.85em;
+        padding: 0.4em 0.6em;
+    }
+    .status-actions .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+    }
+    .status-actions .btn {
+        font-size: 0.75em;
+        padding: 0.2em 0.4em;
+    }
+    .status-updating {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+    .status-success {
+        animation: flash-green 1s ease;
+    }
+    @keyframes flash-green {
+        0%, 100% { background-color: transparent; }
+        50% { background-color: #d4edda; }
+    }
+    </style>
+    <script>
+    async function updateOrderStatus(orderId, newStatus, button) {
+        if (!confirm('Изменить статус заказа #' + orderId + '?')) {
+            return;
+        }
+        
+        const row = button.closest('tr');
+        row.classList.add('status-updating');
+        
+        try {
+            const response = await fetch('/admin/api/orders/update-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    status: newStatus
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                row.classList.remove('status-updating');
+                row.classList.add('status-success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            } else {
+                alert('Ошибка: ' + result.error);
+                row.classList.remove('status-updating');
+            }
+        } catch (error) {
+            alert('Ошибка сети: ' + error);
+            row.classList.remove('status-updating');
+        }
+    }
+    </script>
+    ''')
+    
     return admin
