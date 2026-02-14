@@ -394,14 +394,6 @@ def setup_admin(app, engine):
     admin.add_view(DeliverySlotAdmin)
     admin.add_view(AdminAuditLogAdmin)
     
-    # Add AJAX endpoint for status updates
-    admin.add_route(
-        "/admin/api/orders/update-status",
-        update_order_status_endpoint,
-        methods=["POST"],
-        name="admin_update_order_status"
-    )
-    
     # Add custom CSS and JavaScript
     admin.add_head_content('''
     <style>
