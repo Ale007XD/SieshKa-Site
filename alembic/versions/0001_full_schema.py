@@ -105,7 +105,11 @@ def upgrade() -> None:
     op.create_index(op.f('ix_admin_audit_log_created_at'), 'admin_audit_log', ['created_at'], unique=False)
     
     # Insert default delivery slots
-    op.bulk_insert('delivery_slots',
+    slots_table = sa.table('delivery_slots',
+        sa.Column('slot_time', sa.String(length=20)),
+        sa.Column('max_orders', sa.Integer())
+    )
+    op.bulk_insert(slots_table,
         [
             {'slot_time': '10:00-12:00', 'max_orders': 15},
             {'slot_time': '12:00-14:00', 'max_orders': 20},
