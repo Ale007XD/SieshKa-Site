@@ -42,6 +42,8 @@
 sudo apt update && sudo apt install apache2-utils -y
 ```
 
+> **Важно:** `apache2-utils` — это **системный пакет** (не Python-библиотека), поэтому устанавливается через `apt`, а не через `pip` и не указан в `requirements.txt`.
+
 ### Шаг 1: Открой папку проекта 📂
 
 ```bash

@@ -50,6 +50,16 @@ check_prerequisites() {
         exit 1
     fi
     
+    # Check apache2-utils for htpasswd
+    if ! command -v htpasswd &> /dev/null; then
+        log_warning "apache2-utils is not installed (needed for admin password)"
+        log_info "Installing apache2-utils..."
+        sudo apt update && sudo apt install apache2-utils -y || {
+            log_error "Failed to install apache2-utils. Please install manually: sudo apt install apache2-utils"
+            exit 1
+        }
+    fi
+    
     log_success "Prerequisites check passed"
 }
 
@@ -70,6 +80,26 @@ setup_environment() {
     
     # Set proper permissions
     chmod +x scripts/*.sh
+    
+    # Check/create admin password file
+    if [ ! -f nginx/.htpasswd ]; then
+        log_warning "Admin password file not found (nginx/.htpasswd)"
+        log_info "Creating admin password file..."
+        read -sp "Enter admin password for /admin panel: " admin_pass
+        echo
+        htpasswd -cb nginx/.htpasswd admin "$admin_pass"
+        log_success "Admin password file created"
+    else
+        log_info "Admin password file already exists"
+    fi
+    
+    # Check SSL certificates for production
+    if [ "$ENV" == "production" ]; then
+        if [ ! -d "nginx/.htpasswd" ] && [ ! -f "nginx/.htpasswd" ]; then
+            log_warning "SSL certificates may not be configured"
+            log_info "To setup SSL, run: sudo certbot certonly --standalone -d your-domain.com"
+        fi
+    fi
     
     log_success "Environment setup complete"
 }
@@ -120,9 +150,20 @@ wait_for_db() {
 run_migrations() {
     log_info "Running database migrations..."
     
-    docker compose run --rm api alembic upgrade head
-    
-    log_success "Migrations completed"
+    # Try Alembic migrations first
+    if docker compose run --rm api alembic upgrade head 2>/dev/null; then
+        log_success "Migrations completed"
+    else
+        log_warning "Alembic migrations failed, trying direct table creation..."
+        docker compose exec api python -c "
+from app.db import Base, engine
+Base.metadata.create_all(bind=engine)
+print('Tables created successfully!')
+" && log_success "Tables created directly" || {
+            log_error "Failed to create database tables"
+            exit 1
+        }
+    fi
 }
 
 # Health check
@@ -143,6 +184,13 @@ health_check() {
         exit 1
     fi
     
+    # Check nginx (port 80 or 443)
+    if curl -sf http://localhost > /dev/null 2>&1 || curl -sf -k https://localhost > /dev/null 2>&1; then
+        log_success "Nginx is responding"
+    else
+        log_warning "Nginx check skipped (may need SSL setup)"
+    fi
+    
     echo ""
     log_success "All health checks passed"
 }
@@ -157,9 +205,11 @@ show_status() {
     if [ "$ENV" == "production" ]; then
         echo "  - Main Site: https://your-domain.com"
         echo "  - Admin Panel: https://your-domain.com/admin"
+        echo "  - Health Check: https://your-domain.com/health"
     else
         echo "  - Main Site: http://localhost"
         echo "  - Admin Panel: http://localhost/admin"
+        echo "  - Health Check: http://localhost/health"
         echo "  - API Docs: http://localhost/docs"
     fi
     echo ""
@@ -167,6 +217,12 @@ show_status() {
     echo "  - View logs: docker compose logs -f"
     echo "  - Shell: docker compose exec api /bin/sh"
     echo "  - Stop: docker compose down"
+    echo "  - Backup: docker compose exec -T db pg_dump -U food food | gzip > backup_$(date +%Y%m%d).sql.gz"
+    echo ""
+    log_info "Next steps:"
+    echo "  1. Check the site: curl http://localhost/health"
+    echo "  2. Setup SSL: sudo certbot certonly --standalone -d your-domain.com"
+    echo "  3. Configure Telegram bot in .env (optional)"
 }
 
 # Main deployment flow

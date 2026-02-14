@@ -47,6 +47,8 @@ All services are running successfully:
 sudo apt update && sudo apt install apache2-utils -y
 ```
 
+> **Note:** `apache2-utils` is a **system package** (not a Python dependency), so it's installed via `apt`, not via `pip` or listed in `requirements.txt`.
+
 ### 1. Clone/Extract the Project
 
 ```bash
