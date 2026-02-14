@@ -39,7 +39,7 @@ class Category(Base):
     products: Mapped[list["Product"]] = relationship(back_populates="category")
 
     def __repr__(self) -> str:
-        return f"<Category(id={self.id}, name='{self.name}')>"
+        return self.name
 
 class Product(Base):
     __tablename__ = "products"
