@@ -24,7 +24,11 @@
         <span class="text-muted">Доставка:</span>
         <span>
           {% if order.delivery_mode.value == "asap" %}
-            Как можно скорее ({{ asap_text }})
+            {% if is_evening_preorder %}
+              С {{ evening_delivery_start }} (вечернее меню)
+            {% else %}
+              Как можно скорее ({{ asap_text }})
+            {% endif %}
           {% else %}
             {{ order.delivery_slot }}
             {% if order.delivery_date %}
@@ -50,6 +54,14 @@
         <span class="fw-bold">{{ order.total_rub }} ₽</span>
       </div>
     </div>
+
+    {% if is_evening_preorder %}
+      <div class="alert alert-info mt-4 mx-auto" style="max-width: 400px;">
+        <div class="fw-semibold mb-2">Предзаказ вечернего меню</div>
+        <p class="mb-2 small">Ваш заказ принят и будет доставлен с {{ evening_delivery_start }}.</p>
+        <div class="text-muted small">Мы начнем готовить ваш заказ ближе к времени доставки.</div>
+      </div>
+    {% endif %}
 
     {% if order.payment_method.value == "sbp_transfer" %}
       <div class="alert alert-info mt-4 mx-auto" style="max-width: 400px;">

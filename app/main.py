@@ -256,7 +256,8 @@ LOCAL_TZ = ZoneInfo(TZ_NAME)
 
 MORNING_START = _parse_hhmm(settings.MORNING_START)
 MORNING_END   = _parse_hhmm(settings.MORNING_END)
-EVENING_START = _parse_hhmm(settings.EVENING_START)
+EVENING_MENU_START = _parse_hhmm(settings.EVENING_MENU_START)  # Время показа вечернего меню
+EVENING_START = _parse_hhmm(settings.EVENING_START)  # Время начала доставки вечернего меню
 EVENING_END   = _parse_hhmm(settings.EVENING_END)
 
 ASAP_TEXT = settings.ASAP_TEXT
@@ -281,7 +282,17 @@ def normalize_ru_phone(phone_raw: str) -> str:
 
     return phonenumbers.format_number(num, phonenumbers.PhoneNumberFormat.E164)
 
+def get_current_menu_period(now: datetime) -> str | None:
+    """Определяет какое меню показывать (morning/evening)"""
+    t = now.time()
+    if MORNING_START <= t <= MORNING_END:
+        return "morning"
+    if EVENING_MENU_START <= t <= EVENING_END:
+        return "evening"
+    return None
+
 def get_current_period_label(now: datetime) -> str | None:
+    """Определяет доступность доставки (morning/evening) - для обратной совместимости"""
     t = now.time()
     if MORNING_START <= t <= MORNING_END:
         return "morning"
@@ -290,7 +301,12 @@ def get_current_period_label(now: datetime) -> str | None:
     return None
 
 def is_menu_available(now: datetime) -> bool:
-    return get_current_period_label(now) is not None
+    return get_current_menu_period(now) is not None
+
+def is_delivery_available(now: datetime) -> bool:
+    """Проверяет доступность доставки в текущий момент"""
+    t = now.time()
+    return (MORNING_START <= t <= MORNING_END) or (EVENING_START <= t <= EVENING_END)
 
 def check_slot_availability(db, slot_time: str, delivery_date: date) -> bool:
     slot = db.query(DeliverySlot).filter(
@@ -398,7 +414,7 @@ async def index(request: Request, preview_period: str = Query(None)):
     if preview_period in ("morning", "evening"):
         current_period = preview_period
     else:
-        current_period = get_current_period_label(now)
+        current_period = get_current_menu_period(now)
     
     if current_period is None and not preview_period:
         return templates.TemplateResponse("closed.html", {
@@ -496,9 +512,11 @@ async def cart_page(request: Request):
 async def checkout_page(request: Request):
     """Checkout page"""
     now = datetime.now(LOCAL_TZ)
-    current_period = get_current_period_label(now)
+    current_menu_period = get_current_menu_period(now)
+    current_delivery_period = get_current_period_label(now)
     
-    if current_period is None:
+    # Проверяем доступность меню (меню доступно с 10:00 для вечернего)
+    if current_menu_period is None:
         return templates.TemplateResponse("closed.html", {
             "request": request,
             "morning_start": MORNING_START.strftime("%H:%M"),
@@ -507,9 +525,16 @@ async def checkout_page(request: Request):
             "evening_end": EVENING_END.strftime("%H:%M"),
         })
     
+    # Определяем, показывать ли предупреждение о доставке после 15:00
+    # Это нужно когда меню evening, но доставка еще не началась (10:00-15:00)
+    show_delivery_notice = (current_menu_period == "evening" and current_delivery_period is None)
+    
     return templates.TemplateResponse("checkout.html", {
         "request": request,
         "delivery_slots": DELIVERY_SLOTS,
+        "current_menu_period": current_menu_period,
+        "show_delivery_notice": show_delivery_notice,
+        "evening_delivery_start": EVENING_START.strftime("%H:%M"),
     })
 
 @app.post("/api/orders", tags=["Orders"])
@@ -624,10 +649,22 @@ async def thanks_page(request: Request, order_id: int):
         if not order:
             raise HTTPException(404, "Order not found")
     
+    # Определяем, является ли заказ предзаказом вечернего меню (10:00-15:00)
+    is_evening_preorder = False
+    if order.delivery_mode.value == "asap" and order.created_at:
+        # Конвертируем UTC в локальное время
+        order_local_time = order.created_at.replace(tzinfo=None).replace(tzinfo=LOCAL_TZ)
+        order_time = order_local_time.time()
+        # Если заказ сделан между 10:00 и 15:00 - это предзаказ вечернего меню
+        if EVENING_MENU_START <= order_time < EVENING_START:
+            is_evening_preorder = True
+    
     return templates.TemplateResponse("thanks.html", {
         "request": request,
         "order": order,
         "asap_text": ASAP_TEXT,
+        "is_evening_preorder": is_evening_preorder,
+        "evening_delivery_start": EVENING_START.strftime("%H:%M"),
     })
 
 if __name__ == "__main__":

@@ -33,7 +33,8 @@ class Settings(BaseSettings):
     TZ_NAME: str = "Asia/Irkutsk"
     MORNING_START: str = "07:00"
     MORNING_END: str = "10:00"
-    EVENING_START: str = "15:00"
+    EVENING_MENU_START: str = "10:00"  # Время показа вечернего меню
+    EVENING_START: str = "15:00"  # Время начала доставки вечернего меню
     EVENING_END: str = "21:00"
     
     # Delivery

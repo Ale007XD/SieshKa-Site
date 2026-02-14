@@ -24,6 +24,18 @@
       <div class="card-body">
         <h2 class="h6 text-muted mb-3">Контакты и доставка</h2>
 
+        {% if show_delivery_notice %}
+        <div class="alert alert-info mb-3">
+          <div class="d-flex align-items-start">
+            <div class="me-2">ℹ️</div>
+            <div>
+              <strong>Вечернее меню</strong><br>
+              <small>Вы можете оформить заказ сейчас, доставка будет выполнена с {{ evening_delivery_start }}</small>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
         <form id="orderForm" class="vstack gap-3">
           <div>
             <label for="name" class="form-label">Имя *</label>
