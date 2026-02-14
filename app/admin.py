@@ -195,15 +195,15 @@ def format_status_with_buttons(order: Order) -> str:
     html = f'<span class="badge bg-{color}">{current_label}</span>'
     
     if valid_next:
-        html += '<div class="btn-group btn-group-sm mt-1" role="group">'
+        html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">'
         for next_status in valid_next:
-            btn_color = "danger" if next_status == OrderStatus.cancelled else "outline-primary"
+            btn_color = "danger" if next_status == OrderStatus.cancelled else "primary"
             label = next_labels.get(next_status, next_status.value)
             html += f'''
                 <button type="button" 
-                        class="btn btn-{btn_color}"
-                        onclick="updateOrderStatus({order.id}, '{next_status.value}', this)"
-                        data-status="{next_status.value}">
+                        style="font-size:11px;padding:2px 6px;"
+                        class="btn btn-sm btn-{btn_color}"
+                        onclick="if(confirm('Изменить статус заказа #{order.id}?')){{fetch('/admin/api/orders/update-status',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},status:'{next_status.value}'}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
                     {label}
                 </button>
             '''
@@ -393,79 +393,4 @@ def setup_admin(app, engine):
     admin.add_view(OrderItemAdmin)
     admin.add_view(DeliverySlotAdmin)
     admin.add_view(AdminAuditLogAdmin)
-    
-    # Add custom CSS and JavaScript
-    admin.add_head_content('''
-    <style>
-    .status-actions {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-    .status-actions .badge {
-        font-size: 0.85em;
-        padding: 0.4em 0.6em;
-    }
-    .status-actions .btn-group {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 2px;
-    }
-    .status-actions .btn {
-        font-size: 0.75em;
-        padding: 0.2em 0.4em;
-    }
-    .status-updating {
-        opacity: 0.6;
-        pointer-events: none;
-    }
-    .status-success {
-        animation: flash-green 1s ease;
-    }
-    @keyframes flash-green {
-        0%, 100% { background-color: transparent; }
-        50% { background-color: #d4edda; }
-    }
-    </style>
-    <script>
-    async function updateOrderStatus(orderId, newStatus, button) {
-        if (!confirm('Изменить статус заказа #' + orderId + '?')) {
-            return;
-        }
-        
-        const row = button.closest('tr');
-        row.classList.add('status-updating');
-        
-        try {
-            const response = await fetch('/admin/api/orders/update-status', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    order_id: orderId,
-                    status: newStatus
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                row.classList.remove('status-updating');
-                row.classList.add('status-success');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
-            } else {
-                alert('Ошибка: ' + result.error);
-                row.classList.remove('status-updating');
-            }
-        } catch (error) {
-            alert('Ошибка сети: ' + error);
-            row.classList.remove('status-updating');
-        }
-    }
-    </script>
-    ''')
-    
     return admin
