@@ -623,11 +623,28 @@ async def create_order(request: Request, payload: OrderCreate):
             logger.info(f"Order {order.id} created successfully")
             
             try:
+                items_text = "\n".join(
+                    f"• {item['name_snapshot']} x{item['qty']} = {item['price_rub_snapshot'] * item['qty']}₽"
+                    for item in order_items
+                )
+                
+                delivery_info = ""
+                if order.delivery_mode.value == "slot":
+                    delivery_info = f"\nСлот: {order.delivery_slot} ({order.delivery_date})"
+                else:
+                    delivery_info = f"\nДоставка: как можно скорее"
+                
+                payment_method = "Наличные" if order.payment_method.value == "cash" else "СБП"
+                
                 await notify_both(
-                    f"Новый заказ #{order.id}\n"
-                    f"Телефон: {order.phone_e164}\n"
-                    f"Сумма: {order.total_rub}₽\n"
-                    f"Адрес: {order.address}"
+                    f"🛒 Новый заказ #{order.id}\n"
+                    f"👤 {order.customer_name}\n"
+                    f"📞 {order.phone_e164}\n"
+                    f"📍 {order.address}\n"
+                    f"💰 Оплата: {payment_method}\n"
+                    f"{delivery_info}\n\n"
+                    f"📦 Состав:\n{items_text}\n\n"
+                    f"💵 Итого: {order.total_rub}₽"
                 )
             except Exception as e:
                 logger.error(f"Failed to send Telegram notification: {e}")
