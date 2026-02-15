@@ -1,6 +1,6 @@
 # Runtime upstream configuration for Blue/Green deployment
-# This file defines upstream backend servers
-# 
+# Copy this file to upstream.runtime.conf and modify as needed
+#
 # To switch active color:
 #   echo 'server api_blue:8000;' > ./nginx/upstream.runtime.conf
 #   docker compose exec nginx nginx -s reload
@@ -8,7 +8,8 @@
 # Valid values:
 #   server api_blue:8000;
 #   server api_green:8000;
+#   server api:8000;  (for simple deployment without blue/green)
 
 upstream api_backend {
-    server api_green:8000;
+    server api:8000;
 }

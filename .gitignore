@@ -132,14 +132,21 @@ dmypy.json
 
 # Project specific
 nginx/.htpasswd
+nginx/upstream.runtime.conf
+nginx/upstream.runtime.conf.*
+scripts/deploy-bluegreen.sh
 backups/*.sql
 backups/*.sql.gz
 backups/*.dump
+backups/
 letsencrypt/
 certbot-webroot/
 *.log
 logs/
+*.local
 
-# Keep directory structure
+# But keep example files and directory structure
+!nginx/upstream.runtime.conf.example
+!scripts/deploy-bluegreen.sh.example
 !backups/.gitkeep
 !logs/.gitkeep
