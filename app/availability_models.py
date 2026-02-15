@@ -77,9 +77,11 @@ class AvailabilityRule(Base):
     lead_time_minutes: Mapped[int] = mapped_column(Integer, default=0)
     
     # Allowed methods (PostgreSQL array of enums)
+    # Note: SQLAlchemy 2.x Mapped classes don't support default_factory
+    # Using default=list is acceptable here as we're not mutating the default
     methods: Mapped[List[str]] = mapped_column(
         ARRAY(String),
-        default_factory=list,
+        default=list,
         nullable=False
     )
     
