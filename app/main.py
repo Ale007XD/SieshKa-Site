@@ -47,7 +47,7 @@ from config.constants import VERSION, MAX_QTY_PER_ITEM, MAX_ITEMS_IN_CART
 from .db import engine, SessionLocal
 from .models import Base, Category, Product, Order, OrderItem, PaymentMethod, DeliveryMode, MenuPeriod, DeliverySlot
 from .telegram import notify_both, retry_failed_notifications, get_failed_notifications_count
-from .admin import setup_admin, update_order_status_endpoint
+from .admin import setup_admin, update_order_status_endpoint, update_payment_status_endpoint
 from .schemas import OrderCreate, HealthResponse, DeliverySlotsAvailability, DeliverySlotResponse
 
 # Structured logging with correlation IDs
@@ -273,6 +273,12 @@ setup_admin(app, engine)
 async def admin_update_order_status(request: Request):
     """Proxy to admin status update endpoint"""
     return await update_order_status_endpoint(request)
+
+# Admin API endpoint for order payment status updates
+@app.post("/admin/api/orders/update-payment")
+async def admin_update_payment_status(request: Request):
+    """Proxy to admin payment status update endpoint"""
+    return await update_payment_status_endpoint(request)
 
 def normalize_ru_phone(phone_raw: str) -> str:
     try:

@@ -212,6 +212,39 @@ def format_status_with_buttons(order: Order) -> str:
     
     return Markup(html)
 
+
+def format_payment_with_button(order: Order) -> str:
+    """Format payment_confirmed column with toggle button"""
+    payment_method_labels = {
+        "cash": "Наличные",
+        "sbp_transfer": "СБП"
+    }
+    
+    method_label = payment_method_labels.get(order.payment_method.value, order.payment_method.value)
+    
+    if order.payment_confirmed:
+        # Зеленая кнопка - Оплачено
+        html = f'''
+            <button type="button" 
+                    style="font-size:11px;padding:2px 6px;"
+                    class="btn btn-sm btn-success"
+                    onclick="if(confirm('Отметить заказ #{order.id} как неоплаченный?')){{fetch('/admin/api/orders/update-payment',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},payment_confirmed:false}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
+                Оплачено ({method_label})
+            </button>
+        '''
+    else:
+        # Красная кнопка - Ожидает оплаты
+        html = f'''
+            <button type="button" 
+                    style="font-size:11px;padding:2px 6px;"
+                    class="btn btn-sm btn-danger"
+                    onclick="if(confirm('Подтвердить оплату заказа #{order.id}?')){{fetch('/admin/api/orders/update-payment',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},payment_confirmed:true}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
+                Ожидает оплаты ({method_label})
+            </button>
+        '''
+    
+    return Markup(html)
+
 async def update_order_status_endpoint(request: Request):
     """AJAX endpoint to update order status"""
     try:
@@ -284,13 +317,71 @@ async def update_order_status_endpoint(request: Request):
             status_code=500
         )
 
+
+async def update_payment_status_endpoint(request: Request):
+    """AJAX endpoint to update order payment status"""
+    try:
+        data = await request.json()
+        order_id = data.get('order_id')
+        payment_confirmed = data.get('payment_confirmed')
+        
+        if not order_id or payment_confirmed is None:
+            return JSONResponse(
+                {"success": False, "error": "Missing order_id or payment_confirmed"},
+                status_code=400
+            )
+        
+        with SessionLocal() as db:
+            order = db.query(Order).filter(Order.id == order_id).first()
+            if not order:
+                return JSONResponse(
+                    {"success": False, "error": "Order not found"},
+                    status_code=404
+                )
+            
+            old_payment_status = order.payment_confirmed
+            new_payment_status = bool(payment_confirmed)
+            
+            # Update payment status
+            order.payment_confirmed = new_payment_status
+            db.commit()
+            
+            # Send notification if payment confirmed
+            if not old_payment_status and new_payment_status:
+                try:
+                    await notify_order_status(order.id, f"payment_confirmed")
+                except Exception as e:
+                    logger.error(f"Failed to send payment notification: {e}")
+            
+            # Log action
+            log_admin_action(
+                request, 
+                "update_payment_status", 
+                "Order", 
+                order.id,
+                {"payment_confirmed": old_payment_status},
+                {"payment_confirmed": new_payment_status}
+            )
+            
+            return JSONResponse({
+                "success": True,
+                "payment_confirmed": new_payment_status,
+                "order_id": order.id
+            })
+            
+    except Exception as e:
+        logger.error(f"Error updating payment status: {e}")
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+
 class OrderAdmin(ModelView, model=Order):
     column_list = [
         Order.id, 
         Order.created_at, 
         Order.status, 
         Order.total_rub, 
-        Order.payment_method, 
         Order.payment_confirmed,
         Order.customer_name
     ]
@@ -298,7 +389,8 @@ class OrderAdmin(ModelView, model=Order):
     column_sortable_list = [Order.created_at, Order.id, Order.total_rub]
     column_filters = [Order.status, Order.payment_method, Order.delivery_mode]
     column_formatters = {
-        Order.status: lambda m, a: format_status_with_buttons(m)
+        Order.status: lambda m, a: format_status_with_buttons(m),
+        Order.payment_confirmed: lambda m, a: format_payment_with_button(m)
     }
     form_columns = [
         "customer_name",
