@@ -144,6 +144,12 @@ def generate_slots_for_window(
     window_start_dt = datetime.combine(current_date, window.start)
     window_end_dt = datetime.combine(current_date, window.end)
     
+    # Add timezone to window times (match base_time timezone)
+    from zoneinfo import ZoneInfo
+    tz = base_time.tzinfo
+    window_start_dt = window_start_dt.replace(tzinfo=tz)
+    window_end_dt = window_end_dt.replace(tzinfo=tz)
+    
     # Round window start to interval
     slot_time = ceil_to_interval(window_start_dt, interval_minutes)
     
