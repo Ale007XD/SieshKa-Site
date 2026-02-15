@@ -275,7 +275,7 @@ async def admin_update_order_status(request: Request):
     return await update_order_status_endpoint(request)
 
 # Admin API endpoint for order payment status updates
-@app.post("/admin/api/orders/update-payment")
+@app.post("/api/admin/orders/update-payment")
 async def admin_update_payment_status(request: Request):
     """Proxy to admin payment status update endpoint"""
     return await update_payment_status_endpoint(request)

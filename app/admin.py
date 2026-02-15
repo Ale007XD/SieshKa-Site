@@ -228,7 +228,7 @@ def format_payment_with_button(order: Order) -> str:
             <button type="button" 
                     style="font-size:11px;padding:2px 6px;"
                     class="btn btn-sm btn-success"
-                    onclick="if(confirm('Отметить заказ #{order.id} как неоплаченный?')){{fetch('/admin/api/orders/update-payment',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},payment_confirmed:false}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
+                    onclick="if(confirm('Отметить заказ #{order.id} как неоплаченный?')){{fetch('/api/admin/orders/update-payment',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},payment_confirmed:false}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
                 Оплачено ({method_label})
             </button>
         '''
@@ -238,7 +238,7 @@ def format_payment_with_button(order: Order) -> str:
             <button type="button" 
                     style="font-size:11px;padding:2px 6px;"
                     class="btn btn-sm btn-danger"
-                    onclick="if(confirm('Подтвердить оплату заказа #{order.id}?')){{fetch('/admin/api/orders/update-payment',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},payment_confirmed:true}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
+                    onclick="if(confirm('Подтвердить оплату заказа #{order.id}?')){{fetch('/api/admin/orders/update-payment',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},payment_confirmed:true}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
                 Ожидает оплаты ({method_label})
             </button>
         '''
