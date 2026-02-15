@@ -57,6 +57,14 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     SQLALCHEMY_ECHO: bool = False
     
+    # Time-First Menu System (v4.0)
+    BUSINESS_TZ: str = "Asia/Ho_Chi_Minh"
+    TOMORROW_ORDER_CUTOFF: str = "23:00"
+    ENABLE_TOMORROW_ORDERS: bool = True
+    SLOT_INTERVAL_MINUTES: int = 15
+    BASE_BUFFER_MINUTES: int = 15
+    MENU_VERSION: int = 1
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

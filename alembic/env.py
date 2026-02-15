@@ -10,6 +10,10 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from app.db import Base, DATABASE_URL
 
+# Import all models for migrations
+from app.models import Category, Product, Order, OrderItem, DeliverySlot, AdminAuditLog
+from app.availability_models import AvailabilityRule, CartDraft, MenuConfiguration
+
 config = context.config
 
 if config.config_file_name is not None:

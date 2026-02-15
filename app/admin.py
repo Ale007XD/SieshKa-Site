@@ -6,6 +6,7 @@ import logging
 import json
 
 from .models import Category, Product, Order, OrderItem, OrderStatus, DeliverySlot, AdminAuditLog
+from .availability_models import AvailabilityRule, MenuConfiguration
 from .telegram import notify_order_status
 from .db import SessionLocal, engine
 
@@ -478,6 +479,127 @@ class AdminAuditLogAdmin(ModelView, model=AdminAuditLog):
     can_edit = False
     can_delete = False
 
+
+class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
+    """Admin for availability rules (Time-First Menu System)"""
+    column_list = [
+        AvailabilityRule.id,
+        AvailabilityRule.scope_type,
+        AvailabilityRule.scope_id,
+        AvailabilityRule.daypart,
+        AvailabilityRule.lead_time_minutes,
+        AvailabilityRule.methods,
+        AvailabilityRule.allow_tomorrow,
+        AvailabilityRule.is_active,
+    ]
+    column_sortable_list = [AvailabilityRule.id, AvailabilityRule.lead_time_minutes]
+    column_filters = [
+        AvailabilityRule.scope_type,
+        AvailabilityRule.daypart,
+        AvailabilityRule.is_active,
+    ]
+    form_columns = [
+        "scope_type",
+        "scope_id",
+        "daypart",
+        "start_time",
+        "end_time",
+        "lead_time_minutes",
+        "methods",
+        "allow_tomorrow",
+        "tomorrow_cutoff",
+        "timezone",
+        "is_active",
+    ]
+    column_labels = {
+        AvailabilityRule.scope_type: "Тип",
+        AvailabilityRule.scope_id: "ID объекта",
+        AvailabilityRule.daypart: "Период",
+        AvailabilityRule.lead_time_minutes: "Lead time (мин)",
+        AvailabilityRule.methods: "Способы",
+        AvailabilityRule.allow_tomorrow: "На завтра",
+        AvailabilityRule.is_active: "Активно",
+    }
+    name = "Правило доступности"
+    name_plural = "Правила доступности"
+    icon = "fa-solid fa-calendar-check"
+    
+    async def on_model_change(self, data: dict, model: AvailabilityRule, is_created: bool, request: Request) -> None:
+        """Validate availability rule data"""
+        # Validate time window consistency
+        if data.get("start_time") and data.get("end_time"):
+            if data["start_time"] >= data["end_time"]:
+                raise ValueError("Время начала должно быть раньше времени окончания")
+        
+        # Validate lead time for pre-order items
+        if data.get("lead_time_minutes", 0) > 0 and data.get("daypart") != "ALLDAY":
+            # This is a warning-level validation, not blocking
+            logger.info(f"Rule has lead_time {data['lead_time_minutes']} with daypart {data['daypart']}")
+        
+        # Validate methods array
+        methods = data.get("methods", [])
+        valid_methods = ["delivery", "pickup"]
+        if methods and not all(m in valid_methods for m in methods):
+            raise ValueError(f"Methods must be from: {valid_methods}")
+        
+        action = "create" if is_created else "update"
+        log_admin_action(request, action, "AvailabilityRule", model.id, None, data)
+
+
+class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
+    """Admin for global menu configuration"""
+    column_list = [
+        MenuConfiguration.id,
+        MenuConfiguration.business_tz,
+        MenuConfiguration.menu_version,
+        MenuConfiguration.enable_tomorrow_orders,
+        MenuConfiguration.updated_at,
+    ]
+    column_sortable_list = [MenuConfiguration.menu_version, MenuConfiguration.updated_at]
+    form_columns = [
+        "business_tz",
+        "morning_start",
+        "morning_end",
+        "evening_start",
+        "evening_end",
+        "slot_interval_minutes",
+        "base_buffer_minutes",
+        "enable_tomorrow_orders",
+        "tomorrow_order_cutoff",
+        "menu_version",
+    ]
+    column_labels = {
+        MenuConfiguration.business_tz: "Часовой пояс",
+        MenuConfiguration.menu_version: "Версия меню",
+        MenuConfiguration.enable_tomorrow_orders: "Заказы на завтра",
+    }
+    name = "Настройки меню"
+    name_plural = "Настройки меню"
+    icon = "fa-solid fa-cogs"
+    can_delete = False  # Prevent deleting the only config record
+    
+    async def on_model_change(self, data: dict, model: MenuConfiguration, is_created: bool, request: Request) -> None:
+        """Validate menu configuration"""
+        # Validate time windows
+        if data.get("morning_start") and data.get("morning_end"):
+            if data["morning_start"] >= data["morning_end"]:
+                raise ValueError("Morning start must be before morning end")
+        
+        if data.get("evening_start") and data.get("evening_end"):
+            if data["evening_start"] >= data["evening_end"]:
+                raise ValueError("Evening start must be before evening end")
+        
+        # Ensure only one configuration record exists
+        if is_created:
+            with SessionLocal() as db:
+                existing = db.query(MenuConfiguration).first()
+                if existing:
+                    raise ValueError("Configuration already exists. Edit the existing record.")
+        
+        action = "create" if is_created else "update"
+        log_admin_action(request, action, "MenuConfiguration", model.id, None, data)
+
+
 def setup_admin(app, engine):
     admin = Admin(app, engine, title="Sieshka Admin")
     admin.add_view(CategoryAdmin)
@@ -485,5 +607,7 @@ def setup_admin(app, engine):
     admin.add_view(OrderAdmin)
     admin.add_view(OrderItemAdmin)
     admin.add_view(DeliverySlotAdmin)
+    admin.add_view(AvailabilityRuleAdmin)
+    admin.add_view(MenuConfigurationAdmin)
     admin.add_view(AdminAuditLogAdmin)
     return admin

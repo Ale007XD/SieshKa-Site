@@ -1,0 +1,68 @@
+# Blue/Green Deployment Configuration
+# Usage: docker compose -f docker-compose.yml -f docker-compose.bluegreen.yml up -d
+#
+# This file adds two API services (blue and green) for zero-downtime deployments.
+# Nginx switches between them via upstream.runtime.conf
+
+services:
+  api_blue:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://food:${POSTGRES_PASSWORD}@db:5432/food
+      REDIS_URL: redis://redis:6379/0
+      BASE_URL: https://siesh-ka.ru
+      DEPLOYMENT_COLOR: blue
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    # Temporary port exposure for smoke tests (8081)
+    ports:
+      - "127.0.0.1:8081:8000"
+    restart: unless-stopped
+    profiles: ["bluegreen"]
+
+  api_green:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://food:${POSTGRES_PASSWORD}@db:5432/food
+      REDIS_URL: redis://redis:6379/0
+      BASE_URL: https://siesh-ka.ru
+      DEPLOYMENT_COLOR: green
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    # Temporary port exposure for smoke tests (8082)
+    ports:
+      - "127.0.0.1:8082:8000"
+    restart: unless-stopped
+    profiles: ["bluegreen"]
+
+# Note: The 'api' service from docker-compose.yml is intentionally NOT included here.
+# Use either 'api' (single) or 'api_blue' + 'api_green' (blue/green).
+# To switch nginx between colors, update nginx/upstream.runtime.conf and reload.

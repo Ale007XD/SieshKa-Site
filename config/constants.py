@@ -62,3 +62,62 @@ HTTP_NOT_FOUND = 404
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_INTERNAL_ERROR = 500
 HTTP_SERVICE_UNAVAILABLE = 503
+
+# ============================================================================
+# TIME-FIRST MENU SYSTEM (v4.0)
+# ============================================================================
+
+# Dayparts
+DAYPART_MORNING = "MORNING"      # 07:00-10:00
+DAYPART_EVENING = "EVENING"      # 14:00-21:00
+DAYPART_ALLDAY = "ALLDAY"        # Always available
+
+# Default daypart time windows
+MORNING_WINDOW_START = time(7, 0)
+MORNING_WINDOW_END = time(10, 0)
+EVENING_WINDOW_START = time(14, 0)
+EVENING_WINDOW_END = time(21, 0)
+
+# Delivery methods
+METHOD_DELIVERY = "delivery"
+METHOD_PICKUP = "pickup"
+
+# Availability scope types
+SCOPE_PRODUCT = "product"
+SCOPE_CATEGORY = "category"
+
+# Unavailability reason codes
+REASON_OUTSIDE_WINDOW = "OUTSIDE_WINDOW"
+REASON_LEAD_TIME = "LEAD_TIME"
+REASON_METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED"
+REASON_TOMORROW_CUTOFF = "TOMORROW_CUTOFF"
+REASON_INACTIVE = "INACTIVE"
+REASON_NO_RULE = "NO_RULE"
+
+# Reason code display text (Russian)
+REASON_DISPLAY_TEXT = {
+    REASON_OUTSIDE_WINDOW: "Вне времени приема заказов",
+    REASON_LEAD_TIME: "Требуется предзаказ",
+    REASON_METHOD_NOT_ALLOWED: "Недоступно для этого способа получения",
+    REASON_TOMORROW_CUTOFF: "Заказы на завтра принимаются до 23:00",
+    REASON_INACTIVE: "Временно недоступно",
+    REASON_NO_RULE: "Нет правил доступности",
+}
+
+# Slot generation defaults
+SLOT_INTERVAL_MINUTES = 15
+BASE_BUFFER_MINUTES = 15
+
+# Tomorrow ordering
+TOMORROW_CUTOFF_TIME = time(23, 0)
+DEFAULT_BUSINESS_TZ = "Asia/Ho_Chi_Minh"
+
+# Cache TTLs (seconds)
+MENU_CACHE_TTL_SECONDS = 60
+SLOTS_CACHE_TTL_SECONDS = 60
+CACHE_LOCK_TTL_SECONDS = 10
+
+# Cache key patterns
+CACHE_KEY_MENU_NEW = "menu:{day}:{method}:{slot}:{tz}:{version}"
+CACHE_KEY_SLOTS_NEW = "slots:{day}:{method}:{tz}:{version}"
+CACHE_KEY_LOCK = "lock:{key}"

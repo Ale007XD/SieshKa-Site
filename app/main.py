@@ -50,6 +50,14 @@ from .telegram import notify_both, retry_failed_notifications, get_failed_notifi
 from .admin import setup_admin, update_order_status_endpoint, update_payment_status_endpoint
 from .schemas import OrderCreate, HealthResponse, DeliverySlotsAvailability, DeliverySlotResponse
 
+# Time-First Menu System (v4.0)
+from .timefirst_api import router as timefirst_router
+try:
+    import redis.asyncio as aioredis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+
 # Structured logging with correlation IDs
 class RequestIdFilter(logging.Filter):
     def filter(self, record):
@@ -124,7 +132,30 @@ async def request_response_logging_middleware(request: Request, call_next):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Application v{VERSION} starting up...")
+    
+    # Initialize Redis connection
+    if REDIS_AVAILABLE:
+        try:
+            app.state.redis = aioredis.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True
+            )
+            logger.info("Redis connection established")
+        except Exception as e:
+            logger.warning(f"Redis connection failed: {e}")
+            app.state.redis = None
+    else:
+        app.state.redis = None
+        logger.warning("Redis not available (aioredis not installed)")
+    
     yield
+    
+    # Cleanup
+    if hasattr(app.state, 'redis') and app.state.redis:
+        await app.state.redis.close()
+        logger.info("Redis connection closed")
+    
     logger.info("Application shutting down...")
 
 # Low Priority Fix: Create FastAPI app with OpenAPI metadata
@@ -268,6 +299,9 @@ MAX_ITEMS = MAX_ITEMS_IN_CART
 # Setup admin
 setup_admin(app, engine)
 
+# Include time-first menu API
+app.include_router(timefirst_router)
+
 # Admin API endpoint for order status updates
 @app.post("/admin/api/orders/update-status")
 async def admin_update_order_status(request: Request):
@@ -382,10 +416,21 @@ async def health():
     try:
         with SessionLocal() as db:
             db.execute(text("SELECT 1"))
+        
+        # Check Redis
+        redis_status = "not_configured"
+        if hasattr(app.state, 'redis') and app.state.redis:
+            try:
+                await app.state.redis.ping()
+                redis_status = "connected"
+            except Exception as e:
+                redis_status = f"error: {str(e)}"
+        
         return HealthResponse(
             status="ok",
             version=VERSION,
             database="connected",
+            redis=redis_status,
             timestamp=datetime.utcnow().isoformat()
         )
     except Exception as e:
