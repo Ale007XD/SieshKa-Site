@@ -53,6 +53,8 @@ services:
       - backend
     security_opt:
       - no-new-privileges:true
+    volumes:
+      - ./app/templates:/app/app/templates:ro
 
   nginx:
     image: nginx:alpine
