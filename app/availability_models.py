@@ -5,7 +5,7 @@ import enum
 from datetime import datetime, time
 from typing import Optional, List
 from sqlalchemy import (
-    String, Integer, Boolean, DateTime, ForeignKey, Text, Enum, Time, ARRAY
+    String, Integer, Boolean, DateTime, ForeignKey, Text, Enum, Time, ARRAY, func
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
@@ -79,7 +79,7 @@ class AvailabilityRule(Base):
     # Allowed methods (PostgreSQL array of enums)
     methods: Mapped[List[str]] = mapped_column(
         ARRAY(String),
-        default=list,
+        default_factory=list,
         nullable=False
     )
     
@@ -99,12 +99,12 @@ class AvailabilityRule(Base):
     # Metadata
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, 
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        default=func.now(),
+        onupdate=func.now()
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, 
-        default=datetime.utcnow
+        default=func.now()
     )
     
     def __repr__(self) -> str:

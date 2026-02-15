@@ -78,15 +78,16 @@ class MenuResponse(BaseModel):
 # Redis Cache Helpers
 # ============================================================================
 
-def get_redis_client():
-    """Get Redis client from app state"""
-    from app.main import app
-    return getattr(app.state, 'redis', None)
+def get_redis_client(request):
+    """Get Redis client from app state via request"""
+    if request is None:
+        return None
+    return getattr(request.app.state, 'redis', None)
 
 
-def cache_get(key: str) -> Optional[str]:
+def cache_get(key: str, request) -> Optional[str]:
     """Get value from cache"""
-    redis = get_redis_client()
+    redis = get_redis_client(request)
     if not redis:
         return None
     try:
@@ -96,9 +97,9 @@ def cache_get(key: str) -> Optional[str]:
         return None
 
 
-def cache_set(key: str, value: str, ttl: int = 60):
+def cache_set(key: str, value: str, request, ttl: int = 60):
     """Set value in cache with TTL"""
-    redis = get_redis_client()
+    redis = get_redis_client(request)
     if not redis:
         return
     try:
@@ -107,9 +108,9 @@ def cache_set(key: str, value: str, ttl: int = 60):
         logger.warning(f"Redis set error: {e}")
 
 
-def acquire_lock(key: str, ttl: int = 10) -> bool:
+def acquire_lock(key: str, request, ttl: int = 10) -> bool:
     """Try to acquire distributed lock"""
-    redis = get_redis_client()
+    redis = get_redis_client(request)
     if not redis:
         return True  # No redis = no lock needed
     try:
@@ -122,9 +123,9 @@ def acquire_lock(key: str, ttl: int = 10) -> bool:
         return True
 
 
-def release_lock(key: str):
+def release_lock(key: str, request):
     """Release distributed lock"""
-    redis = get_redis_client()
+    redis = get_redis_client(request)
     if not redis:
         return
     try:
@@ -247,7 +248,7 @@ async def get_available_slots(
     cache_key = get_slots_cache_key(day, method, config.business_tz, config.menu_version)
     
     # Try cache first
-    cached = cache_get(cache_key)
+    cached = cache_get(cache_key, request)
     if cached:
         try:
             data = json.loads(cached)
@@ -257,11 +258,11 @@ async def get_available_slots(
             logger.warning(f"Cache parse error: {e}")
     
     # Cache miss - acquire lock to prevent stampede
-    if not acquire_lock(cache_key):
+    if not acquire_lock(cache_key, request):
         # Another process is generating, wait and retry cache
         import asyncio
         await asyncio.sleep(0.5)
-        cached = cache_get(cache_key)
+        cached = cache_get(cache_key, request)
         if cached:
             try:
                 data = json.loads(cached)
@@ -294,12 +295,12 @@ async def get_available_slots(
         )
         
         # Cache the result
-        cache_set(cache_key, response.json(), settings.MENU_CACHE_TTL)
+        cache_set(cache_key, response.json(), request, settings.MENU_CACHE_TTL)
         
         return response
         
     finally:
-        release_lock(cache_key)
+        release_lock(cache_key, request)
 
 
 @router.get("/menu", response_model=MenuResponse)
@@ -335,7 +336,7 @@ async def get_menu(
     cache_key = get_menu_cache_key(day, method, slot, config.business_tz, config.menu_version)
     
     # Try cache first
-    cached = cache_get(cache_key)
+    cached = cache_get(cache_key, request)
     if cached:
         try:
             data = json.loads(cached)
@@ -345,10 +346,10 @@ async def get_menu(
             logger.warning(f"Cache parse error: {e}")
     
     # Cache miss - acquire lock
-    if not acquire_lock(cache_key):
+    if not acquire_lock(cache_key, request):
         import asyncio
         await asyncio.sleep(0.5)
-        cached = cache_get(cache_key)
+        cached = cache_get(cache_key, request)
         if cached:
             try:
                 data = json.loads(cached)
@@ -436,12 +437,12 @@ async def get_menu(
         )
         
         # Cache the result
-        cache_set(cache_key, response.json(), settings.MENU_CACHE_TTL)
+        cache_set(cache_key, response.json(), request, settings.MENU_CACHE_TTL)
         
         return response
         
     finally:
-        release_lock(cache_key)
+        release_lock(cache_key, request)
 
 
 @router.get("/menu/refresh")

@@ -470,4 +470,220 @@ free -h
 
 ---
 
+## 🆕 Time-First Menu System (v4.0)
+
+Новая система управления меню с учетом времени доставки.
+
+### Что это?
+
+**Time-First Menu** - это система, которая показывает клиентам:
+- 🕐 Какие блюда доступны прямо сейчас
+- ⏰ Когда будет доступна доставка
+- 📅 Возможность заказать на завтра (до 23:00)
+- 🛵 Разные правила для доставки и самовывоза
+
+### Dayparts (Временные окна)
+
+| Период | Время | Описание |
+|--------|-------|----------|
+| MORNING | 07:00 - 10:00 | Завтрак/утреннее меню |
+| EVENING | 14:00 - 21:00 | Вечернее меню |
+| ALLDAY | 00:00 - 23:59 | Доступно всегда |
+
+### Lead Time (Время подготовки)
+
+- **0 минут** - Готовые блюда (фастфуд)
+- **180 минут** - Блюда под заказ (требуют предзаказа)
+
+### API Endpoints
+
+```bash
+# Получить слоты доставки
+curl "https://siesh-ka.ru/api/slots?day=today&method=delivery"
+
+# Получить меню с availability
+curl "https://siesh-ka.ru/api/menu?day=today&method=delivery"
+
+# Сбросить кэш меню (admin)
+curl "https://siesh-ka.ru/api/menu/refresh"
+```
+
+### Настройка в .env
+
+```bash
+# Часовой пояс (Asia/Ho_Chi_Minh для Вьетнама, Asia/Irkutsk для России)
+BUSINESS_TZ=Asia/Ho_Chi_Minh
+
+# Время отсечки для заказов на завтра (23:00)
+TOMORROW_ORDER_CUTOFF=23:00
+
+# Включить заказы на завтра
+ENABLE_TOMORROW_ORDERS=true
+
+# Интервал слотов (минуты)
+SLOT_INTERVAL_MINUTES=15
+
+# Буфер времени (минуты)
+BASE_BUFFER_MINUTES=15
+```
+
+### Управление в админке
+
+1. **Правила доступности** (`/admin/availability-rule`)
+   - Создавайте правила для продуктов и категорий
+   - Указывайте daypart, lead time, способы доставки
+   - Настраивайте время отсечки для завтра
+
+2. **Настройки меню** (`/admin/menu-configuration`)
+   - Глобальные настройки временных окон
+   - Версия меню (для сброса кэша)
+   - Часовой пояс
+
+---
+
+## 🧪 Тестирование
+
+### Unit-тесты
+
+```bash
+# Установить зависимости для тестов
+pip install pytest pytest-asyncio httpx
+
+# Запустить unit-тесты ядра
+pytest tests/test_timefirst_core.py -v
+
+# Ожидаемый результат: 15 тестов passed
+```
+
+### Интеграционные тесты
+
+```bash
+# Требуется запущенная БД и приложение
+pytest tests/test_timefirst_integration.py -v
+```
+
+### Структура тестов
+
+```
+tests/
+├── test_timefirst_core.py         # 15 unit-тестов
+│   ├── test_08_00_morning_available
+│   ├── test_11_00_morning_unavailable_next_tomorrow
+│   ├── test_13_00_fastfood_evening_available
+│   ├── test_20_00_preorder_lead_time_180
+│   ├── test_22_30_tomorrow_order_ok
+│   ├── test_23_30_tomorrow_blocked_cutoff
+│   ├── test_method_not_allowed
+│   ├── test_inactive_product
+│   ├── test_category_rule_fallback
+│   ├── test_slot_generation_interval
+│   ├── test_ceil_to_interval
+│   ├── test_reason_display_text
+│   ├── test_format_next_available
+│   ├── test_get_slots_today
+│   └── test_get_slots_tomorrow_after_cutoff
+│
+└── test_timefirst_integration.py  # API endpoint tests
+    ├── TestSlotsEndpoint
+    ├── TestMenuEndpoint
+    ├── TestMenuRefreshEndpoint
+    ├── TestHealthEndpoint
+    └── TestCacheIntegration
+```
+
+---
+
+## 🔄 Blue/Green Деплой
+
+### Быстрый старт
+
+```bash
+# Тестовый запуск (проверка работы скрипта)
+./scripts/deploy-bluegreen.sh test
+
+# Деплой новой версии
+./scripts/deploy-bluegreen.sh
+
+# Проверка статуса
+./scripts/deploy-bluegreen.sh status
+
+# Откат при проблемах
+./scripts/deploy-bluegreen.sh rollback
+```
+
+### Архитектура
+
+- **api_blue** (порт 8081) - синий цвет
+- **api_green** (порт 8082) - зеленый цвет
+- **Nginx** переключается через `upstream.runtime.conf`
+- База данных общая для обоих цветов
+
+### Процесс деплоя
+
+1. Создается бэкап БД
+2. Собирается и запускается неактивный цвет
+3. Выполняется smoke-test
+4. Применяются миграции
+5. Переключается nginx upstream
+6. Выполняется post-check
+7. Останавливается старый цвет
+
+### Ручное переключение
+
+```bash
+# Переключить на blue
+echo 'set $api_upstream "api_blue";' > nginx/upstream.runtime.conf
+docker compose exec nginx nginx -s reload
+
+# Переключить на green
+echo 'set $api_upstream "api_green";' > nginx/upstream.runtime.conf
+docker compose exec nginx nginx -s reload
+```
+
+### Файлы
+
+- `docker-compose.bluegreen.yml` - конфигурация blue/green
+- `nginx/upstream.runtime.conf` - runtime upstream (монтируется с :rw)
+- `scripts/deploy-bluegreen.sh` - автоматический деплой
+- `VPS_RUNBOOK.md` - полный runbook
+
+---
+
+## 📝 Список изменений (v4.0)
+
+### Новые файлы
+- `app/availability_models.py` - модели AvailabilityRule, CartDraft, MenuConfiguration
+- `app/timefirst_core.py` - ядро бизнес-логики (чистые функции)
+- `app/timefirst_api.py` - API endpoints (/api/slots, /api/menu)
+- `app/static/menu.js` - frontend для sticky bar
+- `app/templates/menu.html` - новый шаблон меню
+- `alembic/versions/0003_add_availability_rules.py` - миграция БД
+- `tests/test_timefirst_core.py` - 15 unit-тестов
+- `tests/test_timefirst_integration.py` - интеграционные тесты
+- `docker-compose.bluegreen.yml` - blue/green конфигурация
+- `nginx/upstream.runtime.conf` - runtime upstream switch
+- `scripts/deploy-bluegreen.sh` - скрипт деплоя
+- `VPS_RUNBOOK.md` - runbook для администраторов
+
+### Измененные файлы
+- `app/models.py` - добавлены docstrings
+- `app/admin.py` - добавлены AvailabilityRuleAdmin, MenuConfigurationAdmin
+- `app/main.py` - интеграция timefirst_api, Redis init
+- `alembic/env.py` - импорт новых моделей
+- `config/constants.py` - новые константы (DAYPART_*, REASON_*, etc.)
+- `config/settings.py` - новые настройки (BUSINESS_TZ, etc.)
+- `.env.example` - новые переменные окружения
+- `nginx/default.conf` - поддержка переменной upstream
+- `docker-compose.yml` - монтирование upstream.runtime.conf
+
+### Исправленные ошибки
+1. ✅ **CRITICAL**: Несоответствие имен файлов в deploy-bluegreen.sh (alembic_*.txt vs alembic_current.txt)
+2. ✅ **HIGH**: Циклический импорт в timefirst_api.py (app.main import)
+3. ✅ **MEDIUM**: default=list в availability_models.py (mutable default)
+4. ✅ **MEDIUM**: default=datetime.utcnow (использование func.now())
+5. ✅ **MEDIUM**: Неиспользуемые импорты в timefirst_api.py
+6. ✅ **LOW**: Обработка request=None в cache функциях
+
+---
+
 *P.S. Если что-то непонятно - спроси у старших или учителя информатики!* 👨‍🏫
