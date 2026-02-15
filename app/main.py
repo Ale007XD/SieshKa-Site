@@ -263,8 +263,11 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     )
 
 # Templates with autoescape enabled
+from jinja2 import FileSystemLoader, Environment
 templates = Jinja2Templates(directory="app/templates")
 templates.env.autoescape = True
+templates.env.loader = FileSystemLoader("app/templates")
+templates.env.cache.clear() if hasattr(templates.env, 'cache') and templates.env.cache else None
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
