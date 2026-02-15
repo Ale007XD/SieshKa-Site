@@ -94,6 +94,21 @@ function cartDec(productId, priceRub, name) {
   return cartSetQty(productId, priceRub, name, cur - 1);
 }
 
+function cartUpdateQty(productId, priceRub, name, delta) {
+  const items = cartLoad();
+  const idx = cartFind(items, productId);
+  const cur = idx >= 0 ? items[idx].qty : 0;
+  const newQty = cur + delta;
+  
+  if (newQty < 0) return false;
+  
+  const result = cartSetQty(productId, priceRub, name, newQty);
+  if (result) {
+    renderCart();
+  }
+  return result;
+}
+
 function cartGetItems() {
   return cartLoad().map(x => ({product_id: x.product_id, qty: x.qty}));
 }
@@ -166,6 +181,15 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function escapeJsString(str) {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
 function renderCart() {
   const items = cartLoad();
   const container = document.getElementById('cart');
@@ -196,11 +220,18 @@ function renderCart() {
     
     html += `
       <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <div class="fw-semibold">${escapeHtml(item.name)}</div>
-          <div class="text-muted small">${item.price_rub} ₽ × ${item.qty}</div>
+        <div style="flex: 1; min-width: 0;">
+          <div class="fw-semibold text-truncate">${escapeHtml(item.name)}</div>
+          <div class="text-muted small">${item.price_rub} ₽/шт</div>
         </div>
-        <div class="fw-bold">${itemTotal} ₽</div>
+        <div class="d-flex align-items-center gap-2" style="flex-shrink: 0;">
+          <button type="button" class="btn btn-sm btn-outline-secondary" style="width: 28px; height: 28px; padding: 0; line-height: 1;" 
+                  onclick="cartUpdateQty(${item.product_id}, ${item.price_rub}, '${escapeJsString(item.name)}', -1)">−</button>
+          <span class="fw-semibold" style="min-width: 24px; text-align: center;">${item.qty}</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" style="width: 28px; height: 28px; padding: 0; line-height: 1;" 
+                  onclick="cartUpdateQty(${item.product_id}, ${item.price_rub}, '${escapeJsString(item.name)}', 1)">+</button>
+        </div>
+        <div class="fw-bold ms-3" style="min-width: 70px; text-align: right;">${itemTotal} ₽</div>
       </div>
     `;
   });
