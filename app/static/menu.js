@@ -1,6 +1,7 @@
 /**
  * Time-First Menu System - Frontend
  * Handles slots, availability, sticky bar, and dynamic menu updates
+ * Updated to use unified CartManager
  */
 
 // Global state
@@ -9,8 +10,7 @@ const MenuState = {
     method: 'delivery',
     selectedSlot: null,
     slots: [],
-    menuData: null,
-    cart: {}
+    menuData: null
 };
 
 // Constants
@@ -34,7 +34,7 @@ const REASON_LABELS = {
 };
 
 const CTA_LABELS = {
-    add_to_cart: 'В корзину',
+    add_to_cart: 'Добавить',
     select_time: 'Выбрать время',
     preorder: 'Предзаказ',
     unavailable: 'Недоступно'
@@ -44,12 +44,76 @@ const CTA_LABELS = {
 // Initialization
 // ============================================================================
 
+function waitForCartManager(callback) {
+    if (typeof CartManager !== 'undefined') {
+        callback();
+    } else {
+        setTimeout(() => waitForCartManager(callback), 50);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initStickyBar();
     loadSlots();
     loadMenu();
-    updateCartDisplay();
+    
+    // Wait for CartManager and setup event delegation
+    waitForCartManager(() => {
+        setupProductEventDelegation();
+        syncAllProductControls();
+    });
 });
+
+// ============================================================================
+// Event Delegation for Cart Actions
+// ============================================================================
+
+function setupProductEventDelegation() {
+    const menuContainer = document.getElementById('menu-container');
+    if (!menuContainer) return;
+    
+    menuContainer.addEventListener('click', (e) => {
+        const addBtn = e.target.closest('.btn-add-to-cart');
+        const qtyBtn = e.target.closest('.qty-btn');
+        
+        // Handle Add to Cart buttons
+        if (addBtn) {
+            e.preventDefault();
+            const productCard = addBtn.closest('[data-product-id]');
+            
+            // Check for preorder action
+            if (addBtn.dataset.action === 'preorder') {
+                showPreorderInfo(parseInt(addBtn.dataset.productId));
+                return;
+            }
+            
+            // Check for scroll to slot action
+            if (addBtn.dataset.action === 'scroll-slot') {
+                scrollToSlotSelector();
+                return;
+            }
+            
+            // Standard add to cart
+            if (productCard) {
+                const productId = parseInt(productCard.dataset.productId);
+                const price = parseInt(productCard.dataset.price);
+                const name = productCard.dataset.name;
+                addToCartWithQty(productId, price, name);
+            }
+        }
+        
+        // Handle Quantity +/- buttons
+        if (qtyBtn) {
+            e.preventDefault();
+            const productCard = qtyBtn.closest('[data-product-id]');
+            if (productCard) {
+                const productId = parseInt(productCard.dataset.productId);
+                const delta = qtyBtn.classList.contains('qty-btn-minus') ? -1 : 1;
+                updateProductQty(productId, delta);
+            }
+        }
+    });
+}
 
 // ============================================================================
 // Sticky Bar
@@ -185,8 +249,22 @@ async function loadMenu() {
         const data = await response.json();
         MenuState.menuData = data;
         renderMenu(data);
+        
+        // Sync product controls after rendering
+        if (typeof CartManager !== 'undefined') {
+            setTimeout(() => CartManager.updateProductControls(), 0);
+        }
     } catch (error) {
         console.error('Error loading menu:', error);
+        const container = document.getElementById('menu-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Ошибка загрузки меню. Пожалуйста, попробуйте позже.
+                </div>
+            `;
+        }
     }
 }
 
@@ -201,7 +279,12 @@ function renderMenu(data) {
     container.innerHTML = '';
     
     if (!data.categories || data.categories.length === 0) {
-        container.innerHTML = '<div class="alert alert-info">Меню временно недоступно</div>';
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Меню временно недоступно
+            </div>
+        `;
         return;
     }
     
@@ -240,8 +323,13 @@ function createProductElement(product) {
     const isAvailable = product.available;
     const ctaType = product.cta_type;
     
+    // Build product card with data attributes for cart integration
     col.innerHTML = `
-        <div class="card h-100 product-card ${isAvailable ? '' : 'unavailable'}">
+        <div class="card h-100 product-card ${isAvailable ? '' : 'unavailable'}" 
+             data-product-id="${product.product_id}"
+             data-name="${escapeHtml(product.name)}"
+             data-price="${product.price_rub}"
+             data-available="${isAvailable}">
             <div class="card-body">
                 <h5 class="card-title h6">${escapeHtml(product.name)}</h5>
                 <p class="card-text">
@@ -267,133 +355,149 @@ function createProductElement(product) {
                 ` : ''}
             </div>
             
-            <div class="card-footer bg-transparent border-0">
-                ${renderProductButton(product)}
+            <div class="card-footer">
+                ${renderProductControls(product, isAvailable, ctaType)}
             </div>
         </div>
     `;
     
+    // Add event listeners for quantity controls
+    setupProductControls(col, product, isAvailable, ctaType);
+    
     return col;
 }
 
-function renderProductButton(product) {
-    const ctaType = product.cta_type;
-    const label = CTA_LABELS[ctaType] || 'Добавить';
-    
-    switch (ctaType) {
-        case 'add_to_cart':
-            return `
-                <button class="btn btn-primary w-100" 
-                        onclick="addToCart(${product.product_id}, '${escapeJs(product.name)}', ${product.price_rub})">
-                    ${label}
-                </button>
-            `;
-        
-        case 'select_time':
-            return `
-                <button class="btn btn-outline-primary w-100" 
-                        onclick="scrollToSlotSelector()">
-                    ${label}
-                </button>
-            `;
-        
-        case 'preorder':
-            return `
-                <button class="btn btn-outline-warning w-100" 
-                        onclick="showPreorderInfo(${product.product_id})">
-                    ${label}
-                </button>
-            `;
-        
-        case 'unavailable':
-        default:
-            return `
-                <button class="btn btn-secondary w-100" disabled>
-                    ${label}
-                </button>
-            `;
+function renderProductControls(product, isAvailable, ctaType) {
+    if (!isAvailable) {
+        return `
+            <button class="btn btn-unavailable btn-sm" disabled>
+                ${CTA_LABELS[ctaType] || 'Недоступно'}
+            </button>
+        `;
     }
+    
+    if (ctaType === 'select_time') {
+        return `
+            <button class="btn btn-outline-brand btn-add-to-cart btn-sm" 
+                    data-action="scroll-slot">
+                ${CTA_LABELS[ctaType]}
+            </button>
+        `;
+    }
+    
+    if (ctaType === 'preorder') {
+        return `
+            <button class="btn btn-outline-brand btn-add-to-cart btn-sm" 
+                    data-action="preorder" data-product-id="${product.product_id}">
+                ${CTA_LABELS[ctaType]}
+            </button>
+        `;
+    }
+    
+    // Default: add to cart with quantity controls
+    const productId = product.product_id;
+    const priceRub = product.price_rub;
+    const name = product.name; // Will be read from data attribute
+    
+    return `
+        <div class="product-controls" data-product-id="${productId}" data-price="${priceRub}" data-name="${escapeHtml(name)}">
+            <button class="btn btn-brand btn-add-to-cart btn-sm" 
+                    id="add-btn-${productId}"
+                    ${!isAvailable ? 'disabled' : ''}>
+                <i class="bi bi-plus-lg me-1"></i>Добавить
+            </button>
+            
+            <div class="qty-control-group d-none" id="qty-control-${productId}">
+                <button type="button" class="qty-btn qty-btn-minus" 
+                        aria-label="Уменьшить количество">
+                    −
+                </button>
+                <span class="qty-display" id="qty-display-${productId}">0</span>
+                <button type="button" class="qty-btn" 
+                        aria-label="Увеличить количество">
+                    +
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function setupProductControls(col, product, isAvailable, ctaType) {
+    // Now handled by syncAllProductControls() after CartManager is ready
 }
 
 // ============================================================================
-// Cart Functions
+// Cart Integration Functions
 // ============================================================================
 
-function addToCart(productId, name, price) {
-    const key = `${MenuState.day}:${MenuState.method}:${MenuState.selectedSlot || 'asap'}:${productId}`;
-    
-    if (!MenuState.cart[key]) {
-        MenuState.cart[key] = {
-            productId,
-            name,
-            price,
-            qty: 0,
-            day: MenuState.day,
-            method: MenuState.method,
-            slot: MenuState.selectedSlot
-        };
+function addToCartWithQty(productId, priceRub, name) {
+    if (typeof CartManager === 'undefined') {
+        console.error('CartManager not loaded');
+        return;
     }
     
-    MenuState.cart[key].qty += 1;
+    // Add item to cart
+    const success = CartManager.addItem(productId, priceRub, name);
     
-    saveCart();
-    updateCartDisplay();
-    showNotification(`${escapeHtml(name)} добавлен в корзину`, 'success');
-    
-    // Trigger cart animation
-    triggerCartAnimation();
-}
-
-function removeFromCart(key) {
-    delete MenuState.cart[key];
-    saveCart();
-    updateCartDisplay();
-}
-
-function updateCartQty(key, delta) {
-    if (!MenuState.cart[key]) return;
-    
-    MenuState.cart[key].qty += delta;
-    
-    if (MenuState.cart[key].qty <= 0) {
-        removeFromCart(key);
-    } else {
-        saveCart();
-        updateCartDisplay();
+    if (success) {
+        // Update UI to show quantity controls
+        syncProductControl(productId);
+        
+        // Trigger cart animation in navbar
+        triggerCartAnimation();
     }
 }
 
-function saveCart() {
-    localStorage.setItem('timefirst_cart', JSON.stringify(MenuState.cart));
+function updateProductQty(productId, delta) {
+    if (typeof CartManager === 'undefined') {
+        console.error('CartManager not loaded');
+        return;
+    }
+    
+    const success = CartManager.updateQty(productId, delta);
+    
+    if (success) {
+        syncProductControl(productId);
+    }
 }
 
-function loadCart() {
-    try {
-        const saved = localStorage.getItem('timefirst_cart');
-        if (saved) {
-            MenuState.cart = JSON.parse(saved);
+function syncProductControl(productId) {
+    if (typeof CartManager === 'undefined') return;
+    
+    const qty = CartManager.getItemQty(productId);
+    const addBtn = document.getElementById(`add-btn-${productId}`);
+    const qtyControl = document.getElementById(`qty-control-${productId}`);
+    const qtyDisplay = document.getElementById(`qty-display-${productId}`);
+    
+    if (!addBtn || !qtyControl) return;
+    
+    if (qty > 0) {
+        addBtn.classList.add('d-none');
+        qtyControl.classList.remove('d-none');
+        if (qtyDisplay) {
+            qtyDisplay.textContent = qty;
         }
-    } catch (e) {
-        console.error('Error loading cart:', e);
+        
+        // Update button states based on limits
+        const plusBtn = qtyControl.querySelector('.qty-btn:last-child');
+        if (plusBtn) {
+            plusBtn.disabled = qty >= CartManager.QTY_MAX;
+        }
+    } else {
+        addBtn.classList.remove('d-none');
+        qtyControl.classList.add('d-none');
     }
 }
 
-function updateCartDisplay() {
-    const cartCount = Object.values(MenuState.cart).reduce((sum, item) => sum + item.qty, 0);
-    const cartTotal = Object.values(MenuState.cart).reduce((sum, item) => sum + (item.price * item.qty), 0);
+function syncAllProductControls() {
+    if (typeof CartManager === 'undefined') return;
     
-    // Update cart badge
-    const badge = document.getElementById('cart-badge');
-    if (badge) {
-        badge.textContent = cartCount;
-        badge.style.display = cartCount > 0 ? 'inline' : 'none';
-    }
-    
-    // Update cart button
-    const cartBtn = document.getElementById('cart-btn');
-    if (cartBtn) {
-        cartBtn.textContent = `Корзина (${cartCount}) • ${cartTotal} ₽`;
-    }
+    document.querySelectorAll('[data-product-id]').forEach(card => {
+        const productId = parseInt(card.dataset.productId);
+        if (productId) {
+            syncProductControl(productId);
+        }
+    });
 }
 
 // ============================================================================
@@ -405,6 +509,10 @@ function scrollToSlotSelector() {
     if (selector) {
         selector.scrollIntoView({ behavior: 'smooth', block: 'center' });
         selector.focus();
+        
+        // Highlight the selector temporarily
+        selector.classList.add('is-invalid');
+        setTimeout(() => selector.classList.remove('is-invalid'), 1000);
     }
 }
 
@@ -416,7 +524,7 @@ function showPreorderInfo(productId) {
 }
 
 function triggerCartAnimation() {
-    const cartBtn = document.getElementById('cart-btn');
+    const cartBtn = document.getElementById('navbarCartBtn');
     if (cartBtn) {
         cartBtn.classList.add('bounce');
         setTimeout(() => cartBtn.classList.remove('bounce'), 500);
@@ -424,7 +532,13 @@ function triggerCartAnimation() {
 }
 
 function showNotification(message, type = 'info') {
-    // Simple notification - can be replaced with a toast library
+    // Use CartManager toast if available
+    if (typeof CartManager !== 'undefined' && CartManager.showToast) {
+        CartManager.showToast(message, type);
+        return;
+    }
+    
+    // Fallback to simple notification
     const notification = document.createElement('div');
     notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
     notification.style.cssText = 'top: 80px; right: 20px; z-index: 9999; max-width: 300px;';
@@ -445,14 +559,21 @@ function showNotification(message, type = 'info') {
 // ============================================================================
 
 function escapeHtml(text) {
+    if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
 function escapeJs(text) {
-    return text.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    if (!text) return '';
+    return String(text)
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"');
 }
 
-// Initialize cart on load
-loadCart();
+// Expose necessary functions globally
+window.addToCartWithQty = addToCartWithQty;
+window.updateProductQty = updateProductQty;
+window.scrollToSlotSelector = scrollToSlotSelector;
+window.showPreorderInfo = showPreorderInfo;

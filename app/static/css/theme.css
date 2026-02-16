@@ -438,3 +438,381 @@ button:focus-visible,
   background-color: var(--color-element-primary);
   color: var(--color-text-inverse);
 }
+
+/* ============================================================================
+   Product Card Quantity Controls (Menu Page)
+   ============================================================================ */
+
+.product-card .product-controls {
+  width: 100%;
+}
+
+.product-card .btn-add-to-cart {
+  width: 100%;
+  border-radius: var(--radius-pill);
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  transition: all 0.15s ease;
+}
+
+.product-card .qty-control-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.product-card .qty-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--color-element-primary);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-element-primary);
+  font-size: 1.2rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.product-card .qty-btn:hover:not(:disabled) {
+  background-color: var(--color-element-primary);
+  border-color: var(--color-element-primary);
+  color: var(--color-text-inverse);
+}
+
+.product-card .qty-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--color-text-muted);
+  color: var(--color-text-muted);
+}
+
+.product-card .qty-btn-minus {
+  border-color: var(--color-accent-border);
+  color: var(--color-text-secondary);
+}
+
+.product-card .qty-btn-minus:hover:not(:disabled) {
+  background-color: var(--color-bg-tertiary);
+  border-color: var(--color-text-muted);
+  color: var(--color-text-primary);
+}
+
+.product-card .qty-display {
+  min-width: 36px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--color-text-primary);
+  user-select: none;
+}
+
+.product-card .btn-unavailable {
+  width: 100%;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-tertiary);
+  border-color: var(--color-accent-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  padding: 0.5rem 1rem;
+}
+
+/* ============================================================================
+   Navbar Cart Button Styles
+   ============================================================================ */
+
+.navbar-cart-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--color-accent-bg);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-element-primary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.navbar-cart-btn:hover {
+  background-color: var(--color-element-primary);
+  border-color: var(--color-element-primary);
+  color: var(--color-text-inverse);
+}
+
+.navbar-cart-btn .cart-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background-color: var(--color-element-primary);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+}
+
+.navbar-cart-btn .cart-summary {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.navbar-menu-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* ============================================================================
+   Offcanvas Cart Styles
+   ============================================================================ */
+
+.offcanvas-cart {
+  max-width: 420px;
+}
+
+.offcanvas-cart .offcanvas-header {
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-dark) 100%);
+  color: white;
+  border-bottom: none;
+}
+
+.offcanvas-cart .offcanvas-title {
+  font-weight: 600;
+}
+
+.offcanvas-cart .btn-close {
+  filter: invert(1);
+}
+
+.offcanvas-cart .cart-item {
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-accent-border);
+}
+
+.offcanvas-cart .cart-item:last-child {
+  border-bottom: none;
+}
+
+.offcanvas-cart .cart-item-name {
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.offcanvas-cart .cart-item-price {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.offcanvas-cart .cart-item-total {
+  font-weight: 600;
+  color: var(--color-element-primary);
+}
+
+.offcanvas-cart .qty-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.offcanvas-cart .qty-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-accent-border);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-element-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.offcanvas-cart .qty-btn:hover:not(:disabled) {
+  background-color: var(--color-element-primary);
+  border-color: var(--color-element-primary);
+  color: var(--color-text-inverse);
+}
+
+.offcanvas-cart .qty-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.offcanvas-cart .qty-value {
+  min-width: 28px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.offcanvas-cart .cart-footer {
+  background-color: var(--color-bg-tertiary);
+  border-top: 1px solid var(--color-accent-border);
+}
+
+.offcanvas-cart .cart-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-accent-border);
+}
+
+.offcanvas-cart .cart-total-label {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.offcanvas-cart .cart-total-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-element-primary);
+}
+
+.offcanvas-cart .cart-limits {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 0.5rem 1rem;
+}
+
+.offcanvas-cart .cart-actions {
+  padding: 1rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.offcanvas-cart .cart-actions .btn {
+  flex: 1;
+}
+
+.offcanvas-cart .empty-cart-message {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--color-text-muted);
+}
+
+.offcanvas-cart .empty-cart-message i {
+  font-size: 3rem;
+  color: var(--color-accent-border);
+  margin-bottom: 1rem;
+  display: block;
+}
+
+/* ============================================================================
+   Toast Notifications
+   ============================================================================ */
+
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1060;
+}
+
+.toast {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 320px;
+}
+
+.toast-header {
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-dark) 100%);
+  color: white;
+  border-bottom: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.toast-header .btn-close {
+  filter: invert(1);
+}
+
+.toast-body {
+  padding: 1rem;
+}
+
+.toast-footer {
+  padding: 0.75rem 1rem;
+  background-color: var(--color-bg-tertiary);
+  border-top: 1px solid var(--color-accent-border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.toast-cart-summary {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+/* ============================================================================
+   Responsive Adjustments
+   ============================================================================ */
+
+@media (max-width: 576px) {
+  .offcanvas-cart {
+    max-width: 100%;
+  }
+  
+  .navbar-menu-title {
+    display: none;
+  }
+  
+  .navbar-cart-btn .cart-text {
+    display: none;
+  }
+  
+  .navbar-cart-btn {
+    padding: 0.5rem;
+  }
+  
+  .toast-container {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+  }
+  
+  .toast {
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .product-card .qty-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
+  
+  .product-card .qty-display {
+    min-width: 28px;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .sticky-bar {
+    top: 56px !important;
+  }
+}

@@ -2,16 +2,22 @@
 {% block title %}Оформление{% endblock %}
 
 {% block content %}
-<h1 class="h4 mb-3">Оформление заказа</h1>
+<h1 class="h4 mb-3">
+  <i class="bi bi-check-circle me-2"></i>Оформление заказа
+</h1>
 
 <div class="row g-3">
   <div class="col-12 col-lg-5">
     <div id="checkoutCartReal" class="card shadow-sm">
       <div class="card-body">
-        <h2 class="h6 text-muted mb-2">Ваш заказ</h2>
-        <div id="cart"></div>
+        <h2 class="h6 text-muted mb-3">
+          <i class="bi bi-cart3 me-2"></i>Ваш заказ
+        </h2>
+        <div id="cart">
+          <!-- Cart items will be rendered here -->
+        </div>
         <hr>
-        <div class="d-flex justify-content-between fw-bold">
+        <div class="d-flex justify-content-between fw-bold h5 mb-0">
           <span>Итого:</span>
           <span id="checkoutTotal">0 ₽</span>
         </div>
@@ -22,12 +28,14 @@
   <div class="col-12 col-lg-7">
     <div id="checkoutFormReal" class="card shadow-sm">
       <div class="card-body">
-        <h2 class="h6 text-muted mb-3">Контакты и доставка</h2>
+        <h2 class="h6 text-muted mb-3">
+          <i class="bi bi-person me-2"></i>Контакты и доставка
+        </h2>
 
         {% if show_delivery_notice %}
         <div class="alert alert-info mb-3">
           <div class="d-flex align-items-start">
-            <div class="me-2">ℹ️</div>
+            <i class="bi bi-info-circle me-2 mt-1"></i>
             <div>
               <strong>Вечернее меню</strong><br>
               <small>Вы можете оформить заказ сейчас, доставка будет выполнена с {{ evening_delivery_start }}</small>
@@ -114,11 +122,7 @@
           <div id="formError" class="alert alert-danger d-none"></div>
 
           <button type="submit" class="btn btn-brand btn-lg w-100" id="submitBtn">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-check-circle me-2" viewBox="0 0 16 16">
-              <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-              <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/>
-            </svg>
-            Оформить заказ
+            <i class="bi bi-check-circle me-2"></i>Оформить заказ
           </button>
         </form>
       </div>
@@ -130,7 +134,10 @@
 {% block scripts %}
 <script nonce="{{ csp_nonce }}">
   document.addEventListener('DOMContentLoaded', function() {
-    initCheckoutPage();
+    // Initialize checkout page
+    if (typeof initCheckoutPage === 'function') {
+      initCheckoutPage();
+    }
     
     // Set minimum date to today
     const today = new Date().toISOString().split('T')[0];
@@ -193,9 +200,9 @@
     if (selectedSlot && slotAvailability[selectedSlot]) {
       const slot = slotAvailability[selectedSlot];
       if (slot.available) {
-        availabilityDiv.innerHTML = `<span class="slot-available">✓ Доступно (${slot.max_orders - slot.current_orders} мест)</span>`;
+        availabilityDiv.innerHTML = `<span class="slot-available"><i class="bi bi-check-circle me-1"></i>Доступно (${slot.max_orders - slot.current_orders} мест)</span>`;
       } else {
-        availabilityDiv.innerHTML = '<span class="slot-full">✗ Слот заполнен</span>';
+        availabilityDiv.innerHTML = '<span class="slot-full"><i class="bi bi-x-circle me-1"></i>Слот заполнен</span>';
       }
     }
   }
