@@ -32,6 +32,14 @@
   --color-text-muted: #999999;
   --color-text-inverse: #FFFFFF;
   
+  /* Header & Footer Colors */
+  --color-header-bg: #FFFFFF;
+  --color-header-border: rgba(221, 41, 27, 0.15);
+  --color-footer-bg: #1A1A1A;
+  --color-footer-text: #FFFFFF;
+  --color-footer-muted: rgba(255, 255, 255, 0.6);
+  --color-footer-border: rgba(221, 41, 27, 0.3);
+  
   /* Border Radius - Pill Style */
   --radius-pill: 50px;
   --radius-lg: 20px;
@@ -129,18 +137,19 @@ body {
   color: var(--color-element-primary);
 }
 
-/* Brand Call Button */
+/* Brand Call Button - Icon Only */
 .btn-brand-call {
   background-color: var(--color-element-primary);
   color: var(--color-text-inverse);
   border: none;
   border-radius: var(--radius-pill);
-  padding: 8px 18px;
+  padding: 10px;
+  width: 44px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   text-decoration: none;
-  font-weight: 500;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
 }
@@ -190,15 +199,46 @@ body {
   box-shadow: 0 0 0 0.2rem rgba(221, 41, 27, 0.15);
 }
 
-/* Navbar - 30% Brand Elements */
+/* Navbar - Clean White with Brand Accent */
 .navbar {
-  background-color: var(--color-bg-secondary) !important;
-  border-bottom: 1px solid var(--color-accent-border);
+  background-color: var(--color-header-bg) !important;
+  border-bottom: 2px solid var(--color-header-border);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
 .navbar-brand {
   color: var(--color-element-primary) !important;
   font-weight: 700;
+}
+
+/* Footer - Dark with Brand Accents */
+.site-footer {
+  background-color: var(--color-footer-bg);
+  color: var(--color-footer-text);
+  padding: 2rem 0;
+  margin-top: 3rem;
+  border-top: 3px solid var(--brand-primary);
+}
+
+.site-footer a {
+  color: var(--color-footer-text);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.site-footer a:hover {
+  color: var(--brand-light);
+}
+
+.site-footer .footer-text-muted {
+  color: var(--color-footer-muted);
+  font-size: 0.875rem;
+}
+
+.site-footer .footer-brand {
+  color: var(--brand-primary);
+  font-weight: 700;
+  font-size: 1.25rem;
 }
 
 /* Badges - Pill Style with Brand Colors */
