@@ -68,7 +68,7 @@
 
                 <div class="d-flex justify-content-end align-items-center gap-2">
                   <button 
-                    class="btn btn-outline-secondary btn-sm qty-btn" 
+                    class="btn btn-outline-brand btn-sm qty-btn" 
                     onclick="cartDec({{ p.id }}, {{ p.price_rub }}, '{{ p.name | replace("'", "\\'") }}')"
                     aria-label="Уменьшить количество"
                   >−</button>
@@ -76,8 +76,8 @@
                   <input 
                     type="number" 
                     id="qty_{{ p.id }}"
-                    class="form-control form-control-sm text-center" 
-                    style="width: 50px;"
+                    class="form-control form-control-sm text-center border-brand-light" 
+                    style="width: 50px; border-radius: 8px;"
                     value="0" 
                     min="0" 
                     max="20"
@@ -86,7 +86,7 @@
                   >
                   
                   <button 
-                    class="btn btn-primary btn-sm qty-btn" 
+                    class="btn btn-brand btn-sm qty-btn" 
                     onclick="cartInc({{ p.id }}, {{ p.price_rub }}, '{{ p.name | replace("'", "\\'") }}')"
                     aria-label="Увеличить количество"
                   >+</button>
@@ -124,7 +124,7 @@
 
                     <div class="d-flex justify-content-end align-items-center gap-2">
                       <button 
-                        class="btn btn-outline-secondary btn-sm qty-btn" 
+                        class="btn btn-outline-brand btn-sm qty-btn" 
                         onclick="cartDec({{ p.id }}, {{ p.price_rub }}, '{{ p.name | replace("'", "\\'") }}')"
                         aria-label="Уменьшить количество"
                       >−</button>
@@ -132,8 +132,8 @@
                       <input 
                         type="number" 
                         id="qty_{{ p.id }}"
-                        class="form-control form-control-sm text-center" 
-                        style="width: 50px;"
+                        class="form-control form-control-sm text-center border-brand-light" 
+                        style="width: 50px; border-radius: 8px;"
                         value="0" 
                         min="0" 
                         max="20"
@@ -142,7 +142,7 @@
                       >
                       
                       <button 
-                        class="btn btn-primary btn-sm qty-btn" 
+                        class="btn btn-brand btn-sm qty-btn" 
                         onclick="cartInc({{ p.id }}, {{ p.price_rub }}, '{{ p.name | replace("'", "\\'") }}')"
                         aria-label="Увеличить количество"
                       >+</button>
@@ -164,9 +164,14 @@
   <div class="container d-flex justify-content-between align-items-center">
     <div>
       <span class="text-muted small">В корзине:</span>
-      <span id="cartSummary" class="fw-semibold">0 товаров · 0 ₽</span>
+      <span id="cartSummary" class="fw-semibold text-brand">0 товаров · 0 ₽</span>
     </div>
-    <a href="/cart" class="btn btn-success">В корзину</a>
+    <a href="/cart" class="btn btn-brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-cart3 me-1" viewBox="0 0 16 16">
+        <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401l-9.397.472L4.415 11H13a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5zM3.102 4l.84 4.479 9.144-.459L13.89 4H3.102zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+      </svg>
+      В корзину
+    </a>
   </div>
 </div>
 {% endblock %}

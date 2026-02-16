@@ -1,0 +1,375 @@
+/*
+ * Sieshka Brand Theme
+ * Primary Color: #DD291B (60-30-10 Rule)
+ * Border Radius: 50px (Pill)
+ */
+
+:root {
+  /* Brand Colors - 60-30-10 Rule */
+  --brand-primary: #DD291B;
+  --brand-dark: #B51D12;
+  --brand-light: #FF6B5F;
+  --brand-very-light: #FFF5F5;
+  
+  /* 60% - Backgrounds (Surfaces) */
+  --color-bg-primary: #FAFAFA;
+  --color-bg-secondary: #FFFFFF;
+  --color-bg-tertiary: #F5F5F5;
+  
+  /* 30% - Primary Elements */
+  --color-element-primary: var(--brand-primary);
+  --color-element-secondary: var(--brand-dark);
+  --color-element-hover: var(--brand-light);
+  
+  /* 10% - Accents */
+  --color-accent: var(--brand-primary);
+  --color-accent-border: rgba(221, 41, 27, 0.2);
+  --color-accent-bg: var(--brand-very-light);
+  
+  /* Text Colors */
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #666666;
+  --color-text-muted: #999999;
+  --color-text-inverse: #FFFFFF;
+  
+  /* Border Radius - Pill Style */
+  --radius-pill: 50px;
+  --radius-lg: 20px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(221, 41, 27, 0.08);
+  --shadow-md: 0 4px 16px rgba(221, 41, 27, 0.12);
+  --shadow-lg: 0 8px 32px rgba(221, 41, 27, 0.16);
+}
+
+/* Base Styles */
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+/* 60% - Background Elements */
+.bg-brand-light {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.bg-brand-surface {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+/* 30% - Primary Brand Elements */
+.bg-brand-primary {
+  background-color: var(--color-element-primary) !important;
+}
+
+.text-brand {
+  color: var(--color-element-primary) !important;
+}
+
+/* 10% - Accents */
+.border-brand {
+  border-color: var(--color-accent) !important;
+}
+
+.border-brand-light {
+  border-color: var(--color-accent-border) !important;
+}
+
+/* Pill Buttons - 50px radius */
+.btn {
+  border-radius: var(--radius-pill);
+  transition: all 0.2s ease;
+}
+
+.btn-primary,
+.btn-brand {
+  background-color: var(--color-element-primary);
+  border-color: var(--color-element-primary);
+  color: var(--color-text-inverse);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover,
+.btn-brand:hover {
+  background-color: var(--color-element-secondary);
+  border-color: var(--color-element-secondary);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-outline-primary,
+.btn-outline-brand {
+  border-color: var(--color-element-primary);
+  color: var(--color-element-primary);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-brand:hover {
+  background-color: var(--color-element-primary);
+  border-color: var(--color-element-primary);
+  color: var(--color-text-inverse);
+}
+
+.btn-light {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-accent-border);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-pill);
+}
+
+.btn-light:hover {
+  background-color: var(--color-accent-bg);
+  border-color: var(--color-element-primary);
+  color: var(--color-element-primary);
+}
+
+/* Brand Call Button */
+.btn-brand-call {
+  background-color: var(--color-element-primary);
+  color: var(--color-text-inverse);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 8px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.btn-brand-call:hover {
+  background-color: var(--color-element-secondary);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+  opacity: 1;
+}
+
+.btn-brand-call svg {
+  fill: currentColor;
+}
+
+/* Cards - 60% Background with Brand Accents */
+.card {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.card-header {
+  background-color: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+}
+
+/* Form Controls - Pill Shape */
+.form-control,
+.form-select {
+  border-radius: var(--radius-pill);
+  border-color: var(--color-accent-border);
+  background-color: var(--color-bg-secondary);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 0.2rem rgba(221, 41, 27, 0.15);
+}
+
+/* Navbar - 30% Brand Elements */
+.navbar {
+  background-color: var(--color-bg-secondary) !important;
+  border-bottom: 1px solid var(--color-accent-border);
+}
+
+.navbar-brand {
+  color: var(--color-element-primary) !important;
+  font-weight: 700;
+}
+
+/* Badges - Pill Style with Brand Colors */
+.badge {
+  border-radius: var(--radius-pill);
+}
+
+.badge.bg-danger {
+  background-color: var(--color-element-primary) !important;
+}
+
+/* Alerts - Brand Color Accents */
+.alert {
+  border-radius: var(--radius-lg);
+  border: none;
+}
+
+.alert-warning {
+  background-color: #FFF9E6;
+  color: #8B6914;
+}
+
+.alert-info {
+  background-color: #E8F4FD;
+  color: #0C5460;
+}
+
+.alert-success {
+  background-color: #E8F5E9;
+  color: #2E7D32;
+}
+
+/* Sticky Cart Bar - Brand Accent */
+.sticky-cartbar {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(10px);
+  border-top: 2px solid var(--color-element-primary);
+}
+
+/* Price Display - Brand Color */
+.price {
+  color: var(--color-element-primary);
+  font-weight: 700;
+}
+
+/* Quantity Buttons - Pill */
+.qty-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-accent-border);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-element-primary);
+  transition: all 0.15s ease;
+}
+
+.qty-btn:hover {
+  background-color: var(--color-element-primary);
+  border-color: var(--color-element-primary);
+  color: var(--color-text-inverse);
+}
+
+/* Category Headers - Brand Bottom Border */
+.menu-category h2 {
+  color: var(--color-text-primary);
+  border-bottom: 3px solid var(--color-element-primary);
+  padding-bottom: 0.5rem;
+  display: inline-block;
+}
+
+/* Slot Availability Indicators */
+.slot-full {
+  color: var(--color-element-primary);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.slot-available {
+  color: #0A8A4D;
+  font-weight: 500;
+}
+
+/* Loading/Spinner */
+.spinner-border.text-danger {
+  color: var(--color-element-primary) !important;
+}
+
+/* Preview Mode Badge */
+.preview-badge {
+  background-color: var(--color-element-primary);
+  color: var(--color-text-inverse);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Admin Panel Link - Subtle Brand Accent */
+.admin-link {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.admin-link:hover {
+  color: var(--color-element-primary);
+  border-color: var(--color-accent-border);
+  background-color: var(--color-accent-bg);
+}
+
+/* Product Images */
+.product-img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-accent-border);
+}
+
+/* Skeleton Loading Animation */
+.skeleton {
+  background: linear-gradient(90deg, 
+    var(--color-bg-tertiary) 25%, 
+    var(--color-bg-secondary) 50%, 
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  :root {
+    --radius-lg: 16px;
+    --radius-md: 10px;
+  }
+  
+  .btn {
+    padding: 8px 16px;
+  }
+  
+  .btn-brand-call {
+    padding: 6px 14px;
+    font-size: 0.9rem;
+  }
+}
+
+/* Focus States for Accessibility */
+a:focus-visible,
+button:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--color-element-primary);
+  outline-offset: 2px;
+}
+
+/* Selection Color */
+::selection {
+  background-color: var(--color-element-primary);
+  color: var(--color-text-inverse);
+}
