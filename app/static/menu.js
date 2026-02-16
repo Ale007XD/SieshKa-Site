@@ -250,6 +250,18 @@ async function loadMenu() {
         MenuState.menuData = data;
         renderMenu(data);
         
+        // Populate upsell suggestions from categories like "Напитки" or "Соусы"
+        if (typeof CartManager !== 'undefined' && data.categories) {
+            const upsellCats = data.categories.filter(c => 
+                /напитки|соусы|аксессуары|десерт/i.test(c.name)
+            );
+            const upsellItems = [];
+            upsellCats.forEach(cat => {
+                upsellItems.push(...cat.products.slice(0, 2));
+            });
+            CartManager.setUpsellSuggestions(upsellItems.slice(0, 6));
+        }
+        
         // Sync product controls after rendering
         if (typeof CartManager !== 'undefined') {
             setTimeout(() => CartManager.updateProductControls(), 0);
@@ -400,24 +412,17 @@ function renderProductControls(product, isAvailable, ctaType) {
     const name = product.name; // Will be read from data attribute
     
     return `
-        <div class="product-controls" data-product-id="${productId}" data-price="${priceRub}" data-name="${escapeHtml(name)}">
-            <button class="btn btn-brand btn-add-to-cart btn-sm" 
-                    id="add-btn-${productId}"
-                    ${!isAvailable ? 'disabled' : ''}>
-                <i class="bi bi-plus-lg me-1"></i>Добавить
+        <div class="product-controls d-flex justify-content-center align-items-center gap-2" 
+             data-product-id="${productId}" data-price="${priceRub}" data-name="${escapeHtml(name)}">
+            <button type="button" class="qty-btn qty-btn-minus" 
+                    aria-label="Уменьшить количество">
+                −
             </button>
-            
-            <div class="qty-control-group d-none" id="qty-control-${productId}">
-                <button type="button" class="qty-btn qty-btn-minus" 
-                        aria-label="Уменьшить количество">
-                    −
-                </button>
-                <span class="qty-display" id="qty-display-${productId}">0</span>
-                <button type="button" class="qty-btn" 
-                        aria-label="Увеличить количество">
-                    +
-                </button>
-            </div>
+            <span class="qty-display fw-bold" id="qty-display-${productId}" style="min-width: 24px; text-align: center;">0</span>
+            <button type="button" class="qty-btn" 
+                    aria-label="Увеличить количество">
+                +
+            </button>
         </div>
     `;
 }

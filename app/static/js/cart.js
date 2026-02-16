@@ -16,6 +16,26 @@ const CartManager = (function() {
   // State
   let offcanvasInstance = null;
   let toastTimeout = null;
+  const HISTORY_KEY = 'cart_history';
+  let recentlyDeleted = loadHistory(); // Load last 3 deleted items from localStorage
+  const upsellSuggestions = []; // Populated from menu.js
+  
+  function loadHistory() {
+    try {
+      const stored = localStorage.getItem(HISTORY_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  function saveHistory() {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(recentlyDeleted.slice(0, 3)));
+    } catch (e) {
+      console.error('Error saving history:', e);
+    }
+  }
   
   // Utility functions
   function escapeHtml(text) {
@@ -78,10 +98,28 @@ const CartManager = (function() {
   }
   
   // Cart Operations
+  function trackDeleted(item) {
+    const existing = recentlyDeleted.findIndex(x => x.product_id === item.product_id);
+    if (existing >= 0) recentlyDeleted.splice(existing, 1);
+    recentlyDeleted.unshift({
+        product_id: item.product_id,
+        name: item.name,
+        price_rub: item.price_rub
+    });
+    if (recentlyDeleted.length > 3) recentlyDeleted.pop();
+    saveHistory();
+  }
+
   function addItem(productId, priceRub, name) {
     const items = loadCart();
     const idx = findItemIndex(items, productId);
+    const totalItems = getTotalItems(items);
     
+    if (totalItems >= MAX_ITEMS) {
+      showToast(`Максимум ${MAX_ITEMS} товаров в корзине`, 'warning');
+      return false;
+    }
+
     if (idx >= 0) {
       // Item exists, increment
       const newQty = items[idx].qty + 1;
@@ -92,17 +130,15 @@ const CartManager = (function() {
       items[idx].qty = newQty;
     } else {
       // New item
-      const totalItems = getTotalItems(items);
-      if (totalItems >= MAX_ITEMS) {
-        showToast(`Максимум ${MAX_ITEMS} товаров в корзине`, 'warning');
-        return false;
-      }
       items.push({
         product_id: productId,
         price_rub: priceRub,
         name: name,
         qty: 1
       });
+      // Remove from recently deleted if it was there
+      const rdIdx = recentlyDeleted.findIndex(x => x.product_id === productId);
+      if (rdIdx >= 0) recentlyDeleted.splice(rdIdx, 1);
     }
     
     saveCart(items);
@@ -116,7 +152,6 @@ const CartManager = (function() {
     const idx = findItemIndex(items, productId);
     
     if (idx < 0 && delta > 0) {
-      // Trying to add new item via delta - not supported without price/name
       console.warn('Cannot add new item via updateQty - use addItem');
       return false;
     }
@@ -125,26 +160,23 @@ const CartManager = (function() {
       const newQty = items[idx].qty + delta;
       
       if (newQty <= 0) {
-        // Remove item
+        trackDeleted(items[idx]);
         items.splice(idx, 1);
       } else if (newQty > QTY_MAX) {
         showToast('Достигнут лимит: макс. 20 шт. на товар', 'warning');
         return false;
       } else {
-        items[idx].qty = newQty;
-        
-        // Check total items limit
         const totalItems = getTotalItems(items);
-        if (totalItems > MAX_ITEMS) {
+        if (delta > 0 && totalItems >= MAX_ITEMS) {
           showToast(`Максимум ${MAX_ITEMS} товаров в корзине`, 'warning');
           return false;
         }
+        items[idx].qty = newQty;
       }
       
       saveCart(items);
       updateAllUI();
       
-      // Show toast for quantity change
       if (delta > 0) {
         showToast('Количество увеличено', 'success');
       } else if (newQty > 0) {
@@ -199,6 +231,7 @@ const CartManager = (function() {
     const idx = findItemIndex(items, productId);
     
     if (idx >= 0) {
+      trackDeleted(items[idx]);
       items.splice(idx, 1);
       saveCart(items);
       updateAllUI();
@@ -292,7 +325,7 @@ const CartManager = (function() {
     
     if (!container) return;
     
-    if (items.length === 0) {
+    if (items.length === 0 && recentlyDeleted.length === 0) {
       container.classList.add('d-none');
       container.innerHTML = '';
       if (emptyMessage) emptyMessage.classList.remove('d-none');
@@ -304,7 +337,7 @@ const CartManager = (function() {
     if (emptyMessage) emptyMessage.classList.add('d-none');
     if (footer) footer.classList.remove('d-none');
     
-    let html = '';
+    let html = '<div class="cart-items-list">';
     let total = 0;
     
     items.forEach(item => {
@@ -312,37 +345,76 @@ const CartManager = (function() {
       total += itemTotal;
       
       html += `
-        <div class="cart-item" data-product-id="${item.product_id}">
+        <div class="cart-item" data-product-id="${item.product_id}" data-name="${escapeHtml(item.name)}" data-price="${item.price_rub}">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div style="flex: 1; min-width: 0;">
-              <div class="cart-item-name text-truncate">${escapeHtml(item.name)}</div>
-              <div class="cart-item-price">${formatPrice(item.price_rub)}/шт</div>
+              <div class="cart-item-name text-truncate fw-bold">${escapeHtml(item.name)}</div>
+              <div class="cart-item-price small text-muted">${formatPrice(item.price_rub)}/шт</div>
             </div>
-            <div class="cart-item-total ms-2">${formatPrice(itemTotal)}</div>
+            <div class="cart-item-total fw-bold text-brand">${formatPrice(itemTotal)}</div>
           </div>
           <div class="d-flex justify-content-between align-items-center">
             <div class="qty-control">
-              <button type="button" class="qty-btn" 
-                      onclick="CartManager.updateQty(${item.product_id}, -1)"
-                      ${item.qty <= 1 ? '' : ''}>
+              <button type="button" class="qty-btn" data-action="dec">
                 −
               </button>
               <span class="qty-value">${item.qty}</span>
-              <button type="button" class="qty-btn" 
-                      onclick="CartManager.updateQty(${item.product_id}, 1)"
-                      ${item.qty >= QTY_MAX ? 'disabled' : ''}>
+              <button type="button" class="qty-btn" data-action="inc" ${item.qty >= QTY_MAX ? 'disabled' : ''}>
                 +
               </button>
             </div>
-            <button type="button" class="btn btn-sm btn-link text-danger p-0" 
-                    onclick="CartManager.removeItem(${item.product_id})"
-                    style="font-size: 0.8rem;">
-              Удалить
+            <button type="button" class="btn btn-sm text-danger p-0" data-action="remove" style="font-size: 0.8rem;">
+              <i class="bi bi-trash me-1"></i>Удалить
             </button>
           </div>
         </div>
       `;
     });
+    html += '</div>';
+
+    // Add Upsell suggestions if available and not already in cart
+    const filteredUpsell = upsellSuggestions.filter(u => !items.some(i => i.product_id === u.product_id)).slice(0, 3);
+    if (filteredUpsell.length > 0) {
+      html += `
+        <div class="upsell-section mt-4 bg-light p-3 rounded-4 mx-2">
+          <div class="small text-muted text-uppercase fw-bold mb-2" style="font-size: 0.7rem;">Не забудьте добавить:</div>
+          <div class="d-flex flex-column gap-2">
+            ${filteredUpsell.map(u => `
+              <div class="d-flex justify-content-between align-items-center" data-product-id="${u.product_id}" data-name="${escapeHtml(u.name)}" data-price="${u.price_rub}">
+                <div style="flex: 1; min-width: 0;">
+                  <div class="small text-truncate fw-semibold">${escapeHtml(u.name)}</div>
+                  <div class="small text-brand">${formatPrice(u.price_rub)}</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-brand rounded-pill px-3" data-action="add" style="font-size: 0.75rem;">
+                  +
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Add Recently Deleted section
+    if (recentlyDeleted.length > 0) {
+      html += `
+        <div class="recently-deleted-section mt-4 px-2">
+          <div class="small text-muted text-uppercase fw-bold mb-2 px-1" style="font-size: 0.7rem;">Недавно удаленные:</div>
+          <div class="d-flex flex-column gap-1">
+            ${recentlyDeleted.map(rd => `
+              <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-light opacity-75" data-product-id="${rd.product_id}" data-name="${escapeHtml(rd.name)}" data-price="${rd.price_rub}">
+                <div style="flex: 1; min-width: 0;">
+                  <div class="small text-truncate text-muted">${escapeHtml(rd.name)}</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary border-0 rounded-pill px-2" data-action="restore" style="font-size: 0.7rem;">
+                  <i class="bi bi-arrow-counterclockwise"></i> Вернуть
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
     
     container.innerHTML = html;
     
@@ -496,17 +568,6 @@ const CartManager = (function() {
         break;
     }
     
-    const cartSummaryHtml = showCartSummary && totalItems > 0 ? `
-      <div class="toast-footer">
-        <span class="toast-cart-summary">
-          ${totalItems} ${getItemWord(totalItems)} · ${formatPrice(totalPrice)}
-        </span>
-        <button type="button" class="btn btn-sm btn-brand" data-bs-toggle="offcanvas" data-bs-target="#offcanvasCart">
-          Открыть корзину
-        </button>
-      </div>
-    ` : '';
-    
     const toastHtml = `
       <div class="toast show" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="toast-header">
@@ -517,7 +578,6 @@ const CartManager = (function() {
         <div class="toast-body">
           ${escapeHtml(message)}
         </div>
-        ${cartSummaryHtml}
       </div>
     `;
     
@@ -542,11 +602,44 @@ const CartManager = (function() {
         clearCart();
       });
     }
+
+    // Offcanvas Actions Delegation
+    const offcanvasBody = document.getElementById('offcanvasCartBody');
+    if (offcanvasBody) {
+      offcanvasBody.addEventListener('click', (e) => {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+
+        const action = target.dataset.action;
+        const itemEl = target.closest('[data-product-id]');
+        if (!itemEl) return;
+
+        const productId = parseInt(itemEl.dataset.productId);
+        const price = parseInt(itemEl.dataset.price);
+        const name = itemEl.dataset.name;
+
+        switch (action) {
+          case 'inc':
+            updateQty(productId, 1);
+            break;
+          case 'dec':
+            updateQty(productId, -1);
+            break;
+          case 'remove':
+            removeItem(productId);
+            break;
+          case 'add':
+          case 'restore':
+            addItem(productId, price, name);
+            break;
+        }
+      });
+    }
     
     // Setup offcanvas instance
     const offcanvasEl = document.getElementById('offcanvasCart');
     if (offcanvasEl && typeof bootstrap !== 'undefined') {
-      offcanvasInstance = new bootstrap.Offcanvas(offcanvasEl);
+      offcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
     }
   }
   
@@ -573,6 +666,11 @@ const CartManager = (function() {
     renderCartPage: renderCartPage,
     updateCheckoutTotal: updateCheckoutTotal,
     showToast: showToast,
+    setUpsellSuggestions: function(items) {
+      upsellSuggestions.length = 0;
+      upsellSuggestions.push(...items);
+      updateAllUI();
+    },
     
     // Constants
     QTY_MAX: QTY_MAX,
