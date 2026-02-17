@@ -260,8 +260,8 @@
 </div>
 
 <!-- Image Lightbox Modal -->
-<div id="imageLightbox" class="image-lightbox" onclick="closeLightbox(event)">
-  <button class="close-btn" onclick="closeLightbox(event)">&times;</button>
+<div id="imageLightbox" class="image-lightbox">
+  <button class="close-btn" id="lightboxClose">&times;</button>
   <img id="lightboxImage" src="" alt="Увеличенное изображение">
 </div>
 {% endblock %}
@@ -271,6 +271,31 @@
   // Image Lightbox
   const lightbox = document.getElementById('imageLightbox');
   const lightboxImg = document.getElementById('lightboxImage');
+  const lightboxClose = document.getElementById('lightboxClose');
+  
+  function closeLightbox() {
+    lightbox.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+  
+  // Close button
+  lightboxClose.addEventListener('click', function(e) {
+    e.stopPropagation();
+    closeLightbox();
+  });
+  
+  // Click on image to close
+  lightboxImg.addEventListener('click', function(e) {
+    e.stopPropagation();
+    closeLightbox();
+  });
+  
+  // Click on background to close
+  lightbox.addEventListener('click', function(e) {
+    if (e.target === lightbox) {
+      closeLightbox();
+    }
+  });
   
   document.querySelectorAll('.product-img[src]').forEach(img => {
     img.addEventListener('click', function(e) {
@@ -286,8 +311,7 @@
   
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && lightbox.classList.contains('active')) {
-      lightbox.classList.remove('active');
-      document.body.style.overflow = '';
+      closeLightbox();
     }
   });
 
