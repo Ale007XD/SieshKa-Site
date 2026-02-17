@@ -1,4 +1,5 @@
 from sqladmin import Admin, ModelView, action
+from sqladmin.filters import BooleanFilter, AllUniqueStringValuesFilter
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 from markupsafe import Markup
@@ -70,7 +71,10 @@ class CategoryAdmin(ModelView, model=Category):
     ]
     column_sortable_list = [Category.sort, Category.id]
     column_searchable_list = [Category.name]
-    column_filters = [Category.parent_id, Category.menu_period, Category.is_active]
+    column_filters = [
+        BooleanFilter(Category.is_active),
+        AllUniqueStringValuesFilter(Category.menu_period),
+    ]
     form_columns = ["name", "parent", "sort", "is_active", "menu_period"]
     name = "Категория"
     name_plural = "Категории"
@@ -573,7 +577,11 @@ class OrderAdmin(ModelView, model=Order):
     ]
     column_searchable_list = [Order.phone_e164, Order.address]
     column_sortable_list = [Order.created_at, Order.id, Order.total_rub]
-    column_filters = [Order.status, Order.payment_method, Order.delivery_mode]
+    column_filters = [
+        AllUniqueStringValuesFilter(Order.status),
+        AllUniqueStringValuesFilter(Order.payment_method),
+        AllUniqueStringValuesFilter(Order.delivery_mode),
+    ]
     column_formatters = {
         Order.status: lambda m, a: format_status_with_buttons(m),
         Order.payment_confirmed: lambda m, a: format_payment_with_button(m)
@@ -656,7 +664,11 @@ class AdminAuditLogAdmin(ModelView, model=AdminAuditLog):
         AdminAuditLog.entity_id
     ]
     column_sortable_list = [AdminAuditLog.created_at]
-    column_filters = [AdminAuditLog.action, AdminAuditLog.entity_type, AdminAuditLog.admin_user]
+    column_filters = [
+        AllUniqueStringValuesFilter(AdminAuditLog.action),
+        AllUniqueStringValuesFilter(AdminAuditLog.entity_type),
+        AllUniqueStringValuesFilter(AdminAuditLog.admin_user),
+    ]
     name = "Audit Log"
     name_plural = "Audit Logs"
     icon = "fa-solid fa-clipboard-list"
@@ -679,9 +691,9 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
     ]
     column_sortable_list = [AvailabilityRule.id, AvailabilityRule.lead_time_minutes]
     column_filters = [
-        AvailabilityRule.scope_type,
-        AvailabilityRule.daypart,
-        AvailabilityRule.is_active,
+        AllUniqueStringValuesFilter(AvailabilityRule.scope_type),
+        AllUniqueStringValuesFilter(AvailabilityRule.daypart),
+        BooleanFilter(AvailabilityRule.is_active),
     ]
     form_columns = [
         "scope_type",
