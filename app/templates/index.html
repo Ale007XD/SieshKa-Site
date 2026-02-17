@@ -163,29 +163,43 @@
     document.getElementById('skeletons').classList.add('d-none');
     document.getElementById('menuContent').classList.remove('d-none');
     
-    // Event delegation for cart buttons
-    document.getElementById('menuContent').addEventListener('click', function(e) {
-      const btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      
-      const container = btn.closest('[data-product-id]');
-      if (!container) return;
-      
-      const productId = parseInt(container.dataset.productId);
-      const price = parseInt(container.dataset.price);
-      const name = container.dataset.name;
-      const action = btn.dataset.action;
-      
-      if (action === 'dec') {
-        CartManager.updateQty(productId, -1);
-      } else if (action === 'inc') {
-        CartManager.addItem(productId, price, name);
-      }
-    });
+    // Check if CartManager loaded
+    if (typeof CartManager === 'undefined') {
+      console.error('CartManager not loaded! Check cart.js loading.');
+      // Retry after 500ms
+      setTimeout(function() {
+        if (typeof CartManager !== 'undefined') {
+          console.log('CartManager loaded on retry');
+          initCartButtons();
+          CartManager.updateAllUI();
+        }
+      }, 500);
+      return;
+    }
     
-    // Initialize cart UI
-    if (typeof CartManager !== 'undefined') {
-      CartManager.updateAllUI();
+    initCartButtons();
+    CartManager.updateAllUI();
+    
+    function initCartButtons() {
+      // Event delegation for cart buttons
+      document.getElementById('menuContent').addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        
+        const container = btn.closest('[data-product-id]');
+        if (!container) return;
+        
+        const productId = parseInt(container.dataset.productId);
+        const price = parseInt(container.dataset.price);
+        const name = container.dataset.name;
+        const action = btn.dataset.action;
+        
+        if (action === 'dec') {
+          CartManager.updateQty(productId, -1);
+        } else if (action === 'inc') {
+          CartManager.addItem(productId, price, name);
+        }
+      });
     }
   });
 </script>
