@@ -268,13 +268,6 @@
 
 {% block scripts %}
 <script nonce="{{ csp_nonce }}">
-  function closeLightbox(e) {
-    if (e) e.preventDefault();
-    const lightbox = document.getElementById('imageLightbox');
-    lightbox.classList.remove('active');
-    document.body.style.overflow = '';
-  }
-</script>
   // Image Lightbox
   const lightbox = document.getElementById('imageLightbox');
   const lightboxImg = document.getElementById('lightboxImage');
@@ -293,7 +286,8 @@
   
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && lightbox.classList.contains('active')) {
-      closeLightbox(e);
+      lightbox.classList.remove('active');
+      document.body.style.overflow = '';
     }
   });
 
