@@ -40,10 +40,11 @@
 
 {% block scripts %}
 <script nonce="{{ csp_nonce }}">
-  document.addEventListener('DOMContentLoaded', function() {
+  function initCartPage() {
     // Initialize cart page
-    if (typeof initCartPage === 'function') {
-      initCartPage();
+    if (typeof CartManager !== 'undefined') {
+      CartManager.renderCartPage();
+      CartManager.updateNavbarCart();
     }
     
     // Setup clear button
@@ -59,6 +60,21 @@
         }
       });
     }
-  });
+  }
+  
+  // CartManager loads with defer, so we need to wait
+  if (typeof CartManager !== 'undefined') {
+    initCartPage();
+  } else {
+    // Wait for cart.js to load
+    const checkCart = setInterval(function() {
+      if (typeof CartManager !== 'undefined') {
+        clearInterval(checkCart);
+        initCartPage();
+      }
+    }, 100);
+    // Stop checking after 5 seconds
+    setTimeout(function() { clearInterval(checkCart); }, 5000);
+  }
 </script>
 {% endblock %}
