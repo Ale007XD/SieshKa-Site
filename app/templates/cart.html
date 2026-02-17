@@ -48,9 +48,15 @@
     
     // Setup clear button
     const clearBtn = document.getElementById('clearCartBtn');
-    if (clearBtn && typeof cartClear === 'function') {
+    if (clearBtn) {
       clearBtn.addEventListener('click', function() {
-        cartClear();
+        if (confirm('Очистить корзину?')) {
+          if (typeof CartManager !== 'undefined') {
+            CartManager.clearCart();
+          } else {
+            console.error('CartManager not loaded');
+          }
+        }
       });
     }
   });
