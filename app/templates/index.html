@@ -2,18 +2,7 @@
 {% block title %}Меню{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-start justify-content-between mb-3">
-  <div>
-    <h1 class="h4 mb-1">Меню</h1>
-    <div class="text-muted small">Выбирай позиции и оформляй заказ</div>
-  </div>
-  <div class="text-end small text-muted">
-    {% if current_period_label %}
-      Сейчас: 
-      {% if current_period_label == 'morning' %}Утреннее{% else %}Вечернее{% endif %} меню
-    {% endif %}
-  </div>
-</div>
+<h1 class="h4 mb-3">Меню</h1>
 
 <!-- Sticky Category Filter Bar -->
 <div class="category-filter-bar sticky-top" style="top: 70px; z-index: 1020; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-accent-border);">
