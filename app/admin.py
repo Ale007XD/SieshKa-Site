@@ -429,6 +429,9 @@ async def toggle_product_active_endpoint(request: Request):
             {"success": False, "error": str(e)},
             status_code=500
         )
+
+
+async def update_order_status_endpoint(request: Request):
     """AJAX endpoint to update order status"""
     try:
         data = await request.json()
