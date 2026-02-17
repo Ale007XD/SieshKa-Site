@@ -15,6 +15,53 @@
   </div>
 </div>
 
+<!-- Sticky Category Filter Bar -->
+<div class="category-filter-bar sticky-top" style="top: 70px; z-index: 1020; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-accent-border);">
+  <div class="container py-2">
+    <div class="d-flex align-items-center gap-2 overflow-x-auto" id="categoryCarousel" style="scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
+      <button class="btn btn-sm rounded-pill category-btn active" data-category-id="all" style="white-space: nowrap; min-width: 80px;">
+        <i class="bi bi-grid-fill me-1"></i>Все
+      </button>
+      {% for cat_data in categories_data %}
+        <button class="btn btn-sm rounded-pill category-btn" data-category-id="{{ cat_data.category.id }}" style="white-space: nowrap;">
+          <i class="bi bi-circle-fill me-1" style="font-size: 8px; color: var(--brand-primary);"></i>
+          {{ cat_data.category.name }}
+        </button>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<style>
+  #categoryCarousel::-webkit-scrollbar { display: none; }
+  .category-btn {
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-accent-border);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    transition: all 0.2s ease;
+    padding: 0.5rem 1rem;
+  }
+  .category-btn:hover {
+    background-color: var(--color-accent-bg);
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+  }
+  .category-btn.active {
+    background-color: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: white;
+    font-weight: 600;
+  }
+  .category-btn.active i.bi-circle-fill {
+    color: white !important;
+  }
+  @media (max-width: 576px) {
+    .category-filter-bar { top: 56px !important; }
+    .category-btn { padding: 0.4rem 0.8rem; font-size: 0.875rem; min-height: 44px; }
+  }
+</style>
+
 <div id="skeletons" class="vstack gap-2">
   {% for _ in range(6) %}
   <div class="card shadow-sm" aria-hidden="true">
@@ -41,7 +88,7 @@
 
 <div id="menuContent" class="d-none">
   {% for cat_data in categories_data %}
-    <div class="mt-4">
+    <div class="mt-4" data-cat-id="{{ cat_data.category.id }}">
       <h2 class="h6 text-uppercase text-muted mb-2">{{ cat_data.category.name }}</h2>
 
       <div class="vstack gap-2">
@@ -200,6 +247,57 @@
           CartManager.addItem(productId, price, name);
         }
       });
+    }
+    
+    // Category Filter Logic
+    initCategoryFilter();
+    
+    function initCategoryFilter() {
+      const categoryCarousel = document.getElementById('categoryCarousel');
+      const categoryButtons = document.querySelectorAll('.category-btn');
+      
+      categoryButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+          const selectedCategory = this.dataset.categoryId;
+          
+          // 1. Visual activation
+          categoryButtons.forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          
+          // 2. Filter products
+          filterCategories(selectedCategory);
+          
+          // 3. Scroll carousel to center active button
+          scrollToButton(this);
+        });
+      });
+      
+      function filterCategories(categoryId) {
+        const categories = document.querySelectorAll('#menuContent > div[data-cat-id]');
+        
+        categories.forEach(cat => {
+          if (categoryId === 'all') {
+            cat.style.display = '';
+          } else {
+            const catId = cat.dataset.catId;
+            cat.style.display = (catId === categoryId) ? '' : 'none';
+          }
+        });
+      }
+      
+      function scrollToButton(button) {
+        const container = categoryCarousel;
+        const buttonLeft = button.offsetLeft;
+        const buttonWidth = button.offsetWidth;
+        const containerWidth = container.offsetWidth;
+        
+        const scrollTo = buttonLeft - (containerWidth / 2) + (buttonWidth / 2);
+        
+        container.scrollTo({
+          left: Math.max(0, scrollTo),
+          behavior: 'smooth'
+        });
+      }
     }
   });
 </script>
