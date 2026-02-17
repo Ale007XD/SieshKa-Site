@@ -2,14 +2,12 @@
 {% block title %}Меню{% endblock %}
 
 {% block content %}
-<h1 class="h4 mb-3">Меню</h1>
-
 <!-- Sticky Category Filter Bar -->
 <div class="category-filter-bar sticky-top" style="top: 70px; z-index: 1020; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-accent-border);">
   <div class="container py-2">
     <div class="d-flex align-items-center gap-2 overflow-x-auto" id="categoryCarousel" style="scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
-      <button class="btn btn-sm rounded-pill category-btn active" data-category-id="all" style="white-space: nowrap; min-width: 80px;">
-        <i class="bi bi-grid-fill me-1"></i>Все
+      <button class="btn btn-sm rounded-pill category-btn active" data-category-id="all" style="white-space: nowrap; min-width: 100px;">
+        <i class="bi bi-grid-fill me-1"></i>Все меню
       </button>
       {% for cat_data in categories_data %}
         <button class="btn btn-sm rounded-pill category-btn" data-category-id="{{ cat_data.category.id }}" style="white-space: nowrap;">
