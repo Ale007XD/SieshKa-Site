@@ -1,10 +1,13 @@
 from sqladmin import Admin, ModelView, action
 from sqladmin.filters import BooleanFilter, AllUniqueStringValuesFilter, ForeignKeyFilter
 from starlette.requests import Request
-from starlette.responses import JSONResponse, RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse, HTMLResponse
 from markupsafe import Markup
 import logging
 import json
+import csv
+import io
+from typing import List, Dict, Any
 
 from .models import Category, Product, Order, OrderItem, OrderStatus, DeliverySlot, AdminAuditLog
 from .availability_models import AvailabilityRule, MenuConfiguration
@@ -264,6 +267,223 @@ class ProductAdmin(ModelView, model=Product):
     async def on_model_change(self, data: dict, model: Product, is_created: bool, request: Request) -> None:
         action = "create" if is_created else "update"
         log_admin_action(request, action, "Product", model.id, None, data)
+    
+    @action(
+        name="import_products",
+        label="Импорт из CSV",
+        add_in_list=True,
+        add_in_detail=False
+    )
+    async def import_products(self, request: Request):
+        """Импорт товаров из CSV файла"""
+        if request.method == "POST":
+            from starlette.datastructures import UploadFile
+            
+            form_data = await request.form()
+            uploaded_file = form_data.get("csv_file")
+            default_category_id = form_data.get("default_category_id")
+            skip_errors = form_data.get("skip_errors") == "on"
+            
+            if not uploaded_file or not isinstance(uploaded_file, UploadFile):
+                return HTMLResponse(content="""
+                <div class="alert alert-danger">Файл не загружен</div>
+                <a href="javascript:history.back()" class="btn btn-secondary">Назад</a>
+                """, status_code=400)
+            
+            # Читаем CSV
+            try:
+                content = await uploaded_file.read()
+                csv_text = content.decode('utf-8-sig')
+                csv_reader = csv.DictReader(io.StringIO(csv_text))
+            except Exception as e:
+                return HTMLResponse(content=f"""
+                <div class="alert alert-danger">Ошибка чтения CSV: {str(e)}</div>
+                <a href="javascript:history.back()" class="btn btn-secondary">Назад</a>
+                """, status_code=400)
+            
+            # Проверяем обязательное поле Name
+            fieldnames = csv_reader.fieldnames or []
+            fieldnames_lower = [f.lower().strip() for f in fieldnames]
+            
+            if 'name' not in fieldnames_lower:
+                return HTMLResponse(content="""
+                <div class="alert alert-danger">CSV файл должен содержать колонку 'Name'</div>
+                <a href="javascript:history.back()" class="btn btn-secondary">Назад</a>
+                """, status_code=400)
+            
+            # Импортируем товары
+            results = {"created": 0, "errors": [], "skipped": 0}
+            
+            with SessionLocal() as db:
+                # Кэш категорий
+                categories_cache = {}
+                
+                for row_num, row in enumerate(csv_reader, start=2):  # start=2 потому что первая строка - заголовки
+                    try:
+                        # Получаем значения полей (регистронезависимо)
+                        row_lower = {k.lower().strip(): v.strip() if v else None for k, v in row.items()}
+                        
+                        name = row_lower.get('name', '').strip()
+                        if not name:
+                            if skip_errors:
+                                results["skipped"] += 1
+                                continue
+                            else:
+                                results["errors"].append(f"Строка {row_num}: отсутствует Name")
+                                continue
+                        
+                        # Категория: по ID или по названию
+                        category_id = None
+                        category_value = row_lower.get('category', '').strip()
+                        
+                        if category_value:
+                            if category_value.isdigit():
+                                category_id = int(category_value)
+                            else:
+                                # Ищем по названию
+                                if category_value not in categories_cache:
+                                    cat = db.query(Category).filter(
+                                        Category.name.ilike(category_value)
+                                    ).first()
+                                    if cat:
+                                        categories_cache[category_value] = cat.id
+                                    else:
+                                        categories_cache[category_value] = None
+                                category_id = categories_cache.get(category_value)
+                        
+                        # Если категория не найдена и есть дефолтная
+                        if not category_id and default_category_id:
+                            category_id = int(default_category_id)
+                        
+                        if not category_id:
+                            if skip_errors:
+                                results["skipped"] += 1
+                                continue
+                            else:
+                                results["errors"].append(f"Строка {row_num}: категория не найдена для '{category_value}'")
+                                continue
+                        
+                        # Остальные поля
+                        description = row_lower.get('description', '').strip() or None
+                        
+                        price_rub = 0
+                        price_str = row_lower.get('price rub', '').strip() or row_lower.get('price_rub', '').strip()
+                        if price_str:
+                            try:
+                                price_rub = int(float(price_str))
+                            except ValueError:
+                                pass
+                        
+                        photo_url = row_lower.get('photo url', '').strip() or row_lower.get('photo_url', '').strip() or None
+                        
+                        # Создаем товар
+                        product = Product(
+                            name=name,
+                            category_id=category_id,
+                            description=description,
+                            price_rub=price_rub,
+                            photo_url=photo_url,
+                            is_active=True
+                        )
+                        db.add(product)
+                        results["created"] += 1
+                        
+                    except Exception as e:
+                        if skip_errors:
+                            results["skipped"] += 1
+                        else:
+                            results["errors"].append(f"Строка {row_num}: {str(e)}")
+                
+                # Коммитим если нет ошибок или skip_errors
+                if not results["errors"] or skip_errors:
+                    db.commit()
+                    log_admin_action(
+                        request, 
+                        "bulk_import", 
+                        "Product", 
+                        None, 
+                        None, 
+                        {"created": results["created"], "skipped": results["skipped"]}
+                    )
+                else:
+                    db.rollback()
+            
+            # Формируем результат
+            html_result = f"""
+            <div class="container mt-4">
+                <h3>Результат импорта</h3>
+                <div class="alert alert-success">Создано товаров: {results['created']}</div>
+            """
+            
+            if results["skipped"] > 0:
+                html_result += f'<div class="alert alert-warning">Пропущено строк: {results["skipped"]}</div>'
+            
+            if results["errors"]:
+                html_result += f'<div class="alert alert-danger"><h4>Ошибки:</h4><ul>'
+                for error in results["errors"][:10]:  # Показываем первые 10 ошибок
+                    html_result += f'<li>{error}</li>'
+                if len(results["errors"]) > 10:
+                    html_result += f'<li>... и еще {len(results["errors"]) - 10} ошибок</li>'
+                html_result += '</ul></div>'
+            
+            html_result += """
+                <a href="/admin/product/list" class="btn btn-primary">К списку товаров</a>
+            </div>
+            """
+            
+            return HTMLResponse(content=html_result)
+        
+        # Показываем форму загрузки
+        with SessionLocal() as db:
+            categories = db.query(Category).filter(Category.is_active == True).order_by(Category.name).all()
+            category_options = "\n".join([
+                f'<option value="{cat.id}">{cat.name}</option>' 
+                for cat in categories
+            ])
+            
+            html = f'''
+            <div class="container mt-4">
+                <h3>Импорт товаров из CSV</h3>
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">CSV файл:</label>
+                        <input type="file" class="form-control" name="csv_file" accept=".csv" required>
+                        <div class="form-text">
+                            Формат CSV с колонками (разделитель - запятая):<br>
+                            <code>Name</code> (обязательное) - название товара<br>
+                            <code>Category</code> (опционально) - ID или название категории<br>
+                            <code>Description</code> (опционально) - описание<br>
+                            <code>Price Rub</code> (опционально) - цена в рублях<br>
+                            <code>Photo Url</code> (опционально) - URL фото
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Категория по умолчанию (если не указана в CSV):</label>
+                        <select class="form-select" name="default_category_id">
+                            <option value="">-- Не выбрана --</option>
+                            {category_options}
+                        </select>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="skip_errors" id="skip_errors" checked>
+                        <label class="form-check-label" for="skip_errors">
+                            Пропускать ошибочные строки (не прерывать импорт)
+                        </label>
+                    </div>
+                    <div class="alert alert-info">
+                        <strong>Пример CSV:</strong><br>
+                        <pre>Name,Category,Description,Price Rub,Photo Url
+Борщ,Супы,Традиционный украинский суп,350,https://example.com/borsh.jpg
+Салат Цезарь,Салаты,Классический салат с курицей,420,</pre>
+                    </div>
+                    <div class="modal-footer" style="padding-left: 0;">
+                        <button type="submit" class="btn btn-primary">Импортировать</button>
+                        <a href="/admin/product/list" class="btn btn-secondary">Отмена</a>
+                    </div>
+                </form>
+            </div>
+            '''
+            return html
 
 class OrderItemAdmin(ModelView, model=OrderItem):
     column_list = [
