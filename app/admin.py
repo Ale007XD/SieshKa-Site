@@ -485,6 +485,74 @@ class ProductAdmin(ModelView, model=Product):
             '''
             return html
 
+    @action(
+        name="export_products",
+        label="Экспорт в CSV",
+        add_in_list=True,
+        add_in_detail=False
+    )
+    async def export_products(self, request: Request):
+        """Экспорт товаров в CSV файл"""
+        from starlette.responses import StreamingResponse
+        
+        # Получаем выбранные ID или экспортируем все
+        pks_str = request.query_params.get("pks", "")
+        pks = [pk for pk in pks_str.split(",") if pk]
+        
+        with SessionLocal() as db:
+            query = db.query(Product)
+            if pks:
+                query = query.filter(Product.id.in_([int(pk) for pk in pks]))
+            
+            products = query.order_by(Product.id).all()
+            
+            # Создаем CSV
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Заголовки
+            writer.writerow([
+                "ID", "Name", "Category", "Category ID", "Description", 
+                "Price Rub", "Photo Url", "Is Active", "Menu Period Override",
+                "Created At", "Updated At"
+            ])
+            
+            # Данные
+            for product in products:
+                writer.writerow([
+                    product.id,
+                    product.name,
+                    product.category.name if product.category else "",
+                    product.category_id,
+                    product.description or "",
+                    product.price_rub,
+                    product.photo_url or "",
+                    "1" if product.is_active else "0",
+                    product.menu_period_override or "",
+                    product.created_at.strftime("%Y-%m-%d %H:%M:%S") if product.created_at else "",
+                    product.updated_at.strftime("%Y-%m-%d %H:%M:%S") if product.updated_at else ""
+                ])
+            
+            # Логируем действие
+            log_admin_action(
+                request, 
+                "export", 
+                "Product", 
+                None, 
+                None, 
+                {"count": len(products), "filtered": bool(pks)}
+            )
+            
+            # Формируем ответ
+            output.seek(0)
+            filename = f"products_export_{len(products)}_items.csv"
+            
+            return StreamingResponse(
+                io.BytesIO(output.getvalue().encode('utf-8-sig')),  # BOM для Excel
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+
 class OrderItemAdmin(ModelView, model=OrderItem):
     column_list = [
         OrderItem.id, 
