@@ -47,17 +47,11 @@
       CartManager.updateNavbarCart();
     }
     
-    // Setup clear button
+    // Setup clear button - NO CONFIRM HERE (for one-click behavior)
     const clearBtn = document.getElementById('clearCartBtn');
-    if (clearBtn) {
+    if (clearBtn && typeof CartManager !== 'undefined') {
       clearBtn.addEventListener('click', function() {
-        if (confirm('Очистить корзину?')) {
-          if (typeof CartManager !== 'undefined') {
-            CartManager.clearCart();
-          } else {
-            console.error('CartManager not loaded');
-          }
-        }
+        CartManager.clearCart();
       });
     }
   }
