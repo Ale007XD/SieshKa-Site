@@ -317,6 +317,13 @@ async def admin_update_payment_status(request: Request):
     """Proxy to admin payment status update endpoint"""
     return await update_payment_status_endpoint(request)
 
+# Admin API endpoint for product active status toggle
+@app.post("/api/admin/products/toggle-active")
+async def admin_toggle_product_active(request: Request):
+    """Proxy to product active status toggle endpoint"""
+    from .admin import toggle_product_active_endpoint
+    return await toggle_product_active_endpoint(request)
+
 def normalize_ru_phone(phone_raw: str) -> str:
     try:
         num = phonenumbers.parse(phone_raw, None)

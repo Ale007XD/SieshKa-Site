@@ -1,6 +1,6 @@
-from sqladmin import Admin, ModelView
+from sqladmin import Admin, ModelView, action
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 from markupsafe import Markup
 import logging
 import json
@@ -22,8 +22,8 @@ VALID_STATUS_TRANSITIONS = {
     OrderStatus.cancelled: []
 }
 
-def log_admin_action(request: Request, action: str, entity_type: str, entity_id: int = None, 
-                     old_values: dict = None, new_values: dict = None):
+def log_admin_action(request: Request, action: str, entity_type: str, entity_id: int | None = None, 
+                     old_values: dict | None = None, new_values: dict | None = None):
     """Medium Priority Fix: Log admin actions to database"""
     try:
         # Get admin username from basic auth
@@ -127,6 +127,9 @@ class ProductAdmin(ModelView, model=Product):
     ]
     column_searchable_list = [Product.name]
     column_sortable_list = [Product.price_rub, Product.id]
+    column_formatters = {
+        Product.is_active: lambda m, a: format_product_active_button(m)
+    }
     form_columns = [
         "name", 
         "category", 
@@ -139,6 +142,115 @@ class ProductAdmin(ModelView, model=Product):
     name = "Товар"
     name_plural = "Товары"
     icon = "fa-solid fa-utensils"
+    
+    # Массовые действия
+    
+    @action(
+        name="bulk_activate",
+        label="Активировать",
+        confirmation_message="Активировать выбранные товары?",
+        add_in_list=True,
+        add_in_detail=False
+    )
+    async def bulk_activate(self, request: Request):
+        """Массовая активация товаров"""
+        pks_str = request.query_params.get("pks", "")
+        pks = [pk for pk in pks_str.split(",") if pk]
+        
+        if pks:
+            with SessionLocal() as db:
+                db.query(Product).filter(Product.id.in_([int(pk) for pk in pks])).update(
+                    {Product.is_active: True}, synchronize_session=False
+                )
+                db.commit()
+                log_admin_action(request, "bulk_activate", "Product", None, {"count": len(pks)}, {"pks": pks})
+        
+        referer = request.headers.get("Referer")
+        if referer:
+            return RedirectResponse(referer)
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
+    
+    @action(
+        name="bulk_deactivate",
+        label="Деактивировать",
+        confirmation_message="Деактивировать выбранные товары?",
+        add_in_list=True,
+        add_in_detail=False
+    )
+    async def bulk_deactivate(self, request: Request):
+        """Массовая деактивация товаров"""
+        pks_str = request.query_params.get("pks", "")
+        pks = [pk for pk in pks_str.split(",") if pk]
+        
+        if pks:
+            with SessionLocal() as db:
+                db.query(Product).filter(Product.id.in_([int(pk) for pk in pks])).update(
+                    {Product.is_active: False}, synchronize_session=False
+                )
+                db.commit()
+                log_admin_action(request, "bulk_deactivate", "Product", None, {"count": len(pks)}, {"pks": pks})
+        
+        referer = request.headers.get("Referer")
+        if referer:
+            return RedirectResponse(referer)
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
+    
+    @action(
+        name="bulk_move_category",
+        label="Перенести в категорию",
+        add_in_list=True,
+        add_in_detail=False
+    )
+    async def bulk_move_category(self, request: Request):
+        """Массовый перенос товаров в другую категорию"""
+        pks_str = request.query_params.get("pks", "")
+        pks = [pk for pk in pks_str.split(",") if pk]
+        
+        if not pks:
+            return RedirectResponse(request.url_for("admin:list", identity=self.identity))
+        
+        # Обработка POST-запроса
+        if request.method == "POST":
+            form_data = await request.form()
+            target_category_id = form_data.get("target_category_id")
+            
+            if target_category_id:
+                cat_id = int(target_category_id)
+                with SessionLocal() as db:
+                    db.query(Product).filter(Product.id.in_([int(pk) for pk in pks])).update(
+                        {Product.category_id: cat_id}, synchronize_session=False
+                    )
+                    db.commit()
+                    log_admin_action(request, "bulk_move_category", "Product", None, {"count": len(pks)}, {"new_cat": cat_id})
+                
+                return RedirectResponse(request.url_for("admin:list", identity=self.identity))
+        
+        # Показ формы выбора категории
+        with SessionLocal() as db:
+            categories = db.query(Category).filter(Category.is_active == True).order_by(Category.name).all()
+            category_options = "\n".join([
+                f'<option value="{cat.id}">{cat.name}</option>' 
+                for cat in categories
+            ])
+            
+            html = f'''
+            <div class="modal-body">
+                <form method="POST">
+                    <input type="hidden" name="pks" value="{",".join(pks)}">
+                    <div class="mb-3">
+                        <label class="form-label">Выберите категорию для {len(pks)} товаров:</label>
+                        <select class="form-select" name="target_category_id" required>
+                            <option value="">-- Выберите --</option>
+                            {category_options}
+                        </select>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Перенести</button>
+                    </div>
+                </form>
+            </div>
+            '''
+            return html
     
     async def on_model_change(self, data: dict, model: Product, is_created: bool, request: Request) -> None:
         action = "create" if is_created else "update"
@@ -243,10 +355,80 @@ def format_payment_with_button(order: Order) -> str:
                 Ожидает оплаты ({method_label})
             </button>
         '''
+    return Markup(html)
+
+
+def format_product_active_button(product: Product) -> str:
+    """Format is_active column with toggle button"""
+    
+    if product.is_active:
+        html = f'''
+            <button type="button" 
+                    style="font-size:11px;padding:2px 6px;"
+                    class="btn btn-sm btn-success"
+                    onclick="if(confirm('Деактивировать товар #{product.id}?')){{fetch('/api/admin/products/toggle-active',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{product_id:{product.id},is_active:false}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
+                Активен
+            </button>
+        '''
+    else:
+        html = f'''
+            <button type="button" 
+                    style="font-size:11px;padding:2px 6px;"
+                    class="btn btn-sm btn-danger"
+                    onclick="if(confirm('Активировать товар #{product.id}?')){{fetch('/api/admin/products/toggle-active',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{product_id:{product.id},is_active:true}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
+                Неактивен
+            </button>
+        '''
     
     return Markup(html)
 
-async def update_order_status_endpoint(request: Request):
+
+async def toggle_product_active_endpoint(request: Request):
+    """AJAX endpoint to toggle product is_active status"""
+    try:
+        data = await request.json()
+        product_id = data.get('product_id')
+        is_active = data.get('is_active')
+        
+        if product_id is None or is_active is None:
+            return JSONResponse(
+                {"success": False, "error": "Missing product_id or is_active"},
+                status_code=400
+            )
+        
+        with SessionLocal() as db:
+            product = db.query(Product).filter(Product.id == product_id).first()
+            if not product:
+                return JSONResponse(
+                    {"success": False, "error": "Product not found"},
+                    status_code=404
+                )
+            
+            old_status = product.is_active
+            product.is_active = bool(is_active)
+            db.commit()
+            
+            log_admin_action(
+                request, 
+                "toggle_active", 
+                "Product", 
+                product.id,
+                {"is_active": old_status},
+                {"is_active": is_active}
+            )
+            
+            return JSONResponse({
+                "success": True,
+                "product_id": product.id,
+                "is_active": product.is_active
+            })
+            
+    except Exception as e:
+        logger.error(f"Error toggling product active status: {e}")
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
     """AJAX endpoint to update order status"""
     try:
         data = await request.json()
