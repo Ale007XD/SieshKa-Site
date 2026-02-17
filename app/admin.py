@@ -1,5 +1,5 @@
 from sqladmin import Admin, ModelView, action
-from sqladmin.filters import BooleanFilter, AllUniqueStringValuesFilter, QuerySelectFilter
+from sqladmin.filters import BooleanFilter, AllUniqueStringValuesFilter, ForeignKeyFilter
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 from markupsafe import Markup
@@ -134,11 +134,7 @@ class ProductAdmin(ModelView, model=Product):
     column_filters = [
         BooleanFilter(Product.is_active),
         AllUniqueStringValuesFilter(Product.menu_period_override),
-        QuerySelectFilter(
-            Product.category,
-            query_factory=lambda session: session.query(Category).filter(Category.is_active == True).order_by(Category.name),
-            get_label=lambda cat: cat.get_hierarchy_path() if hasattr(cat, 'get_hierarchy_path') else cat.name
-        ),
+        ForeignKeyFilter(Product.category_id, Category.name, title="Категория"),
     ]
     column_formatters = {
         Product.is_active: lambda m, a: format_product_active_button(m)
