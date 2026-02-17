@@ -51,9 +51,9 @@
     const clearBtn = document.getElementById('clearCartBtn');
     if (clearBtn && typeof CartManager !== 'undefined') {
       clearBtn.addEventListener('click', function() {
-        if (confirm('Очистить корзину?')) { // Оставляем confirm здесь для соответствия UX
-          CartManager.clearCart();
-        }
+        CartManager.clearCart();
+      });
+    }
       });
     }
   }

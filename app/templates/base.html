@@ -419,13 +419,9 @@
     
     // Fix offcanvas clear button - add direct handler
     const offcanvasClearBtn = document.getElementById('offcanvasClearBtn');
-    if (offcanvasClearBtn) {
+    if (offcanvasClearBtn && typeof CartManager !== 'undefined') {
       offcanvasClearBtn.addEventListener('click', function() {
-        if (confirm('Очистить корзину?')) {
-          if (typeof CartManager !== 'undefined') {
-            CartManager.clearCart();
-          }
-        }
+        CartManager.clearCart();
       });
     }
   }
