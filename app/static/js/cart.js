@@ -243,13 +243,10 @@ const CartManager = (function() {
   }
   
   function clearCart() {
-    if (confirm('Очистить корзину?')) {
-      saveCart([]);
-      updateAllUI();
-      showToast('Корзина очищена', 'info');
-      return true;
-    }
-    return false;
+    saveCart([]);
+    updateAllUI();
+    showToast('Корзина очищена', 'info');
+    return true;
   }
   
   function getItemQty(productId) {

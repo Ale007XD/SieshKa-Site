@@ -41,35 +41,26 @@
 {% block scripts %}
 <script nonce="{{ csp_nonce }}">
   function initCartPage() {
-    // Initialize cart page
     if (typeof CartManager !== 'undefined') {
       CartManager.renderCartPage();
       CartManager.updateNavbarCart();
     }
-    
-    // Setup clear button
-    const clearBtn = document.getElementById('clearCartBtn');
+    var clearBtn = document.getElementById('clearCartBtn');
     if (clearBtn && typeof CartManager !== 'undefined') {
       clearBtn.addEventListener('click', function() {
         CartManager.clearCart();
       });
     }
-      });
-    }
   }
-  
-  // CartManager loads with defer, so we need to wait
   if (typeof CartManager !== 'undefined') {
     initCartPage();
   } else {
-    // Wait for cart.js to load
-    const checkCart = setInterval(function() {
+    var checkCart = setInterval(function() {
       if (typeof CartManager !== 'undefined') {
         clearInterval(checkCart);
         initCartPage();
       }
     }, 100);
-    // Stop checking after 5 seconds
     setTimeout(function() { clearInterval(checkCart); }, 5000);
   }
 </script>
