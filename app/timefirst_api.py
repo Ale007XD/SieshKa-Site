@@ -170,8 +170,8 @@ def get_availability_rules(scope_type: str, scope_id: int) -> List[AvailabilityR
     """Get active availability rules for scope"""
     from app.availability_models import AvailabilityScopeType
     with SessionLocal() as db:
-        # Convert string to enum
-        scope_enum = AvailabilityScopeType(scope_type.lower())
+        # Convert string to enum (lowercase to match DB enum values)
+        scope_enum = AvailabilityScopeType(scope_type)
         rules = db.query(AvailabilityRule).filter(
             AvailabilityRule.scope_type == scope_enum,
             AvailabilityRule.scope_id == scope_id,
@@ -182,6 +182,7 @@ def get_availability_rules(scope_type: str, scope_id: int) -> List[AvailabilityR
 
 def get_category_hierarchy_rules(category_id: int) -> List[AvailabilityRule]:
     """Get rules for category and its parents"""
+    from app.availability_models import AvailabilityScopeType
     rules = []
     visited = set()
     
@@ -192,7 +193,7 @@ def get_category_hierarchy_rules(category_id: int) -> List[AvailabilityRule]:
             
             # Get rules for this category
             cat_rules = db.query(AvailabilityRule).filter(
-                AvailabilityRule.scope_type == 'category',
+                AvailabilityRule.scope_type == AvailabilityScopeType.category,
                 AvailabilityRule.scope_id == current_id,
                 AvailabilityRule.is_active == True
             ).all()

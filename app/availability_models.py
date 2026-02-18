@@ -25,9 +25,9 @@ class DeliveryMethod(str, enum.Enum):
 
 
 class AvailabilityScopeType(str, enum.Enum):
-    """Scope type for availability rules"""
-    PRODUCT = "product"
-    CATEGORY = "category"
+    """Scope type for availability rules - must match DB enum values exactly"""
+    product = "product"
+    category = "category"
 
 
 class UnavailabilityReason(str, enum.Enum):
