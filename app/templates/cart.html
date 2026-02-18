@@ -29,9 +29,6 @@
   <a class="btn btn-outline-brand" href="/">
     <i class="bi bi-arrow-left me-1"></i>Назад в меню
   </a>
-  <button class="btn btn-outline-secondary" id="clearCartBtn">
-    <i class="bi bi-trash me-1"></i>Очистить
-  </button>
   <a class="btn btn-brand ms-auto" href="/checkout" id="checkoutBtn">
     Оформить<i class="bi bi-arrow-right ms-1"></i>
   </a>
@@ -45,12 +42,7 @@
       CartManager.renderCartPage();
       CartManager.updateNavbarCart();
     }
-    var clearBtn = document.getElementById('clearCartBtn');
-    if (clearBtn && typeof CartManager !== 'undefined') {
-      clearBtn.addEventListener('click', function() {
-        CartManager.clearCart();
-      });
-    }
+
   }
   if (typeof CartManager !== 'undefined') {
     initCartPage();
