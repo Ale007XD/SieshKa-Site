@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initStickyBar();
     loadSlots();
     loadMenu();
+    initOtherDateModal();
     
     // Wait for CartManager and setup event delegation
     waitForCartManager(() => {
@@ -281,29 +282,95 @@ async function loadMenu() {
 }
 
 // ============================================================================
-// Menu Rendering
+// Menu Rendering - обновление существующих карточек (НЕ перерисовка)
 // ============================================================================
 
 function renderMenu(data) {
-    const container = document.getElementById('menu-container');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    if (!data.categories || data.categories.length === 0) {
-        container.innerHTML = `
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle me-2"></i>
-                Меню временно недоступно
-            </div>
-        `;
-        return;
-    }
+    // Обновляем badge и CTA существующих карточек
+    if (!data.categories) return;
     
     data.categories.forEach(category => {
-        const categoryEl = createCategoryElement(category);
-        container.appendChild(categoryEl);
+        category.products.forEach(product => {
+            updateProductCard(product);
+        });
     });
+    
+    // Обновляем upsell suggestions
+    updateUpsellSuggestions(data);
+}
+
+function updateProductCard(product) {
+    const card = document.querySelector(`.product-card[data-product-id="${product.product_id}"]`);
+    if (!card) return;
+    
+    // Update availability state
+    card.dataset.available = product.available;
+    card.classList.toggle('unavailable', !product.available);
+    
+    // Update badge
+    const badgeContainer = card.querySelector('.availability-badge');
+    if (badgeContainer) {
+        let badgeHtml = '';
+        if (product.badge_text) {
+            const badgeClass = product.available ? 'bg-success' : 'bg-secondary';
+            badgeHtml += `<span class="badge ${badgeClass} me-1">${escapeHtml(product.badge_text)}</span>`;
+        }
+        if (product.next_available) {
+            badgeHtml += `<small class="text-muted d-block mt-1">${escapeHtml(product.next_available)}</small>`;
+        }
+        badgeContainer.innerHTML = badgeHtml;
+    }
+    
+    // Update CTA button based on availability
+    const addBtn = card.querySelector('.btn-add-to-cart');
+    const qtyControl = card.querySelector('.product-controls');
+    
+    if (!product.available) {
+        if (addBtn) {
+            addBtn.style.display = 'none';
+        }
+        if (qtyControl) {
+            qtyControl.style.display = 'none';
+        }
+    } else {
+        // Product is available - let CartManager handle the visibility
+        if (typeof CartManager !== 'undefined') {
+            const qty = CartManager.getItemQty(product.product_id);
+            if (qty > 0) {
+                if (addBtn) addBtn.style.display = 'none';
+                if (qtyControl) {
+                    qtyControl.style.display = 'flex';
+                    qtyControl.classList.remove('d-none');
+                }
+            } else {
+                if (addBtn) {
+                    addBtn.style.display = 'block';
+                    addBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i>Добавить';
+                }
+                if (qtyControl) {
+                    qtyControl.style.display = 'none';
+                }
+            }
+        }
+    }
+}
+
+function updateUpsellSuggestions(data) {
+    // Populate upsell suggestions from categories like "Напитки" or "Соусы"
+    if (typeof CartManager === 'undefined' || !data.categories) return;
+    
+    const upsellCats = data.categories.filter(c => 
+        /напитки|соусы|аксессуары|десерт/i.test(c.name)
+    );
+    const upsellItems = [];
+    upsellCats.forEach(cat => {
+        upsellItems.push(...cat.products.filter(p => p.available).slice(0, 2));
+    });
+    CartManager.setUpsellSuggestions(upsellItems.slice(0, 6));
+    
+    // Set "add for later" items (unavailable now but available later)
+    const laterItems = getUnavailableForCurrentSlot();
+    CartManager.setAddForLaterItems(laterItems);
 }
 
 function createCategoryElement(category) {
@@ -568,6 +635,94 @@ function showNotification(message, type = 'info') {
 }
 
 // ============================================================================
+// Other Date Modal
+// ============================================================================
+
+function initOtherDateModal() {
+    const modal = document.getElementById('otherDateModal');
+    if (!modal) return;
+    
+    // Update cart preview when modal opens
+    modal.addEventListener('show.bs.modal', updateModalCartPreview);
+    
+    // Update WhatsApp link with cart text
+    const whatsappBtn = document.getElementById('whatsappOrderBtn');
+    if (whatsappBtn) {
+        whatsappBtn.addEventListener('click', function(e) {
+            const cartText = generateCartTextForMessage();
+            this.href = `https://wa.me/79641027995?text=${encodeURIComponent(cartText)}`;
+        });
+    }
+}
+
+function updateModalCartPreview() {
+    const previewContainer = document.getElementById('modalCartPreview');
+    if (!previewContainer || typeof CartManager === 'undefined') return;
+    
+    const items = CartManager.loadCart();
+    if (items.length === 0) {
+        previewContainer.innerHTML = '<em class="text-muted">Корзина пуста</em>';
+        return;
+    }
+    
+    let html = '<ul class="list-unstyled mb-0">';
+    items.forEach(item => {
+        html += `<li>${escapeHtml(item.name)} × ${item.qty} = ${item.price_rub * item.qty} ₽</li>`;
+    });
+    html += '</ul>';
+    
+    const total = items.reduce((sum, item) => sum + (item.price_rub * item.qty), 0);
+    html += `<div class="mt-2 pt-2 border-top fw-bold">Итого: ${total} ₽</div>`;
+    
+    previewContainer.innerHTML = html;
+}
+
+function generateCartTextForMessage() {
+    if (typeof CartManager === 'undefined') return 'Здравствуйте! Хочу сделать предзаказ.';
+    
+    const items = CartManager.loadCart();
+    if (items.length === 0) {
+        return 'Здравствуйте! Хочу сделать предзаказ на другую дату.';
+    }
+    
+    let text = 'Здравствуйте! Хочу сделать предзаказ:\n\n';
+    items.forEach(item => {
+        text += `• ${item.name} × ${item.qty} = ${item.price_rub * item.qty} ₽\n`;
+    });
+    
+    const total = items.reduce((sum, item) => sum + (item.price_rub * item.qty), 0);
+    text += `\nИтого: ${total} ₽\n`;
+    text += '\nПрошу связаться для уточнения даты и времени доставки.';
+    
+    return text;
+}
+
+// ============================================================================
+// Upsell for "add for later" feature
+// ============================================================================
+
+function getUnavailableForCurrentSlot() {
+    // Returns products that are unavailable now but available later/tomorrow
+    if (!MenuState.menuData || !MenuState.menuData.categories) return [];
+    
+    const unavailable = [];
+    MenuState.menuData.categories.forEach(cat => {
+        cat.products.forEach(product => {
+            if (!product.available && product.next_available) {
+                unavailable.push({
+                    product_id: product.product_id,
+                    name: product.name,
+                    price_rub: product.price_rub,
+                    next_available: product.next_available
+                });
+            }
+        });
+    });
+    
+    return unavailable.slice(0, 4); // Limit to 4 items
+}
+
+// ============================================================================
 // Utilities
 // ============================================================================
 
@@ -590,3 +745,4 @@ window.addToCartWithQty = addToCartWithQty;
 window.updateProductQty = updateProductQty;
 window.scrollToSlotSelector = scrollToSlotSelector;
 window.showPreorderInfo = showPreorderInfo;
+window.getUnavailableForCurrentSlot = getUnavailableForCurrentSlot;

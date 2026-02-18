@@ -422,6 +422,34 @@ const CartManager = (function() {
       `;
     }
 
+    // Add "Add for Later" section - items available later/tomorrow
+    const laterItems = getAddForLaterItems ? getAddForLaterItems().filter(u => !items.some(i => i.product_id === u.product_id)) : [];
+    if (laterItems.length > 0) {
+      html += `
+        <div class="add-for-later-section mt-4 p-3 rounded-4 mx-2" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 1px dashed var(--color-accent-border);">
+          <div class="small text-muted text-uppercase fw-bold mb-2" style="font-size: 0.7rem;">
+            <i class="bi bi-clock-history me-1"></i>Добавить на позже:
+          </div>
+          <div class="d-flex flex-column gap-2">
+            ${laterItems.slice(0, 3).map(u => `
+              <div class="d-flex justify-content-between align-items-center" data-product-id="${u.product_id}" data-name="${escapeHtml(u.name)}" data-price="${u.price_rub}">
+                <div style="flex: 1; min-width: 0;">
+                  <div class="small text-truncate fw-semibold">${escapeHtml(u.name)}</div>
+                  <div class="small text-brand">${formatPrice(u.price_rub)}</div>
+                  <div class="small text-muted" style="font-size: 0.65rem;">
+                    <i class="bi bi-calendar-event me-1"></i>${escapeHtml(u.next_available)}
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-action="add" style="font-size: 0.75rem;" title="Добавить в корзину (будет доступно позже)">
+                  <i class="bi bi-plus"></i>
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
     // Add Recently Deleted section
     if (recentlyDeleted.length > 0) {
       html += `
@@ -887,6 +915,18 @@ const CartManager = (function() {
     }
   }
   
+  // Add for later items storage
+  let addForLaterItems = [];
+
+  function setAddForLaterItems(items) {
+    addForLaterItems = items || [];
+    updateAllUI();
+  }
+
+  function getAddForLaterItems() {
+    return addForLaterItems;
+  }
+
   // Public API
   return {
     // Initialization
@@ -917,6 +957,10 @@ const CartManager = (function() {
       upsellSuggestions.push(...items);
       updateAllUI();
     },
+    
+    // Add for later
+    setAddForLaterItems: setAddForLaterItems,
+    getAddForLaterItems: getAddForLaterItems,
     
     // Delivery fee
     getDeliveryFee: getDeliveryFee,

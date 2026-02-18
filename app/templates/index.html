@@ -2,8 +2,45 @@
 {% block title %}Меню{% endblock %}
 
 {% block content %}
+<!-- Time-First Sticky Bar -->
+<div id="sticky-bar" class="sticky-top" style="top: 56px; z-index: 1030; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-accent-border);">
+  <div class="container py-2">
+    <div class="row g-2 align-items-center">
+      <!-- Day Toggle -->
+      <div class="col-6 col-md-3">
+        <div class="btn-group w-100" role="group">
+          <button type="button" class="btn btn-sm btn-brand active" data-day="today">Сегодня</button>
+          <button type="button" class="btn btn-sm btn-outline-brand" data-day="tomorrow">Завтра</button>
+        </div>
+      </div>
+      
+      <!-- Method Toggle -->
+      <div class="col-6 col-md-3">
+        <div class="btn-group w-100" role="group">
+          <button type="button" class="btn btn-sm btn-brand active" data-method="delivery">Доставка</button>
+          <button type="button" class="btn btn-sm btn-outline-brand" data-method="pickup">Самовывоз</button>
+        </div>
+      </div>
+      
+      <!-- Slot Selector -->
+      <div class="col-12 col-md-4">
+        <select id="slot-select" class="form-select form-select-sm">
+          <option value="">Как можно скорее</option>
+        </select>
+      </div>
+      
+      <!-- Other Date Button -->
+      <div class="col-12 col-md-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#otherDateModal">
+          <i class="bi bi-calendar-plus me-1"></i>Другая дата
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Sticky Category Filter Bar -->
-<div class="category-filter-bar sticky-top" style="top: 70px; z-index: 1020; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-accent-border);">
+<div class="category-filter-bar sticky-top" style="top: 110px; z-index: 1020; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-accent-border);">
   <div class="container py-2">
     <div class="d-flex align-items-center gap-2 overflow-x-auto" id="categoryCarousel" style="scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
       <button class="btn btn-sm rounded-pill category-btn active" data-category-id="all" style="white-space: nowrap; min-width: 100px;">
@@ -113,8 +150,56 @@
     color: white !important;
   }
   @media (max-width: 576px) {
-    .category-filter-bar { top: 56px !important; }
+    .category-filter-bar { top: 110px !important; }
     .category-btn { padding: 0.4rem 0.8rem; font-size: 0.875rem; min-height: 44px; }
+    
+    /* Time-First bar mobile adjustments */
+    #sticky-bar { top: 56px !important; }
+    #sticky-bar .btn-group { flex-wrap: nowrap; }
+    #sticky-bar .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+  }
+  
+  /* Time-First Sticky Bar Styles */
+  #sticky-bar {
+    background: var(--color-bg-primary);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+  
+  #sticky-bar .btn-brand {
+    background-color: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: white;
+  }
+  
+  #sticky-bar .btn-outline-brand {
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+  }
+  
+  #sticky-bar .btn-outline-brand:hover,
+  #sticky-bar .btn-outline-brand.active {
+    background-color: var(--brand-primary);
+    color: white;
+  }
+  
+  /* Product card availability states */
+  .product-card.unavailable {
+    opacity: 0.7;
+    background-color: var(--color-bg-secondary);
+  }
+  
+  .product-card .availability-badge {
+    font-size: 0.75rem;
+  }
+  
+  .product-card .availability-badge .badge {
+    font-weight: 500;
+  }
+  
+  /* Slot selector focus state */
+  #slot-select.is-invalid {
+    border-color: var(--bs-danger);
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
   }
 </style>
 
@@ -142,15 +227,15 @@
   {% endfor %}
 </div>
 
-<div id="menuContent" class="d-none">
+<div id="menu-container" class="menu-container">
   {% for cat_data in categories_data %}
-    <div class="mt-4" data-cat-id="{{ cat_data.category.id }}">
+    <section class="menu-category mb-4" id="category-{{ cat_data.category.id }}" data-cat-id="{{ cat_data.category.id }}">
       <h2 class="h6 text-uppercase text-muted mb-2">{{ cat_data.category.name }}</h2>
 
       <div class="vstack gap-2">
         {# Products directly in category #}
         {% for p in cat_data.products %}
-        <div class="card shadow-sm" data-product-id="{{ p.id }}">
+        <div class="card shadow-sm product-card" data-product-id="{{ p.id }}" data-name="{{ p.name | replace('"', '&quot;') }}" data-price="{{ p.price_rub }}" data-available="true">
           <div class="card-body">
             <div class="d-flex gap-3">
               {% if p.photo_url %}
@@ -168,30 +253,33 @@
                 {% if p.description %}
                   <p class="text-muted small mb-2">{{ p.description }}</p>
                 {% endif %}
+                
+                <!-- Badge placeholder for Time-First -->
+                <div class="availability-badge mb-2"></div>
 
-                      <div class="d-flex justify-content-end align-items-center gap-2 product-controls" data-product-id="{{ p.id }}" data-price="{{ p.price_rub }}" data-name="{{ p.name | replace("'", "\\'") }}">
-                        <button type="button" 
-                          class="btn btn-outline-brand btn-sm qty-btn qty-btn-minus" 
-                          data-action="dec"
-                          aria-label="Уменьшить количество"
-                        >−</button>
-                        
-                        <span class="qty-display fw-bold" id="qty-display-{{ p.id }}" style="min-width: 24px; text-align: center;">0</span>
-                        
-                        <button type="button" 
-                          class="btn btn-brand btn-sm qty-btn" 
-                          data-action="inc"
-                          aria-label="Увеличить количество"
-                        >+</button>
-                      </div>
-                      
-                      <button 
-                        class="btn btn-brand btn-add-to-cart btn-sm" 
-                        id="add-btn-{{ p.id }}"
-                        style="display: none;" 
-                      >
-                        <i class="bi bi-plus-lg me-1"></i>Добавить
-                      </button>
+                <div class="d-flex justify-content-end align-items-center gap-2 product-controls" id="qty-control-{{ p.id }}" data-product-id="{{ p.id }}" data-price="{{ p.price_rub }}" data-name="{{ p.name | replace("'", "\\'") }}">
+                  <button type="button" 
+                    class="btn btn-outline-brand btn-sm qty-btn qty-btn-minus" 
+                    data-action="dec"
+                    aria-label="Уменьшить количество"
+                  >−</button>
+                  
+                  <span class="qty-display fw-bold" id="qty-display-{{ p.id }}" style="min-width: 24px; text-align: center;">0</span>
+                  
+                  <button type="button" 
+                    class="btn btn-brand btn-sm qty-btn" 
+                    data-action="inc"
+                    aria-label="Увеличить количество"
+                  >+</button>
+                </div>
+                
+                <button 
+                  class="btn btn-brand btn-add-to-cart btn-sm" 
+                  id="add-btn-{{ p.id }}"
+                  style="display: none;" 
+                >
+                  <i class="bi bi-plus-lg me-1"></i>Добавить
+                </button>
               </div>
             </div>
           </div>
@@ -200,11 +288,11 @@
 
         {# Subcategories with their products #}
         {% for subcat_data in cat_data.subcategories %}
-        <div class="ms-3 mt-2">
+        <div class="ms-3 mt-2 subcategory" data-cat-id="{{ subcat_data.category.id }}">
           <h3 class="h6 text-muted mb-2">{{ subcat_data.category.name }}</h3>
           <div class="vstack gap-2">
             {% for p in subcat_data.products %}
-            <div class="card shadow-sm" data-product-id="{{ p.id }}">
+            <div class="card shadow-sm product-card" data-product-id="{{ p.id }}" data-name="{{ p.name | replace('"', '&quot;') }}" data-price="{{ p.price_rub }}" data-available="true">
               <div class="card-body">
                 <div class="d-flex gap-3">
                   {% if p.photo_url %}
@@ -222,8 +310,11 @@
                     {% if p.description %}
                       <p class="text-muted small mb-2">{{ p.description }}</p>
                     {% endif %}
+                    
+                    <!-- Badge placeholder for Time-First -->
+                    <div class="availability-badge mb-2"></div>
 
-                    <div class="d-flex justify-content-end align-items-center gap-2 product-controls" data-product-id="{{ p.id }}" data-price="{{ p.price_rub }}" data-name="{{ p.name | replace("'", "\\'") }}">
+                    <div class="d-flex justify-content-end align-items-center gap-2 product-controls" id="qty-control-{{ p.id }}" data-product-id="{{ p.id }}" data-price="{{ p.price_rub }}" data-name="{{ p.name | replace("'", "\\'") }}">
                       <button 
                         class="btn btn-outline-brand btn-sm qty-btn qty-btn-minus" 
                         data-action="dec"
@@ -247,7 +338,7 @@
         </div>
         {% endfor %}
       </div>
-    </div>
+    </section>
   {% endfor %}
 </div>
 
@@ -264,9 +355,61 @@
   <button class="close-btn" id="lightboxClose">&times;</button>
   <img id="lightboxImage" src="" alt="Увеличенное изображение">
 </div>
+
+<!-- Other Date Modal -->
+<div class="modal fade" id="otherDateModal" tabindex="-1" aria-labelledby="otherDateModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="otherDateModalLabel">
+          <i class="bi bi-calendar-check me-2"></i>Заказ на другую дату
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          Для заказа на конкретную дату свяжитесь с нами через мессенджеры. 
+          Мы подготовим для вас индивидуальное меню.
+        </p>
+        
+        <div class="mb-3">
+          <label class="form-label small text-muted">Ваша корзина:</label>
+          <div id="modalCartPreview" class="p-2 bg-light rounded small">
+            <em class="text-muted">Корзина пуста</em>
+          </div>
+        </div>
+        
+        <div class="d-grid gap-2">
+          <a href="https://wa.me/79641027995?text=Здравствуйте! Хочу сделать предзаказ:" 
+             target="_blank" 
+             class="btn btn-success d-flex align-items-center justify-content-center gap-2"
+             id="whatsappOrderBtn">
+            <i class="bi bi-whatsapp"></i>
+            Написать в WhatsApp
+          </a>
+          <a href="https://t.me/sieshka_dostavka" 
+             target="_blank" 
+             class="btn btn-primary d-flex align-items-center justify-content-center gap-2"
+             style="background-color: #0088cc; border-color: #0088cc;">
+            <i class="bi bi-telegram"></i>
+            Написать в Telegram
+          </a>
+        </div>
+        
+        <div class="mt-3 text-center">
+          <small class="text-muted">
+            <i class="bi bi-clock me-1"></i>
+            Работаем ежедневно: 07:00–21:00
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/menu.js?v=2"></script>
 <script nonce="{{ csp_nonce }}">
   // Image Lightbox
   const lightbox = document.getElementById('imageLightbox');
@@ -317,7 +460,7 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('skeletons').classList.add('d-none');
-    document.getElementById('menuContent').classList.remove('d-none');
+    document.getElementById('menu-container').classList.remove('d-none');
     
     // Check if CartManager loaded
     if (typeof CartManager === 'undefined') {
@@ -337,8 +480,8 @@
     CartManager.updateAllUI();
     
     function initCartButtons() {
-      // Event delegation for cart buttons
-      document.getElementById('menuContent').addEventListener('click', function(e) {
+      // Event delegation for cart buttons - работает с menu-container
+      document.getElementById('menu-container').addEventListener('click', function(e) {
         const btn = e.target.closest('[data-action]');
         if (!btn) return;
         
@@ -358,7 +501,7 @@
       });
     }
     
-    // Category Filter Logic
+    // Category Filter Logic - работает с menu-category секциями
     initCategoryFilter();
     
     function initCategoryFilter() {
@@ -373,7 +516,7 @@
           categoryButtons.forEach(b => b.classList.remove('active'));
           this.classList.add('active');
           
-          // 2. Filter products
+          // 2. Filter products - используем .menu-category
           filterCategories(selectedCategory);
           
           // 3. Scroll carousel to center active button
@@ -382,7 +525,7 @@
       });
       
       function filterCategories(categoryId) {
-        const categories = document.querySelectorAll('#menuContent > div[data-cat-id]');
+        const categories = document.querySelectorAll('#menu-container > .menu-category[data-cat-id]');
         
         categories.forEach(cat => {
           if (categoryId === 'all') {
