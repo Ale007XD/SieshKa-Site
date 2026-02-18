@@ -198,6 +198,9 @@ class MenuConfiguration(Base):
     # Cache versioning for cache invalidation
     menu_version: Mapped[int] = mapped_column(Integer, default=1)
     
+    # Delivery fee (fixed amount in rubles)
+    delivery_fee: Mapped[int] = mapped_column(Integer, default=0)
+    
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, 
         default=datetime.utcnow,

@@ -165,12 +165,31 @@
       border-top: 1px solid var(--color-accent-border);
     }
     
+    .offcanvas-cart .cart-totals-block {
+      background-color: var(--color-bg-secondary);
+      border-top: 1px solid var(--color-accent-border);
+    }
+    
     .offcanvas-cart .cart-total-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 1rem;
+      padding: 0.5rem 1rem;
+    }
+    
+    .offcanvas-cart .cart-total-row.subtotal-row {
+      padding-top: 0.75rem;
+    }
+    
+    .offcanvas-cart .cart-total-row.delivery-row {
       border-bottom: 1px solid var(--color-accent-border);
+      padding-bottom: 0.75rem;
+    }
+    
+    .offcanvas-cart .cart-total-row.total-row {
+      padding-top: 0.75rem;
+      padding-bottom: 0.75rem;
+      background-color: var(--color-bg-tertiary);
     }
     
     .offcanvas-cart .cart-total-label {
@@ -179,6 +198,16 @@
     }
     
     .offcanvas-cart .cart-total-value {
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+    
+    .offcanvas-cart .cart-total-value.delivery-fee {
+      font-size: 0.95rem;
+      color: var(--color-text-muted);
+    }
+    
+    .offcanvas-cart .cart-total-value.total-price {
       font-size: 1.25rem;
       font-weight: 700;
       color: var(--color-element-primary);
@@ -375,20 +404,27 @@
     <div id="offcanvasCartItems" class="d-none"></div>
   </div>
   <div class="cart-footer d-none" id="offcanvasCartFooter">
-    <div class="cart-total-row">
-      <span class="cart-total-label">Итого:</span>
-      <span class="cart-total-value" id="offcanvasCartTotal">0 ₽</span>
+    <div class="cart-totals-block">
+      <div class="cart-total-row subtotal-row">
+        <span class="cart-total-label">Итого (товары):</span>
+        <span class="cart-total-value" id="offcanvasCartSubtotal">0 ₽</span>
+      </div>
+      <div class="cart-total-row delivery-row">
+        <span class="cart-total-label">Доставка:</span>
+        <span class="cart-total-value delivery-fee" id="offcanvasCartDeliveryFee">0 ₽ (фиксированная)</span>
+      </div>
+      <div class="cart-total-row total-row">
+        <span class="cart-total-label fw-bold">Итого к оплате:</span>
+        <span class="cart-total-value total-price" id="offcanvasCartTotal">0 ₽</span>
+      </div>
     </div>
     <div class="cart-limits">
       <i class="bi bi-info-circle me-1"></i>
       Макс. 20 шт. на товар, 50 товаров всего
     </div>
     <div class="cart-actions">
-      <button type="button" class="btn btn-outline-secondary" id="offcanvasClearBtn">
-        <i class="bi bi-trash me-1"></i>Очистить
-      </button>
-      <a href="/cart" class="btn btn-brand" id="offcanvasCheckoutBtn">
-        <i class="bi bi-arrow-right me-1"></i>Оформить
+      <a href="/checkout" class="btn btn-brand w-100" id="offcanvasCheckoutBtn">
+        <i class="bi bi-arrow-right me-1"></i>Перейти к оформлению
       </a>
     </div>
   </div>

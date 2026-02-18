@@ -19,6 +19,8 @@ const CartManager = (function() {
   const HISTORY_KEY = 'cart_history';
   let recentlyDeleted = loadHistory(); // Load last 3 deleted items from localStorage
   const upsellSuggestions = []; // Populated from menu.js
+  let deliveryFee = 0; // Delivery fee from server configuration
+  let deliveryFeeLoaded = false; // Flag to track if delivery fee was loaded
   
   function loadHistory() {
     try {
@@ -28,13 +30,39 @@ const CartManager = (function() {
       return [];
     }
   }
-  
+
   function saveHistory() {
     try {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(recentlyDeleted.slice(0, 3)));
     } catch (e) {
       console.error('Error saving history:', e);
     }
+  }
+
+  // Load delivery fee from server
+  async function loadDeliveryFee() {
+    if (deliveryFeeLoaded) return deliveryFee;
+    
+    try {
+      const response = await fetch('/api/config/delivery-fee');
+      if (response.ok) {
+        const data = await response.json();
+        deliveryFee = data.delivery_fee || 0;
+        deliveryFeeLoaded = true;
+      }
+    } catch (e) {
+      console.error('Error loading delivery fee:', e);
+      deliveryFee = 0;
+    }
+    return deliveryFee;
+  }
+
+  // Get delivery fee (loads from server if not already loaded)
+  async function getDeliveryFee() {
+    if (!deliveryFeeLoaded) {
+      await loadDeliveryFee();
+    }
+    return deliveryFee;
   }
   
   // Utility functions
@@ -313,11 +341,13 @@ const CartManager = (function() {
     }
   }
   
-  function updateOffcanvasCart() {
+  async function updateOffcanvasCart() {
     const items = loadCart();
     const container = document.getElementById('offcanvasCartItems');
     const emptyMessage = document.getElementById('offcanvasEmptyMessage');
     const footer = document.getElementById('offcanvasCartFooter');
+    const subtotalEl = document.getElementById('offcanvasCartSubtotal');
+    const deliveryEl = document.getElementById('offcanvasCartDeliveryFee');
     const totalEl = document.getElementById('offcanvasCartTotal');
     
     if (!container) return;
@@ -335,11 +365,11 @@ const CartManager = (function() {
     if (footer) footer.classList.remove('d-none');
     
     let html = '<div class="cart-items-list">';
-    let total = 0;
+    let subtotal = 0;
     
     items.forEach(item => {
       const itemTotal = item.price_rub * item.qty;
-      total += itemTotal;
+      subtotal += itemTotal;
       
       html += `
         <div class="cart-item" data-product-id="${item.product_id}" data-name="${escapeHtml(item.name)}" data-price="${item.price_rub}">
@@ -415,9 +445,13 @@ const CartManager = (function() {
     
     container.innerHTML = html;
     
-    if (totalEl) {
-      totalEl.textContent = formatPrice(total);
-    }
+    // Update totals with delivery fee
+    const currentDeliveryFee = await getDeliveryFee();
+    const grandTotal = subtotal + currentDeliveryFee;
+    
+    if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
+    if (deliveryEl) deliveryEl.textContent = formatPrice(currentDeliveryFee) + ' (фиксированная)';
+    if (totalEl) totalEl.textContent = formatPrice(grandTotal);
   }
   
   function updateProductControls() {
@@ -462,7 +496,7 @@ const CartManager = (function() {
     });
   }
   
-  function renderCartPage() {
+  async function renderCartPage() {
     // Render cart for cart.html
     const container = document.getElementById('cart');
     const emptyCart = document.getElementById('emptyCart');
@@ -486,11 +520,11 @@ const CartManager = (function() {
     if (cartActions) cartActions.classList.remove('d-none');
     
     let html = '<div class="vstack gap-3">';
-    let total = 0;
+    let subtotal = 0;
     
     items.forEach(item => {
       const itemTotal = item.price_rub * item.qty;
-      total += itemTotal;
+      subtotal += itemTotal;
       
       html += `
         <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
@@ -512,22 +546,45 @@ const CartManager = (function() {
     });
     
     html += '</div>';
+    
+    // Calculate totals with delivery fee
+    const currentDeliveryFee = await getDeliveryFee();
+    const grandTotal = subtotal + currentDeliveryFee;
+    
     html += `
-      <div class="d-flex justify-content-between fw-bold h5 mb-0 mt-3 pt-3 border-top">
-        <span>Итого:</span>
-        <span>${formatPrice(total)}</span>
+      <div class="cart-totals mt-3 pt-3 border-top">
+        <div class="d-flex justify-content-between mb-2">
+          <span class="text-muted">Итого (товары):</span>
+          <span class="fw-semibold">${formatPrice(subtotal)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2">
+          <span class="text-muted">Доставка:</span>
+          <span class="fw-semibold">${formatPrice(currentDeliveryFee)} (фиксированная)</span>
+        </div>
+        <div class="d-flex justify-content-between fw-bold h5 mb-0 mt-2 pt-2 border-top">
+          <span>Итого к оплате:</span>
+          <span class="text-brand">${formatPrice(grandTotal)}</span>
+        </div>
       </div>
     `;
     
     container.innerHTML = html;
   }
   
-  function updateCheckoutTotal() {
-    const totalEl = document.getElementById('checkoutTotal');
-    if (totalEl) {
+  async function updateCheckoutTotal() {
+    const subtotalEl = document.getElementById('checkoutSubtotal');
+    const deliveryEl = document.getElementById('checkoutDeliveryFee');
+    const grandTotalEl = document.getElementById('checkoutGrandTotal');
+    
+    if (subtotalEl || deliveryEl || grandTotalEl) {
       const items = loadCart();
-      const total = getTotalPrice(items);
-      totalEl.textContent = formatPrice(total);
+      const subtotal = getTotalPrice(items);
+      const currentDeliveryFee = await getDeliveryFee();
+      const grandTotal = subtotal + currentDeliveryFee;
+      
+      if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
+      if (deliveryEl) deliveryEl.textContent = formatPrice(currentDeliveryFee) + ' (фиксированная)';
+      if (grandTotalEl) grandTotalEl.textContent = formatPrice(grandTotal);
     }
   }
 
@@ -619,12 +676,12 @@ const CartManager = (function() {
     });
   }
   
-  function updateAllUI() {
+  async function updateAllUI() {
     updateNavbarCart();
-    updateOffcanvasCart();
+    await updateOffcanvasCart();
     updateProductControls();
-    renderCartPage();
-    updateCheckoutTotal();
+    await renderCartPage();
+    await updateCheckoutTotal();
     renderRecentlyDeletedOnCheckout();
     renderRecentlyDeletedOnCart();
   }
@@ -860,6 +917,9 @@ const CartManager = (function() {
       upsellSuggestions.push(...items);
       updateAllUI();
     },
+    
+    // Delivery fee
+    getDeliveryFee: getDeliveryFee,
     
     // Constants
     QTY_MAX: QTY_MAX,

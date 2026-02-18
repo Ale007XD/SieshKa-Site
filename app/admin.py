@@ -1042,6 +1042,7 @@ class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
         MenuConfiguration.id,
         MenuConfiguration.business_tz,
         MenuConfiguration.menu_version,
+        MenuConfiguration.delivery_fee,
         MenuConfiguration.enable_tomorrow_orders,
         MenuConfiguration.updated_at,
     ]
@@ -1057,10 +1058,12 @@ class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
         "enable_tomorrow_orders",
         "tomorrow_order_cutoff",
         "menu_version",
+        "delivery_fee",
     ]
     column_labels = {
         MenuConfiguration.business_tz: "Часовой пояс",
         MenuConfiguration.menu_version: "Версия меню",
+        MenuConfiguration.delivery_fee: "Стоимость доставки (₽)",
         MenuConfiguration.enable_tomorrow_orders: "Заказы на завтра",
     }
     name = "Настройки меню"
@@ -1078,6 +1081,12 @@ class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
         if data.get("evening_start") and data.get("evening_end"):
             if data["evening_start"] >= data["evening_end"]:
                 raise ValueError("Evening start must be before evening end")
+        
+        # Validate delivery fee (must be non-negative)
+        if "delivery_fee" in data:
+            delivery_fee = data["delivery_fee"]
+            if delivery_fee is not None and (not isinstance(delivery_fee, int) or delivery_fee < 0):
+                raise ValueError("Стоимость доставки должна быть неотрицательным целым числом")
         
         # Ensure only one configuration record exists
         if is_created:

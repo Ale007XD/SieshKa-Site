@@ -46,6 +46,7 @@ from config.constants import VERSION, MAX_QTY_PER_ITEM, MAX_ITEMS_IN_CART
 
 from .db import engine, SessionLocal
 from .models import Base, Category, Product, Order, OrderItem, PaymentMethod, DeliveryMode, MenuPeriod, DeliverySlot
+from .availability_models import MenuConfiguration
 from .telegram import notify_both, retry_failed_notifications, get_failed_notifications_count
 from .admin import setup_admin, update_order_status_endpoint, update_payment_status_endpoint
 from .schemas import OrderCreate, HealthResponse, DeliverySlotsAvailability, DeliverySlotResponse
@@ -472,6 +473,15 @@ async def get_slots_availability(target_date: date = Query(default_factory=date.
             date=target_date,
             slots=[DeliverySlotResponse(**slot) for slot in slots]
         )
+
+@app.get("/api/config/delivery-fee", tags=["Config"])
+async def get_delivery_fee():
+    """Get current delivery fee from configuration"""
+    with SessionLocal() as db:
+        config = db.query(MenuConfiguration).first()
+        if config:
+            return {"delivery_fee": config.delivery_fee}
+        return {"delivery_fee": 0}
 
 @app.get("/", response_class=HTMLResponse, tags=["Menu"])
 async def index(request: Request, preview_period: str = Query(None)):
