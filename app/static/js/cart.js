@@ -421,34 +421,42 @@ const CartManager = (function() {
   }
   
   function updateProductControls() {
-    // Update quantity controls on product cards
-    const controls = document.querySelectorAll('[data-product-id]');
+    // Update quantity controls only on product cards in the menu
+    // Use specific selector to avoid affecting cart items or upsell section
+    const menuContainer = document.getElementById('menu-container');
+    if (!menuContainer) return;
+    
+    const controls = menuContainer.querySelectorAll('.product-card[data-product-id]');
     controls.forEach(el => {
       const productId = parseInt(el.dataset.productId);
       if (!productId) return;
       
       const qty = getItemQty(productId);
       const qtyDisplay = el.querySelector('.qty-display');
-      const qtyInput = el.querySelector('.qty-input');
       
       if (qtyDisplay) {
         qtyDisplay.textContent = qty;
       }
-      if (qtyInput) {
-        qtyInput.value = qty;
-      }
       
       // Toggle between "Add" button and quantity controls
       const addBtn = el.querySelector('.btn-add-to-cart');
-      const qtyControl = el.querySelector('.qty-control-group');
+      const qtyControl = el.querySelector('.product-controls');
       
       if (addBtn && qtyControl) {
         if (qty > 0) {
           addBtn.classList.add('d-none');
           qtyControl.classList.remove('d-none');
+          qtyControl.classList.add('d-flex');
+          
+          // Update button states based on limits
+          const plusBtn = qtyControl.querySelector('.qty-btn:last-child');
+          if (plusBtn) {
+            plusBtn.disabled = qty >= QTY_MAX;
+          }
         } else {
           addBtn.classList.remove('d-none');
           qtyControl.classList.add('d-none');
+          qtyControl.classList.remove('d-flex');
         }
       }
     });
@@ -531,24 +539,54 @@ const CartManager = (function() {
     updateCheckoutTotal();
   }
   
-  // Toast Notifications
+  // Toast Notifications Queue System
+  const toastQueue = [];
+  let activeToasts = [];
+  const MAX_TOASTS = 3;
+  const TOAST_DURATION = 4000;
+  
   function showToast(message, type = 'info', showCartSummary = false) {
     const container = document.getElementById('toastContainer');
     if (!container) return;
     
-    // Clear existing timeout
-    if (toastTimeout) {
-      clearTimeout(toastTimeout);
+    // Add to queue
+    toastQueue.push({ message, type, showCartSummary, timestamp: Date.now() });
+    processToastQueue();
+  }
+  
+  function processToastQueue() {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    // Remove expired toasts from active list
+    activeToasts = activeToasts.filter(toast => {
+      if (Date.now() - toast.timestamp > TOAST_DURATION) {
+        if (toast.element && toast.element.parentNode) {
+          toast.element.classList.remove('show');
+          setTimeout(() => {
+            if (toast.element && toast.element.parentNode) {
+              toast.element.remove();
+            }
+          }, 300);
+        }
+        if (toast.timeoutId) {
+          clearTimeout(toast.timeoutId);
+        }
+        return false;
+      }
+      return true;
+    });
+    
+    // Process queue if space available
+    while (toastQueue.length > 0 && activeToasts.length < MAX_TOASTS) {
+      const toastData = toastQueue.shift();
+      createAndShowToast(toastData, container);
     }
-    
-    // Remove existing toasts
-    container.innerHTML = '';
-    
-    const items = loadCart();
-    const totalItems = getTotalItems(items);
-    const totalPrice = getTotalPrice(items);
-    
-    const toastId = 'cartToast' + Date.now();
+  }
+  
+  function createAndShowToast(toastData, container) {
+    const { message, type, showCartSummary } = toastData;
+    const toastId = 'cartToast' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     
     let icon = 'info-circle';
     let bgClass = 'bg-primary';
@@ -565,29 +603,70 @@ const CartManager = (function() {
         break;
     }
     
-    const toastHtml = `
-      <div class="toast show" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="toast-header">
-          <i class="bi bi-${icon} me-2"></i>
-          <strong class="me-auto">Корзина обновлена</strong>
-          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body">
-          ${escapeHtml(message)}
-        </div>
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast show';
+    toastEl.id = toastId;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    
+    toastEl.innerHTML = `
+      <div class="toast-header">
+        <i class="bi bi-${icon} me-2"></i>
+        <strong class="me-auto">Корзина обновлена</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+      <div class="toast-body">
+        ${escapeHtml(message)}
       </div>
     `;
     
-    container.innerHTML = toastHtml;
+    container.appendChild(toastEl);
     
-    // Auto-hide after 4 seconds
-    toastTimeout = setTimeout(() => {
-      const toast = document.getElementById(toastId);
-      if (toast) {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
+    // Setup close button
+    const closeBtn = toastEl.querySelector('.btn-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        toastEl.classList.remove('show');
+        setTimeout(() => {
+          if (toastEl.parentNode) {
+            toastEl.remove();
+          }
+          removeFromActiveToasts(toastId);
+        }, 300);
+      });
+    }
+    
+    // Auto-hide
+    const timeoutId = setTimeout(() => {
+      toastEl.classList.remove('show');
+      setTimeout(() => {
+        if (toastEl.parentNode) {
+          toastEl.remove();
+        }
+        removeFromActiveToasts(toastId);
+        processToastQueue();
+      }, 300);
+    }, TOAST_DURATION);
+    
+    // Track active toast
+    activeToasts.push({
+      id: toastId,
+      element: toastEl,
+      timeoutId: timeoutId,
+      timestamp: Date.now()
+    });
+  }
+  
+  function removeFromActiveToasts(toastId) {
+    const index = activeToasts.findIndex(t => t.id === toastId);
+    if (index > -1) {
+      const toast = activeToasts[index];
+      if (toast.timeoutId) {
+        clearTimeout(toast.timeoutId);
       }
-    }, 4000);
+      activeToasts.splice(index, 1);
+    }
   }
   
   // Event Handlers
@@ -760,6 +839,17 @@ function initCheckoutPage() {
   setupCheckoutForm();
 }
 
+function generateIdempotencyKey() {
+  return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+function validatePhone(phone) {
+  // Basic phone validation for Russian numbers
+  const cleanPhone = phone.replace(/\D/g, '');
+  // Should start with 7 or 8 and have 11 digits total
+  return /^[78]\d{10}$/.test(cleanPhone);
+}
+
 function setupCheckoutForm() {
   const form = document.getElementById('orderForm');
   if (!form) return;
@@ -769,7 +859,7 @@ function setupCheckoutForm() {
     
     const items = CartManager.loadCart();
     if (items.length === 0) {
-      showError('Корзина пуста');
+      CartManager.showToast('Корзина пуста', 'warning');
       return;
     }
     
@@ -777,6 +867,12 @@ function setupCheckoutForm() {
     const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Оформляем...';
+    
+    // Clear any previous errors
+    const errorDiv = document.getElementById('formError');
+    if (errorDiv) {
+      errorDiv.classList.add('d-none');
+    }
     
     const deliveryMode = document.querySelector('input[name="delivery_mode"]:checked').value;
     
@@ -788,10 +884,36 @@ function setupCheckoutForm() {
         .trim();
     };
     
+    const name = sanitizeInput(document.getElementById('name').value);
+    const phone = sanitizeInput(document.getElementById('phone').value);
+    const address = sanitizeInput(document.getElementById('address').value);
+    
+    // Client-side validation
+    if (name.length < 2) {
+      CartManager.showToast('Введите корректное имя', 'warning');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+      return;
+    }
+    
+    if (!validatePhone(phone)) {
+      CartManager.showToast('Введите корректный номер телефона (+7XXXXXXXXXX)', 'warning');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+      return;
+    }
+    
+    if (address.length < 8) {
+      CartManager.showToast('Введите полный адрес доставки', 'warning');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+      return;
+    }
+    
     const formData = {
-      name: sanitizeInput(document.getElementById('name').value),
-      phone: sanitizeInput(document.getElementById('phone').value),
-      address: sanitizeInput(document.getElementById('address').value),
+      name: name,
+      phone: phone,
+      address: address,
       comment: sanitizeInput(document.getElementById('comment').value) || null,
       delivery_mode: deliveryMode,
       delivery_slot: null,
@@ -801,7 +923,7 @@ function setupCheckoutForm() {
         product_id: item.product_id,
         qty: item.qty
       })),
-      idempotency_key: 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+      idempotency_key: generateIdempotencyKey()
     };
     
     if (deliveryMode === 'slot') {
@@ -809,14 +931,14 @@ function setupCheckoutForm() {
       formData.delivery_date = document.getElementById('delivery_date').value;
       
       if (!formData.delivery_slot) {
-        showError('Выберите время доставки');
+        CartManager.showToast('Выберите время доставки', 'warning');
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
         return;
       }
       
       if (!formData.delivery_date) {
-        showError('Выберите дату доставки');
+        CartManager.showToast('Выберите дату доставки', 'warning');
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
         return;
@@ -840,13 +962,19 @@ function setupCheckoutForm() {
         localStorage.setItem('cart', '[]');
         window.location.href = '/thanks/' + data.order_id;
       } else {
-        showError(data.detail || 'Ошибка при оформлении заказа');
+        const errorMsg = data.detail || 'Ошибка при оформлении заказа';
+        CartManager.showToast(errorMsg, 'error');
+        // Also show in form error div for better visibility
+        if (errorDiv) {
+          errorDiv.textContent = errorMsg;
+          errorDiv.classList.remove('d-none');
+        }
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
       }
     } catch (error) {
       console.error('Error:', error);
-      showError('Ошибка соединения. Попробуйте позже.');
+      CartManager.showToast('Ошибка соединения. Попробуйте позже.', 'error');
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalText;
     }
@@ -854,6 +982,9 @@ function setupCheckoutForm() {
 }
 
 function showError(message) {
+  // Legacy function - now uses toast notifications
+  CartManager.showToast(message, 'error');
+  // Keep fallback to form error div
   const errorDiv = document.getElementById('formError');
   if (errorDiv) {
     errorDiv.textContent = message;

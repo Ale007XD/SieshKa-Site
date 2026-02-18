@@ -390,7 +390,8 @@ function renderProductControls(product, isAvailable, ctaType) {
     
     if (ctaType === 'select_time') {
         return `
-            <button class="btn btn-outline-brand btn-add-to-cart btn-sm" 
+            <button class="btn btn-outline-brand btn-add-to-cart btn-sm w-100" 
+                    id="add-btn-${product.product_id}"
                     data-action="scroll-slot">
                 ${CTA_LABELS[ctaType]}
             </button>
@@ -399,7 +400,8 @@ function renderProductControls(product, isAvailable, ctaType) {
     
     if (ctaType === 'preorder') {
         return `
-            <button class="btn btn-outline-brand btn-add-to-cart btn-sm" 
+            <button class="btn btn-outline-brand btn-add-to-cart btn-sm w-100" 
+                    id="add-btn-${product.product_id}"
                     data-action="preorder" data-product-id="${product.product_id}">
                 ${CTA_LABELS[ctaType]}
             </button>
@@ -412,7 +414,13 @@ function renderProductControls(product, isAvailable, ctaType) {
     const name = product.name; // Will be read from data attribute
     
     return `
-        <div class="product-controls d-flex justify-content-center align-items-center gap-2" 
+        <button class="btn btn-brand btn-add-to-cart btn-sm w-100" 
+                id="add-btn-${productId}"
+                onclick="addToCartWithQty(${productId}, ${priceRub}, '${escapeJs(name)}')">
+            ${CTA_LABELS[ctaType] || 'Добавить'}
+        </button>
+        <div class="product-controls d-none justify-content-center align-items-center gap-2" 
+             id="qty-control-${productId}"
              data-product-id="${productId}" data-price="${priceRub}" data-name="${escapeHtml(name)}">
             <button type="button" class="qty-btn qty-btn-minus" 
                     aria-label="Уменьшить количество">

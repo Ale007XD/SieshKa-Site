@@ -408,22 +408,8 @@
       CartManager.init();
     }
     
-    // Initialize Bootstrap offcanvas
-    const offcanvasEl = document.getElementById('offcanvasCart');
-    if (offcanvasEl && typeof bootstrap !== 'undefined') {
-      // Bootstrap 5.3 auto-initializes data-bs attributes, but we can ensure it's ready
-      if (typeof bootstrap.Offcanvas === 'function') {
-        new bootstrap.Offcanvas(offcanvasEl);
-      }
-    }
-    
-    // Fix offcanvas clear button - add direct handler
-    const offcanvasClearBtn = document.getElementById('offcanvasClearBtn');
-    if (offcanvasClearBtn && typeof CartManager !== 'undefined') {
-      offcanvasClearBtn.addEventListener('click', function() {
-        CartManager.clearCart();
-      });
-    }
+    // Offcanvas is initialized in CartManager.setupEventListeners()
+    // Bootstrap 5.3 auto-initializes data-bs attributes
   }
   
   // Run after DOM is ready
