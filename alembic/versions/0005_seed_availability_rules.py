@@ -33,13 +33,14 @@ def upgrade() -> None:
         return
     
     # Insert availability rules for each product
+    # Use uppercase for enum values to match PostgreSQL enum definition
     for product_id in product_ids:
         connection.execute(
             text("""
                 INSERT INTO availability_rules 
                     (scope_type, scope_id, daypart, methods, is_active, created_at, updated_at)
                 VALUES 
-                    ('product', :product_id, 'ALLDAY', ARRAY['delivery', 'pickup'], true, NOW(), NOW())
+                    ('PRODUCT', :product_id, 'ALLDAY', ARRAY['delivery', 'pickup'], true, NOW(), NOW())
                 ON CONFLICT DO NOTHING
             """),
             {"product_id": product_id}
@@ -53,7 +54,8 @@ def downgrade() -> None:
     Remove all product-scoped availability rules.
     """
     connection = op.get_bind()
+    # Delete both uppercase and lowercase versions for compatibility
     connection.execute(
-        text("DELETE FROM availability_rules WHERE scope_type = 'product'")
+        text("DELETE FROM availability_rules WHERE scope_type = 'PRODUCT' OR scope_type = 'product'")
     )
     print("Removed all product availability rules")
