@@ -970,6 +970,26 @@ class AdminAuditLogAdmin(ModelView, model=AdminAuditLog):
     can_delete = False
 
 
+def format_availability_rule_scope(rule: AvailabilityRule) -> str:
+    """Format scope type and id for display"""
+    scope_type_label = {
+        "product": "Товар",
+        "category": "Категория"
+    }.get(rule.scope_type.value, rule.scope_type.value)
+    return Markup(f"{scope_type_label} #{rule.scope_id}")
+
+
+def format_methods(methods: list) -> str:
+    """Format methods array for display"""
+    if not methods:
+        return "—"
+    method_labels = {
+        "delivery": "Доставка",
+        "pickup": "Самовывоз"
+    }
+    return ", ".join([method_labels.get(m, m) for m in methods])
+
+
 class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
     """Admin for availability rules (Time-First Menu System)"""
     column_list = [
@@ -978,16 +998,18 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
         AvailabilityRule.scope_id,
         AvailabilityRule.daypart,
         AvailabilityRule.lead_time_minutes,
-        AvailabilityRule.methods,
         AvailabilityRule.allow_tomorrow,
         AvailabilityRule.is_active,
     ]
     column_sortable_list = [AvailabilityRule.id, AvailabilityRule.lead_time_minutes]
     column_filters = [
-        AllUniqueStringValuesFilter(AvailabilityRule.scope_type),
-        AllUniqueStringValuesFilter(AvailabilityRule.daypart),
         BooleanFilter(AvailabilityRule.is_active),
     ]
+    column_formatters = {
+        AvailabilityRule.scope_type: lambda m, a: format_availability_rule_scope(m),
+        AvailabilityRule.daypart: lambda m, a: Markup(f'<span class="badge bg-info">{m.daypart.value}</span>'),
+        AvailabilityRule.methods: lambda m, a: format_methods(m.methods) if hasattr(m, 'methods') else "—",
+    }
     form_columns = [
         "scope_type",
         "scope_id",
@@ -1002,8 +1024,8 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
         "is_active",
     ]
     column_labels = {
-        AvailabilityRule.scope_type: "Тип",
-        AvailabilityRule.scope_id: "ID объекта",
+        AvailabilityRule.scope_type: "Объект",
+        AvailabilityRule.scope_id: "ID",
         AvailabilityRule.daypart: "Период",
         AvailabilityRule.lead_time_minutes: "Lead time (мин)",
         AvailabilityRule.methods: "Способы",
