@@ -575,6 +575,49 @@ const CartManager = (function() {
       });
     });
   }
+
+  function renderRecentlyDeletedOnCart() {
+    const section = document.getElementById('recentlyDeletedSection');
+    const container = document.getElementById('recentlyDeletedList');
+    if (!container || !section) return;
+
+    if (recentlyDeleted.length === 0) {
+      section.classList.add('d-none');
+      return;
+    }
+
+    section.classList.remove('d-none');
+
+    let html = '';
+    recentlyDeleted.slice(0, 3).forEach(rd => {
+      html += `
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-light opacity-75" data-product-id="${rd.product_id}" data-name="${escapeHtml(rd.name)}" data-price="${rd.price_rub}">
+          <div style="flex: 1; min-width: 0;">
+            <div class="small text-truncate text-muted">${escapeHtml(rd.name)}</div>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary border-0 rounded-pill px-2" data-action="restore" style="font-size: 0.7rem;">
+            <i class="bi bi-arrow-counterclockwise"></i> Вернуть
+          </button>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+
+    // Add event listeners for restore buttons
+    container.querySelectorAll('[data-action="restore"]').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        const itemEl = e.target.closest('[data-product-id]');
+        if (!itemEl) return;
+
+        const productId = parseInt(itemEl.dataset.productId);
+        const price = parseInt(itemEl.dataset.price);
+        const name = itemEl.dataset.name;
+
+        addItem(productId, price, name);
+      });
+    });
+  }
   
   function updateAllUI() {
     updateNavbarCart();
@@ -583,6 +626,7 @@ const CartManager = (function() {
     renderCartPage();
     updateCheckoutTotal();
     renderRecentlyDeletedOnCheckout();
+    renderRecentlyDeletedOnCart();
   }
   
   // Toast Notifications Queue System
@@ -809,6 +853,7 @@ const CartManager = (function() {
     renderCartPage: renderCartPage,
     updateCheckoutTotal: updateCheckoutTotal,
     renderRecentlyDeletedOnCheckout: renderRecentlyDeletedOnCheckout,
+    renderRecentlyDeletedOnCart: renderRecentlyDeletedOnCart,
     showToast: showToast,
     setUpsellSuggestions: function(items) {
       upsellSuggestions.length = 0;
@@ -899,6 +944,7 @@ function renderCart() {
 function initCartPage() {
   CartManager.renderCartPage();
   CartManager.updateNavbarCart();
+  CartManager.renderRecentlyDeletedOnCart();
 }
 
 function initCheckoutPage() {
