@@ -530,6 +530,51 @@ const CartManager = (function() {
       totalEl.textContent = formatPrice(total);
     }
   }
+
+  function renderRecentlyDeletedOnCheckout() {
+    const container = document.getElementById('recentlyDeletedList');
+    if (!container) return;
+
+    if (recentlyDeleted.length === 0) {
+      container.innerHTML = '';
+      const section = container.closest('.recently-deleted-section');
+      if (section) section.style.display = 'none';
+      return;
+    }
+
+    const section = container.closest('.recently-deleted-section');
+    if (section) section.style.display = 'block';
+
+    let html = '';
+    recentlyDeleted.forEach(rd => {
+      html += `
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-light opacity-75" data-product-id="${rd.product_id}" data-name="${escapeHtml(rd.name)}" data-price="${rd.price_rub}">
+          <div style="flex: 1; min-width: 0;">
+            <div class="small text-truncate text-muted">${escapeHtml(rd.name)}</div>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary border-0 rounded-pill px-2" data-action="restore" style="font-size: 0.7rem;">
+            <i class="bi bi-arrow-counterclockwise"></i> Вернуть
+          </button>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+
+    // Add event listeners for restore buttons
+    container.querySelectorAll('[data-action="restore"]').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        const itemEl = e.target.closest('[data-product-id]');
+        if (!itemEl) return;
+
+        const productId = parseInt(itemEl.dataset.productId);
+        const price = parseInt(itemEl.dataset.price);
+        const name = itemEl.dataset.name;
+
+        addItem(productId, price, name);
+      });
+    });
+  }
   
   function updateAllUI() {
     updateNavbarCart();
@@ -537,6 +582,7 @@ const CartManager = (function() {
     updateProductControls();
     renderCartPage();
     updateCheckoutTotal();
+    renderRecentlyDeletedOnCheckout();
   }
   
   // Toast Notifications Queue System
@@ -717,6 +763,27 @@ const CartManager = (function() {
     if (offcanvasEl && typeof bootstrap !== 'undefined') {
       offcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
     }
+
+    // Checkout page recently deleted section
+    const recentlyDeletedList = document.getElementById('recentlyDeletedList');
+    if (recentlyDeletedList) {
+      recentlyDeletedList.addEventListener('click', (e) => {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+
+        const action = target.dataset.action;
+        if (action !== 'restore') return;
+
+        const itemEl = target.closest('[data-product-id]');
+        if (!itemEl) return;
+
+        const productId = parseInt(itemEl.dataset.productId);
+        const price = parseInt(itemEl.dataset.price);
+        const name = itemEl.dataset.name;
+
+        addItem(productId, price, name);
+      });
+    }
   }
   
   // Public API
@@ -741,6 +808,7 @@ const CartManager = (function() {
     updateAllUI: updateAllUI,
     renderCartPage: renderCartPage,
     updateCheckoutTotal: updateCheckoutTotal,
+    renderRecentlyDeletedOnCheckout: renderRecentlyDeletedOnCheckout,
     showToast: showToast,
     setUpsellSuggestions: function(items) {
       upsellSuggestions.length = 0;
@@ -836,6 +904,7 @@ function initCartPage() {
 function initCheckoutPage() {
   CartManager.renderCartPage();
   CartManager.updateCheckoutTotal();
+  CartManager.renderRecentlyDeletedOnCheckout();
   setupCheckoutForm();
 }
 
