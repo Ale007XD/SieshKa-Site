@@ -367,22 +367,23 @@ def _check_rule_availability(
             cta_type="select_time"
         )
     
-    # Check lead time
-    target_datetime = datetime.combine(target_date, slot_time)
-    # Add timezone info to target_datetime to match now (which has timezone)
-    if now.tzinfo:
-        target_datetime = target_datetime.replace(tzinfo=now.tzinfo)
-    min_delivery_time = now + timedelta(minutes=rule.lead_time_minutes)
-    
-    if target_datetime < min_delivery_time:
-        next_available = _calculate_next_available(window, rule.lead_time_minutes, now)
-        return AvailabilityResult(
-            available=False,
-            next_available=next_available,
-            reason_code=UnavailabilityReason.LEAD_TIME,
-            badge_text=f"Предзаказ за {rule.lead_time_minutes} мин",
-            cta_type="preorder"
-        )
+    # Check lead time (skip if lead_time is 0)
+    if rule.lead_time_minutes > 0:
+        target_datetime = datetime.combine(target_date, slot_time)
+        # Add timezone info to target_datetime to match now (which has timezone)
+        if now.tzinfo:
+            target_datetime = target_datetime.replace(tzinfo=now.tzinfo)
+        min_delivery_time = now + timedelta(minutes=rule.lead_time_minutes)
+        
+        if target_datetime < min_delivery_time:
+            next_available = _calculate_next_available(window, rule.lead_time_minutes, now)
+            return AvailabilityResult(
+                available=False,
+                next_available=next_available,
+                reason_code=UnavailabilityReason.LEAD_TIME,
+                badge_text=f"Предзаказ за {rule.lead_time_minutes} мин",
+                cta_type="preorder"
+            )
     
     # All checks passed - available
     return AvailabilityResult(
