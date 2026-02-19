@@ -232,9 +232,9 @@ def convert_to_core_rule(rule: AvailabilityRule) -> CoreRule:
 
 @router.get("/slots", response_model=SlotsResponse)
 async def get_available_slots(
+    request: Request,
     day: str = Query(..., regex="^(today|tomorrow)$"),
-    method: str = Query(..., regex="^(delivery|pickup)$"),
-    request: Request = None
+    method: str = Query(..., regex="^(delivery|pickup)$")
 ):
     """
     Get available delivery/pickup slots for a given day.
@@ -309,19 +309,13 @@ async def get_available_slots(
 
 @router.get("/menu", response_model=MenuResponse)
 async def get_menu(
+    request: Request,
     day: str = Query(..., regex="^(today|tomorrow)$"),
     method: str = Query(..., regex="^(delivery|pickup)$"),
-    slot: Optional[str] = Query(None, regex="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"),
-    request: Request = None
+    slot: Optional[str] = Query(None, regex="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
 ):
     """
     Get menu with computed availability for each product.
-    
-    - **day**: 'today' or 'tomorrow'
-    - **method**: 'delivery' or 'pickup'
-    - **slot**: Optional specific slot (HH:MM format). If not provided, uses ASAP logic.
-    
-    Returns categories with products and their availability status.
     """
     config = get_menu_config()
     tz = ZoneInfo(config.business_tz)
@@ -344,12 +338,11 @@ async def get_menu(
     if cached:
         try:
             data = json.loads(cached)
-            logger.debug(f"Menu cache hit: {cache_key}")
             return MenuResponse(**data)
-        except Exception as e:
-            logger.warning(f"Cache parse error: {e}")
+        except:
+            pass
     
-    # Cache miss - acquire lock
+    # Cache miss logic...
     if not acquire_lock(cache_key, request):
         import asyncio
         await asyncio.sleep(0.5)
@@ -362,68 +355,96 @@ async def get_menu(
                 pass
     
     try:
-        # Build menu with availability
         categories_data = []
-        
         with SessionLocal() as db:
-            # Get all active root categories
+            # 1. Fetch all rules once to avoid N+1 queries
+            all_rules_db = db.query(AvailabilityRule).filter(AvailabilityRule.is_active == True).all()
+            all_core_rules = [convert_to_core_rule(r) for r in all_rules_db]
+            
+            # Map rules by scope
+            product_rules_map = {}
+            category_rules_map = {}
+            for rule in all_core_rules:
+                if rule.scope_type == 'product':
+                    product_rules_map.setdefault(rule.scope_id, []).append(rule)
+                else:
+                    category_rules_map.setdefault(rule.scope_id, []).append(rule)
+            
+            # 2. Fetch categories and products
             root_cats = db.query(Category).filter(
                 Category.is_active == True,
                 Category.parent_id == None
             ).order_by(Category.sort).all()
             
+            # Category hierarchy cache
+            cat_map = {c.id: c for c in db.query(Category).filter(Category.is_active == True).all()}
+            
             for root_cat in root_cats:
                 cat_products = []
                 
-                # Get all products in this category tree
-                def get_products_recursive(cat):
-                    products = []
+                def process_category_products(cat):
                     # Direct products
-                    direct = db.query(Product).filter(
+                    products = db.query(Product).filter(
                         Product.category_id == cat.id,
                         Product.is_active == True
                     ).all()
-                    products.extend(direct)
                     
-                    # Subcategory products
+                    for product in products:
+                        try:
+                            # Get rules for product
+                            p_rules = product_rules_map.get(product.id, [])
+                            
+                            # Get rules for category hierarchy
+                            c_rules = []
+                            curr_cat_id = cat.id
+                            visited_cats = set()
+                            while curr_cat_id and curr_cat_id not in visited_cats:
+                                visited_cats.add(curr_cat_id)
+                                c_rules.extend(category_rules_map.get(curr_cat_id, []))
+                                curr_cat = cat_map.get(curr_cat_id)
+                                curr_cat_id = curr_cat.parent_id if curr_cat else None
+                            
+                            # Check availability
+                            result = check_availability(
+                                product_rules=p_rules,
+                                category_rules=c_rules,
+                                day=day,
+                                method=DeliveryMethod(method),
+                                now=now,
+                                desired_slot=desired_slot,
+                                tomorrow_cutoff=config.tomorrow_order_cutoff if config.enable_tomorrow_orders else time(0, 0)
+                            )
+                            
+                            cat_products.append(MenuItemAvailability(
+                                product_id=product.id,
+                                name=product.name,
+                                price_rub=product.price_rub,
+                                available=result.available,
+                                next_available=format_next_available(result.next_available) if result.next_available else None,
+                                reason_code=result.reason_code.value if result.reason_code else None,
+                                badge_text=result.badge_text,
+                                cta_type=result.cta_type
+                            ))
+                        except Exception as e:
+                            logger.error(f"Error checking availability for product {product.id}: {e}")
+                            # Add with default unavailable state to prevent 500
+                            cat_products.append(MenuItemAvailability(
+                                product_id=product.id,
+                                name=product.name,
+                                price_rub=product.price_rub,
+                                available=False,
+                                next_available=None,
+                                reason_code="ERROR",
+                                badge_text="Ошибка",
+                                cta_type="unavailable"
+                            ))
+                    
+                    # Subcategories
                     for child in cat.children:
                         if child.is_active:
-                            products.extend(get_products_recursive(child))
-                    
-                    return products
+                            process_category_products(child)
                 
-                all_products = get_products_recursive(root_cat)
-                
-                for product in all_products:
-                    # Get rules
-                    product_rules_db = get_availability_rules('product', product.id)
-                    category_rules_db = get_category_hierarchy_rules(product.category_id)
-                    
-                    # Convert to core rules
-                    product_rules = [convert_to_core_rule(r) for r in product_rules_db]
-                    category_rules = [convert_to_core_rule(r) for r in category_rules_db]
-                    
-                    # Check availability
-                    result = check_availability(
-                        product_rules=product_rules,
-                        category_rules=category_rules,
-                        day=day,
-                        method=DeliveryMethod(method),
-                        now=now,
-                        desired_slot=desired_slot,
-                        tomorrow_cutoff=config.tomorrow_order_cutoff if config.enable_tomorrow_orders else time(0, 0)
-                    )
-                    
-                    cat_products.append(MenuItemAvailability(
-                        product_id=product.id,
-                        name=product.name,
-                        price_rub=product.price_rub,
-                        available=result.available,
-                        next_available=format_next_available(result.next_available) if result.next_available else None,
-                        reason_code=result.reason_code.value if result.reason_code else None,
-                        badge_text=result.badge_text,
-                        cta_type=result.cta_type
-                    ))
+                process_category_products(root_cat)
                 
                 if cat_products:
                     categories_data.append(MenuCategoryResponse(
@@ -440,11 +461,12 @@ async def get_menu(
             generated_at=now.isoformat()
         )
         
-        # Cache the result
         cache_set(cache_key, response.json(), request, settings.MENU_CACHE_TTL)
-        
         return response
         
+    except Exception as e:
+        logger.error(f"Error in get_menu: {e}", exc_info=True)
+        raise HTTPException(500, "Internal server error while building menu")
     finally:
         release_lock(cache_key, request)
 
