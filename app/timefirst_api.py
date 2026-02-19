@@ -209,21 +209,31 @@ def get_category_hierarchy_rules(category_id: int) -> List[AvailabilityRule]:
     return rules
 
 
-def convert_to_core_rule(rule: AvailabilityRule) -> CoreRule:
-    """Convert SQLAlchemy rule to core rule"""
-    return CoreRule(
-        id=rule.id,
-        scope_type=rule.scope_type,
-        scope_id=rule.scope_id,
-        daypart=Daypart(rule.daypart.value),
-        lead_time_minutes=rule.lead_time_minutes,
-        methods=rule.methods,
-        allow_tomorrow=rule.allow_tomorrow,
-        tomorrow_cutoff=rule.tomorrow_cutoff,
-        is_active=rule.is_active,
-        start_time=rule.start_time,
-        end_time=rule.end_time
-    )
+def convert_to_core_rule(rule: AvailabilityRule) -> Optional[CoreRule]:
+    """Convert SQLAlchemy rule to core rule with error handling"""
+    try:
+        # Handle None daypart - default to ALLDAY
+        if rule.daypart is None:
+            daypart_val = Daypart.ALLDAY
+        else:
+            daypart_val = Daypart(rule.daypart.value)
+        
+        return CoreRule(
+            id=rule.id,
+            scope_type=str(rule.scope_type.value) if rule.scope_type else "product",
+            scope_id=rule.scope_id,
+            daypart=daypart_val,
+            lead_time_minutes=rule.lead_time_minutes or 0,
+            methods=rule.methods or [],
+            allow_tomorrow=rule.allow_tomorrow if rule.allow_tomorrow is not None else True,
+            tomorrow_cutoff=rule.tomorrow_cutoff or time(23, 0),
+            is_active=rule.is_active if rule.is_active is not None else True,
+            start_time=rule.start_time,
+            end_time=rule.end_time
+        )
+    except Exception as e:
+        logger.error(f"Error converting rule {rule.id}: {e}")
+        return None
 
 
 # ============================================================================
@@ -359,7 +369,7 @@ async def get_menu(
         with SessionLocal() as db:
             # 1. Fetch all rules once to avoid N+1 queries
             all_rules_db = db.query(AvailabilityRule).filter(AvailabilityRule.is_active == True).all()
-            all_core_rules = [convert_to_core_rule(r) for r in all_rules_db]
+            all_core_rules = [r for r in (convert_to_core_rule(rule) for rule in all_rules_db) if r is not None]
             
             # Map rules by scope
             product_rules_map = {}

@@ -241,23 +241,6 @@ def check_availability(
 ) -> AvailabilityResult:
     """
     Check product availability with full rule hierarchy.
-    
-    Priority:
-    1. Product rules (active, method match, daypart match, updated_at desc)
-    2. Category rules (nearest parent, active, method match)
-    3. NO_RULE if no rules found
-    
-    Args:
-        product_rules: Rules specifically for this product
-        category_rules: Rules for product's category hierarchy
-        day: 'today' or 'tomorrow'
-        method: delivery or pickup
-        now: Current datetime (timezone-aware)
-        desired_slot: Optional specific slot time
-        tomorrow_cutoff: Cutoff time for tomorrow orders
-    
-    Returns:
-        AvailabilityResult with availability status and metadata
     """
     # Check tomorrow cutoff
     if day == 'tomorrow' and now.time() > tomorrow_cutoff:
