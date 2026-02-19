@@ -290,13 +290,24 @@ async function loadMenu() {
 function renderMenu(data) {
     // Обновляем badge и CTA существующих карточек
     if (!data.categories) return;
-    
+
     data.categories.forEach(category => {
+        let hasVisibleProducts = false;
+
         category.products.forEach(product => {
             updateProductCard(product);
+            if (product.available) {
+                hasVisibleProducts = true;
+            }
         });
+
+        // Hide/show category based on visible products
+        const categorySection = document.getElementById(`category-${category.category_id}`);
+        if (categorySection) {
+            categorySection.style.display = hasVisibleProducts ? '' : 'none';
+        }
     });
-    
+
     // Обновляем upsell suggestions
     updateUpsellSuggestions(data);
 }
