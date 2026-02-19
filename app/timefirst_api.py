@@ -218,13 +218,16 @@ def convert_to_core_rule(rule: AvailabilityRule) -> Optional[CoreRule]:
         else:
             daypart_val = Daypart(rule.daypart.value)
         
+        # Fix empty methods - default to both delivery and pickup
+        methods = rule.methods if rule.methods and len(rule.methods) > 0 else ["delivery", "pickup"]
+        
         return CoreRule(
             id=rule.id,
             scope_type=str(rule.scope_type.value) if rule.scope_type else "product",
             scope_id=rule.scope_id,
             daypart=daypart_val,
             lead_time_minutes=rule.lead_time_minutes or 0,
-            methods=rule.methods or [],
+            methods=methods,
             allow_tomorrow=rule.allow_tomorrow if rule.allow_tomorrow is not None else True,
             tomorrow_cutoff=rule.tomorrow_cutoff or time(23, 0),
             is_active=rule.is_active if rule.is_active is not None else True,
