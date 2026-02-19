@@ -369,6 +369,9 @@ def _check_rule_availability(
     
     # Check lead time
     target_datetime = datetime.combine(target_date, slot_time)
+    # Add timezone info to target_datetime to match now (which has timezone)
+    if now.tzinfo:
+        target_datetime = target_datetime.replace(tzinfo=now.tzinfo)
     min_delivery_time = now + timedelta(minutes=rule.lead_time_minutes)
     
     if target_datetime < min_delivery_time:
@@ -403,6 +406,11 @@ def _calculate_next_available(
     today_window_start = datetime.combine(now.date(), window.start)
     today_window_end = datetime.combine(now.date(), window.end)
     
+    # Add timezone info if now has timezone
+    if now.tzinfo:
+        today_window_start = today_window_start.replace(tzinfo=now.tzinfo)
+        today_window_end = today_window_end.replace(tzinfo=now.tzinfo)
+    
     if min_time <= today_window_end:
         # Available today
         if min_time < today_window_start:
@@ -411,7 +419,10 @@ def _calculate_next_available(
     
     # Next available is tomorrow
     tomorrow = now.date() + timedelta(days=1)
-    return datetime.combine(tomorrow, window.start)
+    tomorrow_start = datetime.combine(tomorrow, window.start)
+    if now.tzinfo:
+        tomorrow_start = tomorrow_start.replace(tzinfo=now.tzinfo)
+    return tomorrow_start
 
 
 # ============================================================================
