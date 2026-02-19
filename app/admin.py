@@ -998,7 +998,6 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
         AvailabilityRule.scope_id,
         AvailabilityRule.daypart,
         AvailabilityRule.lead_time_minutes,
-        AvailabilityRule.allow_tomorrow,
         AvailabilityRule.is_active,
     ]
     column_sortable_list = [AvailabilityRule.id, AvailabilityRule.lead_time_minutes]
@@ -1007,8 +1006,7 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
     ]
     column_formatters = {
         AvailabilityRule.scope_type: lambda m, a: format_availability_rule_scope(m),
-        AvailabilityRule.daypart: lambda m, a: Markup(f'<span class="badge bg-info">{m.daypart.value}</span>'),
-        AvailabilityRule.methods: lambda m, a: format_methods(m.methods) if hasattr(m, 'methods') else "—",
+        AvailabilityRule.daypart: lambda m, a: Markup(f'<span class="badge bg-info">{m.daypart.value}</span>') if m.daypart else "—",
     }
     form_columns = [
         "scope_type",
@@ -1028,7 +1026,6 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
         AvailabilityRule.scope_id: "ID",
         AvailabilityRule.daypart: "Период",
         AvailabilityRule.lead_time_minutes: "Lead time (мин)",
-        AvailabilityRule.methods: "Способы",
         AvailabilityRule.allow_tomorrow: "На завтра",
         AvailabilityRule.is_active: "Активно",
     }

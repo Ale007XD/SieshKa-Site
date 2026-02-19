@@ -12,22 +12,22 @@ from .db import Base
 
 
 class Daypart(str, enum.Enum):
-    """Daypart periods for menu availability"""
-    MORNING = "MORNING"      # 07:00-10:00
-    EVENING = "EVENING"      # 14:00-21:00
-    ALLDAY = "ALLDAY"        # Always available
-
-
-class DeliveryMethod(str, enum.Enum):
-    """Delivery/pickup methods"""
-    DELIVERY = "delivery"
-    PICKUP = "pickup"
+    """Daypart periods for menu availability - must match DB enum values exactly"""
+    MORNING = "MORNING"
+    EVENING = "EVENING"
+    ALLDAY = "ALLDAY"
 
 
 class AvailabilityScopeType(str, enum.Enum):
     """Scope type for availability rules - must match DB enum values exactly"""
     product = "product"
     category = "category"
+
+
+class DeliveryMethod(str, enum.Enum):
+    """Delivery/pickup methods"""
+    DELIVERY = "delivery"
+    PICKUP = "pickup"
 
 
 class UnavailabilityReason(str, enum.Enum):
