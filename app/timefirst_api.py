@@ -436,7 +436,9 @@ async def get_menu(
                                 cta_type=result.cta_type
                             ))
                         except Exception as e:
-                            logger.error(f"Error checking availability for product {product.id}: {e}")
+                            import traceback
+                            logger.error(f"Error checking availability for product {product.id} ({product.name}): {e}")
+                            logger.error(traceback.format_exc())
                             # Add with default unavailable state to prevent 500
                             cat_products.append(MenuItemAvailability(
                                 product_id=product.id,

@@ -242,68 +242,82 @@ def check_availability(
     """
     Check product availability with full rule hierarchy.
     """
-    # Check tomorrow cutoff
-    if day == 'tomorrow' and now.time() > tomorrow_cutoff:
-        return AvailabilityResult(
-            available=False,
-            next_available=None,
-            reason_code=UnavailabilityReason.TOMORROW_CUTOFF,
-            badge_text="Заказы на завтра до 23:00",
-            cta_type="unavailable"
-        )
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Sort and filter product rules
-    active_product_rules = [
-        r for r in product_rules 
-        if r.is_active and r.allows_method(method)
-    ]
-    
-    # Sort by: is_active (already filtered), method match, daypart match, updated_at desc
-    # For now, we use daypart specificity: ALLDAY < MORNING/EVENING
-    def rule_priority(r: AvailabilityRule) -> tuple:
-        daypart_order = {
-            Daypart.MORNING: 0,
-            Daypart.EVENING: 0,
-            Daypart.ALLDAY: 1
-        }
-        return (daypart_order.get(r.daypart, 2), r.id)  # Use id as tiebreaker
-    
-    active_product_rules.sort(key=rule_priority)
-    
-    # Try product rules first
-    applicable_rule = None
-    for rule in active_product_rules:
-        result = _check_rule_availability(rule, day, method, now, desired_slot)
-        if result.reason_code != UnavailabilityReason.METHOD_NOT_ALLOWED:
-            applicable_rule = rule
-            break
-    
-    # If no product rule, try category rules
-    if not applicable_rule:
-        active_cat_rules = [
-            r for r in category_rules
-            if r.is_active and r.allows_method(method)
-        ]
-        active_cat_rules.sort(key=rule_priority)
+    try:
+        # Check tomorrow cutoff
+        if day == 'tomorrow' and now.time() > tomorrow_cutoff:
+            return AvailabilityResult(
+                available=False,
+                next_available=None,
+                reason_code=UnavailabilityReason.TOMORROW_CUTOFF,
+                badge_text="Заказы на завтра до 23:00",
+                cta_type="unavailable"
+            )
         
-        for rule in active_cat_rules:
+        # Sort and filter product rules - filter out None values
+        active_product_rules = [
+            r for r in product_rules 
+            if r is not None and r.is_active and r.allows_method(method)
+        ]
+        
+        # Sort by: is_active (already filtered), method match, daypart match, updated_at desc
+        # For now, we use daypart specificity: ALLDAY < MORNING/EVENING
+        def rule_priority(r: AvailabilityRule) -> tuple:
+            daypart_order = {
+                Daypart.MORNING: 0,
+                Daypart.EVENING: 0,
+                Daypart.ALLDAY: 1
+            }
+            return (daypart_order.get(r.daypart, 2), r.id)  # Use id as tiebreaker
+        
+        active_product_rules.sort(key=rule_priority)
+        
+        # Try product rules first
+        applicable_rule = None
+        for rule in active_product_rules:
             result = _check_rule_availability(rule, day, method, now, desired_slot)
             if result.reason_code != UnavailabilityReason.METHOD_NOT_ALLOWED:
                 applicable_rule = rule
                 break
+        
+        # If no product rule, try category rules
+        if not applicable_rule:
+            active_cat_rules = [
+                r for r in category_rules
+                if r is not None and r.is_active and r.allows_method(method)
+            ]
+            active_cat_rules.sort(key=rule_priority)
+            
+            for rule in active_cat_rules:
+                result = _check_rule_availability(rule, day, method, now, desired_slot)
+                if result.reason_code != UnavailabilityReason.METHOD_NOT_ALLOWED:
+                    applicable_rule = rule
+                    break
+        
+        # If still no rule, return NO_RULE
+        if not applicable_rule:
+            return AvailabilityResult(
+                available=False,
+                next_available=None,
+                reason_code=UnavailabilityReason.NO_RULE,
+                badge_text="Недоступно",
+                cta_type="unavailable"
+            )
+        
+        # Return the check result for the applicable rule
+        return _check_rule_availability(applicable_rule, day, method, now, desired_slot)
     
-    # If still no rule, return NO_RULE
-    if not applicable_rule:
+    except Exception as e:
+        logger.error(f"CRITICAL ERROR in check_availability: {e}", exc_info=True)
         return AvailabilityResult(
             available=False,
             next_available=None,
             reason_code=UnavailabilityReason.NO_RULE,
-            badge_text="Недоступно",
+            badge_text="Ошибка",
             cta_type="unavailable"
         )
-    
-    # Return the check result for the applicable rule
-    return _check_rule_availability(applicable_rule, day, method, now, desired_slot)
 
 
 def _check_rule_availability(
