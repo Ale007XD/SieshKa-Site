@@ -971,12 +971,31 @@ class AdminAuditLogAdmin(ModelView, model=AdminAuditLog):
 
 
 def format_availability_rule_scope(rule: AvailabilityRule) -> str:
-    """Format scope type and id for display"""
+    """Format scope type and id for display with name lookup"""
     scope_type_label = {
         "product": "Товар",
         "category": "Категория"
     }.get(rule.scope_type.value, rule.scope_type.value)
-    return Markup(f"{scope_type_label} #{rule.scope_id}")
+    
+    # Fetch name from database
+    name = None
+    try:
+        with SessionLocal() as db:
+            if rule.scope_type.value == "product":
+                entity = db.query(Product).filter(Product.id == rule.scope_id).first()
+                if entity:
+                    name = entity.name
+            elif rule.scope_type.value == "category":
+                entity = db.query(Category).filter(Category.id == rule.scope_id).first()
+                if entity:
+                    name = entity.name
+    except Exception as e:
+        logger.warning(f"Error fetching name for scope {rule.scope_type.value} #{rule.scope_id}: {e}")
+    
+    if name:
+        return Markup(f"<span class='badge bg-secondary'>{scope_type_label}</span> {escape(name)}")
+    else:
+        return Markup(f"<span class='badge bg-secondary'>{scope_type_label}</span> #{rule.scope_id}")
 
 
 def format_methods(methods: list) -> str:
