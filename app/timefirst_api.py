@@ -320,7 +320,7 @@ async def get_available_slots(
 @router.get("/menu", response_model=MenuResponse)
 async def get_menu(
     request: Request,
-    day: str = Query(..., regex="^(today|tomorrow)$"),
+    day: str = Query("today", regex="^(today|tomorrow)$"),
     method: str = Query(..., regex="^(delivery|pickup)$"),
     slot: Optional[str] = Query(None, regex="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
 ):

@@ -5,36 +5,42 @@
 <!-- Time-First Sticky Bar -->
 <div id="sticky-bar" class="sticky-top" style="top: 56px; z-index: 1030; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-accent-border);">
   <div class="container py-2">
-    <div class="row g-2 align-items-center">
-      <!-- Day Toggle -->
+    <div class="row g-2 align-items-center justify-content-center">
+      <!-- Day Toggle - TEMPORARILY DISABLED -->
+      <!--
       <div class="col-6 col-md-3">
         <div class="btn-group w-100" role="group">
           <button type="button" class="btn btn-sm btn-brand active" data-day="today">Сегодня</button>
           <button type="button" class="btn btn-sm btn-outline-brand" data-day="tomorrow">Завтра</button>
         </div>
       </div>
-      
+      -->
+
       <!-- Method Toggle -->
-      <div class="col-6 col-md-3">
-        <div class="btn-group w-100" role="group">
-          <button type="button" class="btn btn-sm btn-brand active" data-method="delivery">Доставка</button>
-          <button type="button" class="btn btn-sm btn-outline-brand" data-method="pickup">Самовывоз</button>
+      <div class="col-12 col-md-4">
+        <div class="btn-group w-100" role="group" style="min-height: 44px;">
+          <button type="button" class="btn btn-brand active" data-method="delivery" style="font-weight: 600;">Доставка</button>
+          <button type="button" class="btn btn-outline-brand" data-method="pickup" style="font-weight: 600;">Самовывоз</button>
         </div>
       </div>
       
-      <!-- Slot Selector -->
+      <!-- Slot Selector - TEMPORARILY DISABLED -->
+      <!--
       <div class="col-12 col-md-4">
         <select id="slot-select" class="form-select form-select-sm">
           <option value="">Как можно скорее</option>
         </select>
       </div>
-      
-      <!-- Other Date Button -->
+      -->
+
+      <!-- Other Date Button - TEMPORARILY DISABLED -->
+      <!--
       <div class="col-12 col-md-2">
         <button type="button" class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#otherDateModal">
           <i class="bi bi-calendar-plus me-1"></i>Другая дата
         </button>
       </div>
+      -->
     </div>
   </div>
 </div>

@@ -54,7 +54,7 @@ function waitForCartManager(callback) {
 
 document.addEventListener('DOMContentLoaded', () => {
     initStickyBar();
-    loadSlots();
+    // loadSlots(); // TEMPORARILY DISABLED
     loadMenu();
     initOtherDateModal();
     
@@ -123,21 +123,21 @@ function setupProductEventDelegation() {
 function initStickyBar() {
     const stickyBar = document.getElementById('sticky-bar');
     if (!stickyBar) return;
-    
-    // Day toggle
-    const dayButtons = stickyBar.querySelectorAll('[data-day]');
-    dayButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const day = btn.dataset.day;
-            setDay(day);
-            
-            // Update active state
-            dayButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        });
-    });
-    
+
+    // Day toggle - TEMPORARILY DISABLED
+    // const dayButtons = stickyBar.querySelectorAll('[data-day]');
+    // dayButtons.forEach(btn => {
+    //     btn.addEventListener('click', (e) => {
+    //         e.preventDefault();
+    //         const day = btn.dataset.day;
+    //         setDay(day);
+    //
+    //         // Update active state
+    //         dayButtons.forEach(b => b.classList.remove('active'));
+    //         btn.classList.add('active');
+    //     });
+    // });
+
     // Method toggle
     const methodButtons = stickyBar.querySelectorAll('[data-method]');
     methodButtons.forEach(btn => {
@@ -145,104 +145,106 @@ function initStickyBar() {
             e.preventDefault();
             const method = btn.dataset.method;
             setMethod(method);
-            
+
             // Update active state
             methodButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
         });
     });
-    
-    // Slot selector
-    const slotSelect = document.getElementById('slot-select');
-    if (slotSelect) {
-        slotSelect.addEventListener('change', (e) => {
-            setSlot(e.target.value || null);
-        });
-    }
+
+    // Slot selector - TEMPORARILY DISABLED
+    // const slotSelect = document.getElementById('slot-select');
+    // if (slotSelect) {
+    //     slotSelect.addEventListener('change', (e) => {
+    //         setSlot(e.target.value || null);
+    //     });
+    // }
 }
 
-function setDay(day) {
-    MenuState.day = day;
-    loadSlots();
-    loadMenu();
-    updateStickyBarUI();
-}
+// setDay - TEMPORARILY DISABLED
+// function setDay(day) {
+//     MenuState.day = day;
+//     loadSlots();
+//     loadMenu();
+//     updateStickyBarUI();
+// }
 
 function setMethod(method) {
     MenuState.method = method;
-    loadSlots();
+    // loadSlots(); // TEMPORARILY DISABLED
     loadMenu();
     updateStickyBarUI();
 }
 
-function setSlot(slot) {
-    MenuState.selectedSlot = slot;
-    loadMenu();
-}
+// setSlot - TEMPORARILY DISABLED
+// function setSlot(slot) {
+//     MenuState.selectedSlot = slot;
+//     loadMenu();
+// }
 
 function updateStickyBarUI() {
     // Update button states
-    document.querySelectorAll('[data-day]').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.day === MenuState.day);
-    });
-    
+    // Day toggle - TEMPORARILY DISABLED
+    // document.querySelectorAll('[data-day]').forEach(btn => {
+    //     btn.classList.toggle('active', btn.dataset.day === MenuState.day);
+    // });
+
     document.querySelectorAll('[data-method]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.method === MenuState.method);
     });
-    
-    // Update slot select
-    const slotSelect = document.getElementById('slot-select');
-    if (slotSelect && MenuState.slots.length > 0) {
-        const currentValue = slotSelect.value;
-        slotSelect.innerHTML = '<option value="">Как можно скорее</option>';
-        
-        MenuState.slots.forEach(slot => {
-            const option = document.createElement('option');
-            option.value = slot.time;
-            option.textContent = slot.label;
-            option.disabled = !slot.available;
-            slotSelect.appendChild(option);
-        });
-        
-        // Restore selection if still valid
-        if (currentValue) {
-            slotSelect.value = currentValue;
-        }
-    }
+
+    // Slot selector - TEMPORARILY DISABLED
+    // const slotSelect = document.getElementById('slot-select');
+    // if (slotSelect && MenuState.slots.length > 0) {
+    //     const currentValue = slotSelect.value;
+    //     slotSelect.innerHTML = '<option value="">Как можно скорее</option>';
+    //
+    //     MenuState.slots.forEach(slot => {
+    //         const option = document.createElement('option');
+    //         option.value = slot.time;
+    //         option.textContent = slot.label;
+    //         option.disabled = !slot.available;
+    //         slotSelect.appendChild(option);
+    //     });
+    //
+    //     // Restore selection if still valid
+    //     if (currentValue) {
+    //         slotSelect.value = currentValue;
+    //     }
+    // }
 }
 
 // ============================================================================
 // API Calls
 // ============================================================================
 
-async function loadSlots() {
-    try {
-        const response = await fetch(
-            `/api/slots?day=${MenuState.day}&method=${MenuState.method}`
-        );
-        
-        if (!response.ok) throw new Error('Failed to load slots');
-        
-        const data = await response.json();
-        MenuState.slots = data.slots || [];
-        
-        if (data.error) {
-            showNotification(data.error, 'warning');
-        }
-        
-        updateStickyBarUI();
-    } catch (error) {
-        console.error('Error loading slots:', error);
-    }
-}
+// loadSlots - TEMPORARILY DISABLED
+// async function loadSlots() {
+//     try {
+//         const response = await fetch(
+//             `/api/slots?day=${MenuState.day}&method=${MenuState.method}`
+//         );
+//
+//         if (!response.ok) throw new Error('Failed to load slots');
+//
+//         const data = await response.json();
+//         MenuState.slots = data.slots || [];
+//
+//         if (data.error) {
+//             showNotification(data.error, 'warning');
+//         }
+//
+//         updateStickyBarUI();
+//     } catch (error) {
+//         console.error('Error loading slots:', error);
+//     }
+// }
 
 async function loadMenu() {
     try {
-        let url = `/api/menu?day=${MenuState.day}&method=${MenuState.method}`;
-        if (MenuState.selectedSlot) {
-            url += `&slot=${MenuState.selectedSlot}`;
-        }
-        
+        // Simplified: only method parameter, day/slot temporarily disabled
+        let url = `/api/menu?method=${MenuState.method}`;
+
         const response = await fetch(url);
         
         if (!response.ok) throw new Error('Failed to load menu');
