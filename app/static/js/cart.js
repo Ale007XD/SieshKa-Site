@@ -947,6 +947,7 @@ const CartManager = (function() {
     
     // UI updates
     updateAllUI: updateAllUI,
+    updateProductControls: updateProductControls,
     renderCartPage: renderCartPage,
     updateCheckoutTotal: updateCheckoutTotal,
     renderRecentlyDeletedOnCheckout: renderRecentlyDeletedOnCheckout,
