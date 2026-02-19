@@ -2,7 +2,7 @@ from sqladmin import Admin, ModelView, action
 from sqladmin.filters import BooleanFilter, AllUniqueStringValuesFilter, ForeignKeyFilter
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, HTMLResponse
-from markupsafe import Markup
+from markupsafe import Markup, escape
 import logging
 import json
 import csv
