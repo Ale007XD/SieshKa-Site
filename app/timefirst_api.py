@@ -85,30 +85,30 @@ def get_redis_client(request):
     return getattr(request.app.state, 'redis', None)
 
 
-def cache_get(key: str, request) -> Optional[str]:
+async def cache_get(key: str, request) -> Optional[str]:
     """Get value from cache"""
     redis = get_redis_client(request)
     if not redis:
         return None
     try:
-        return redis.get(key)
+        return await redis.get(key)
     except Exception as e:
         logger.warning(f"Redis get error: {e}")
         return None
 
 
-def cache_set(key: str, value: str, request, ttl: int = 60):
+async def cache_set(key: str, value: str, request, ttl: int = 60):
     """Set value in cache with TTL"""
     redis = get_redis_client(request)
     if not redis:
         return
     try:
-        redis.setex(key, ttl, value)
+        await redis.setex(key, ttl, value)
     except Exception as e:
         logger.warning(f"Redis set error: {e}")
 
 
-def acquire_lock(key: str, request, ttl: int = 10) -> bool:
+async def acquire_lock(key: str, request, ttl: int = 10) -> bool:
     """Try to acquire distributed lock"""
     redis = get_redis_client(request)
     if not redis:
@@ -116,21 +116,21 @@ def acquire_lock(key: str, request, ttl: int = 10) -> bool:
     try:
         lock_key = f"lock:{key}"
         # NX = only set if not exists
-        result = redis.set(lock_key, "1", nx=True, ex=ttl)
+        result = await redis.set(lock_key, "1", nx=True, ex=ttl)
         return result is not None
     except Exception as e:
         logger.warning(f"Redis lock error: {e}")
         return True
 
 
-def release_lock(key: str, request):
+async def release_lock(key: str, request):
     """Release distributed lock"""
     redis = get_redis_client(request)
     if not redis:
         return
     try:
         lock_key = f"lock:{key}"
-        redis.delete(lock_key)
+        await redis.delete(lock_key)
     except Exception as e:
         logger.warning(f"Redis unlock error: {e}")
 
@@ -262,7 +262,7 @@ async def get_available_slots(
     cache_key = get_slots_cache_key(day, method, config.business_tz, config.menu_version)
     
     # Try cache first
-    cached = cache_get(cache_key, request)
+    cached = await cache_get(cache_key, request)
     if cached:
         try:
             data = json.loads(cached)
@@ -272,11 +272,11 @@ async def get_available_slots(
             logger.warning(f"Cache parse error: {e}")
     
     # Cache miss - acquire lock to prevent stampede
-    if not acquire_lock(cache_key, request):
+    if not await acquire_lock(cache_key, request):
         # Another process is generating, wait and retry cache
         import asyncio
         await asyncio.sleep(0.5)
-        cached = cache_get(cache_key, request)
+        cached = await cache_get(cache_key, request)
         if cached:
             try:
                 data = json.loads(cached)
@@ -309,12 +309,12 @@ async def get_available_slots(
         )
         
         # Cache the result
-        cache_set(cache_key, response.json(), request, settings.MENU_CACHE_TTL)
+        await cache_set(cache_key, response.json(), request, settings.MENU_CACHE_TTL)
         
         return response
         
     finally:
-        release_lock(cache_key, request)
+        await release_lock(cache_key, request)
 
 
 @router.get("/menu", response_model=MenuResponse)
@@ -344,7 +344,7 @@ async def get_menu(
     cache_key = get_menu_cache_key(day, method, slot, config.business_tz, config.menu_version)
     
     # Try cache first
-    cached = cache_get(cache_key, request)
+    cached = await cache_get(cache_key, request)
     if cached:
         try:
             data = json.loads(cached)
@@ -353,10 +353,10 @@ async def get_menu(
             pass
     
     # Cache miss logic...
-    if not acquire_lock(cache_key, request):
+    if not await acquire_lock(cache_key, request):
         import asyncio
         await asyncio.sleep(0.5)
-        cached = cache_get(cache_key, request)
+        cached = await cache_get(cache_key, request)
         if cached:
             try:
                 data = json.loads(cached)
@@ -473,14 +473,14 @@ async def get_menu(
             generated_at=now.isoformat()
         )
         
-        cache_set(cache_key, response.json(), request, settings.MENU_CACHE_TTL)
+        await cache_set(cache_key, response.json(), request, settings.MENU_CACHE_TTL)
         return response
         
     except Exception as e:
         logger.error(f"Error in get_menu: {e}", exc_info=True)
         raise HTTPException(500, "Internal server error while building menu")
     finally:
-        release_lock(cache_key, request)
+        await release_lock(cache_key, request)
 
 
 @router.get("/menu/refresh")
