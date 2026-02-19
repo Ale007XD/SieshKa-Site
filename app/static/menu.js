@@ -304,11 +304,18 @@ function renderMenu(data) {
 function updateProductCard(product) {
     const card = document.querySelector(`.product-card[data-product-id="${product.product_id}"]`);
     if (!card) return;
-    
+
     // Update availability state
     card.dataset.available = product.available;
     card.classList.toggle('unavailable', !product.available);
-    
+
+    // HIDE/SHOW entire card based on availability
+    if (!product.available) {
+        card.style.display = 'none';
+    } else {
+        card.style.display = '';
+    }
+
     // Update badge
     const badgeContainer = card.querySelector('.availability-badge');
     if (badgeContainer) {
@@ -322,11 +329,11 @@ function updateProductCard(product) {
         }
         badgeContainer.innerHTML = badgeHtml;
     }
-    
+
     // Update CTA button based on availability
     const addBtn = card.querySelector('.btn-add-to-cart');
     const qtyControl = card.querySelector('.product-controls');
-    
+
     if (!product.available) {
         if (addBtn) {
             addBtn.style.display = 'none';
