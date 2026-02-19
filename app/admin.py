@@ -8,6 +8,7 @@ import json
 import csv
 import io
 from typing import List, Dict, Any
+from fastapi.datastructures import UploadFile
 
 from .models import Category, Product, Order, OrderItem, OrderStatus, DeliverySlot, AdminAuditLog
 from .availability_models import AvailabilityRule, MenuConfiguration
