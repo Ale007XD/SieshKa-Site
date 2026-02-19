@@ -916,6 +916,67 @@ async def update_daypart_endpoint(request: Request):
         )
 
 
+async def update_method_endpoint(request: Request):
+    """AJAX endpoint to update availability rule methods"""
+    try:
+        data = await request.json()
+        rule_id = data.get('rule_id')
+        method = data.get('method')
+        
+        if not rule_id or not method:
+            return JSONResponse(
+                {"success": False, "error": "Missing rule_id or method"},
+                status_code=400
+            )
+        
+        # Validate method value
+        if method == "delivery":
+            methods = ["delivery"]
+        elif method == "pickup":
+            methods = ["pickup"]
+        elif method == "both":
+            methods = ["delivery", "pickup"]
+        else:
+            return JSONResponse(
+                {"success": False, "error": "Invalid method. Must be delivery, pickup, or both"},
+                status_code=400
+            )
+        
+        with SessionLocal() as db:
+            rule = db.query(AvailabilityRule).filter(AvailabilityRule.id == rule_id).first()
+            if not rule:
+                return JSONResponse(
+                    {"success": False, "error": "Rule not found"},
+                    status_code=404
+                )
+            
+            old_methods = rule.methods.copy() if rule.methods else []
+            rule.methods = methods
+            db.commit()
+            
+            log_admin_action(
+                request, 
+                "update_method", 
+                "AvailabilityRule", 
+                rule.id,
+                {"methods": old_methods},
+                {"methods": methods}
+            )
+            
+            return JSONResponse({
+                "success": True,
+                "rule_id": rule.id,
+                "methods": methods
+            })
+            
+    except Exception as e:
+        logger.error(f"Error updating method: {e}")
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+
+
 class OrderAdmin(ModelView, model=Order):
     column_list = [
         Order.id, 
@@ -1093,6 +1154,56 @@ def format_daypart_selector(rule: AvailabilityRule) -> str:
     return Markup(html)
 
 
+def format_method_selector(rule: AvailabilityRule) -> str:
+    """Format methods column with dropdown selector for quick change"""
+    method_labels = {
+        ("delivery",): ("Доставка", "primary"),
+        ("pickup",): ("Самовывоз", "success"),
+        ("delivery", "pickup"): ("Оба", "secondary"),
+        ("pickup", "delivery"): ("Оба", "secondary"),
+    }
+    
+    # Get current methods as tuple for lookup
+    current_methods = tuple(sorted(rule.methods)) if rule.methods else ()
+    current_label, current_color = method_labels.get(current_methods, ("—", "secondary"))
+    
+    # Build options
+    options = """
+        <option value="delivery" {selected_delivery}>Доставка</option>
+        <option value="pickup" {selected_pickup}>Самовывоз</option>
+        <option value="both" {selected_both}>Оба</option>
+    """
+    
+    # Determine current selection
+    if current_methods == ("delivery",):
+        selected_delivery = "selected"
+        selected_pickup = ""
+        selected_both = ""
+    elif current_methods == ("pickup",):
+        selected_delivery = ""
+        selected_pickup = "selected"
+        selected_both = ""
+    else:
+        selected_delivery = ""
+        selected_pickup = ""
+        selected_both = "selected"
+    
+    options = options.format(
+        selected_delivery=selected_delivery,
+        selected_pickup=selected_pickup,
+        selected_both=selected_both
+    )
+    
+    html = f'''
+        <select class="form-select form-select-sm" 
+                style="font-size:11px;padding:2px 4px;min-width:100px;"
+                onchange="if(confirm('Изменить тип для правила #{rule.id}?')){{fetch('/api/admin/availability-rules/update-method',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{rule_id:{rule.id},method:this.value}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);this.value='{current_methods}';}}}}).catch(e=>{{alert('Ошибка сети: '+e);this.value='{current_methods}';}});}}else{{this.value='{current_methods}';}}">
+            {options}
+        </select>
+    '''
+    return Markup(html)
+
+
 class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
     """Admin for availability rules (Time-First Menu System)"""
     column_list = [
@@ -1100,6 +1211,7 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
         AvailabilityRule.scope_type,
         AvailabilityRule.scope_id,
         AvailabilityRule.daypart,
+        AvailabilityRule.methods,
         AvailabilityRule.lead_time_minutes,
         AvailabilityRule.is_active,
     ]
@@ -1110,6 +1222,7 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
     column_formatters = {
         AvailabilityRule.scope_type: lambda m, a: format_availability_rule_scope(m),
         AvailabilityRule.daypart: lambda m, a: format_daypart_selector(m),
+        AvailabilityRule.methods: lambda m, a: format_method_selector(m),
     }
     form_columns = [
         "scope_type",
@@ -1128,6 +1241,7 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
         AvailabilityRule.scope_type: "Объект",
         AvailabilityRule.scope_id: "ID",
         AvailabilityRule.daypart: "Период",
+        AvailabilityRule.methods: "Тип",
         AvailabilityRule.lead_time_minutes: "Lead time (мин)",
         AvailabilityRule.allow_tomorrow: "На завтра",
         AvailabilityRule.is_active: "Активно",

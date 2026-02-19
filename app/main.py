@@ -48,7 +48,7 @@ from .db import engine, SessionLocal
 from .models import Base, Category, Product, Order, OrderItem, PaymentMethod, DeliveryMode, MenuPeriod, DeliverySlot
 from .availability_models import MenuConfiguration
 from .telegram import notify_both, retry_failed_notifications, get_failed_notifications_count
-from .admin import setup_admin, update_order_status_endpoint, update_payment_status_endpoint, update_daypart_endpoint
+from .admin import setup_admin, update_order_status_endpoint, update_payment_status_endpoint, update_daypart_endpoint, update_method_endpoint
 from .schemas import OrderCreate, HealthResponse, DeliverySlotsAvailability, DeliverySlotResponse
 
 # Time-First Menu System (v4.0)
@@ -330,6 +330,12 @@ async def admin_toggle_product_active(request: Request):
 async def admin_update_daypart(request: Request):
     """Proxy to availability rule daypart update endpoint"""
     return await update_daypart_endpoint(request)
+
+# Admin API endpoint for availability rule method updates
+@app.post("/api/admin/availability-rules/update-method")
+async def admin_update_method(request: Request):
+    """Proxy to availability rule method update endpoint"""
+    return await update_method_endpoint(request)
 
 def normalize_ru_phone(phone_raw: str) -> str:
     try:
