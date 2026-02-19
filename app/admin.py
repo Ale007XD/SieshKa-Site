@@ -859,6 +859,63 @@ async def update_payment_status_endpoint(request: Request):
             status_code=500
         )
 
+
+async def update_daypart_endpoint(request: Request):
+    """AJAX endpoint to update availability rule daypart"""
+    try:
+        data = await request.json()
+        rule_id = data.get('rule_id')
+        daypart = data.get('daypart')
+        
+        if not rule_id or not daypart:
+            return JSONResponse(
+                {"success": False, "error": "Missing rule_id or daypart"},
+                status_code=400
+            )
+        
+        # Validate daypart value
+        valid_dayparts = ["MORNING", "EVENING", "ALLDAY"]
+        if daypart not in valid_dayparts:
+            return JSONResponse(
+                {"success": False, "error": f"Invalid daypart. Must be one of: {valid_dayparts}"},
+                status_code=400
+            )
+        
+        with SessionLocal() as db:
+            rule = db.query(AvailabilityRule).filter(AvailabilityRule.id == rule_id).first()
+            if not rule:
+                return JSONResponse(
+                    {"success": False, "error": "Rule not found"},
+                    status_code=404
+                )
+            
+            old_daypart = rule.daypart.value if rule.daypart else None
+            rule.daypart = daypart
+            db.commit()
+            
+            log_admin_action(
+                request, 
+                "update_daypart", 
+                "AvailabilityRule", 
+                rule.id,
+                {"daypart": old_daypart},
+                {"daypart": daypart}
+            )
+            
+            return JSONResponse({
+                "success": True,
+                "rule_id": rule.id,
+                "daypart": daypart
+            })
+            
+    except Exception as e:
+        logger.error(f"Error updating daypart: {e}")
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+
+
 class OrderAdmin(ModelView, model=Order):
     column_list = [
         Order.id, 
@@ -1009,6 +1066,33 @@ def format_methods(methods: list) -> str:
     return ", ".join([method_labels.get(m, m) for m in methods])
 
 
+def format_daypart_selector(rule: AvailabilityRule) -> str:
+    """Format daypart column with dropdown selector for quick change"""
+    daypart_labels = {
+        "MORNING": ("Утро", "warning"),
+        "EVENING": ("Вечер", "info"),
+        "ALLDAY": ("Весь день", "success")
+    }
+    
+    current = rule.daypart.value if rule.daypart else "ALLDAY"
+    current_label, current_color = daypart_labels.get(current, (current, "secondary"))
+    
+    # Build options
+    options = ""
+    for value, (label, color) in daypart_labels.items():
+        selected = "selected" if value == current else ""
+        options += f'<option value="{value}" {selected}>{label}</option>'
+    
+    html = f'''
+        <select class="form-select form-select-sm" 
+                style="font-size:11px;padding:2px 4px;min-width:100px;"
+                onchange="if(confirm('Изменить период для правила #{rule.id}?')){{fetch('/api/admin/availability-rules/update-daypart',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{rule_id:{rule.id},daypart:this.value}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);this.value='{current}';}}}}).catch(e=>{{alert('Ошибка сети: '+e);this.value='{current}';}});}}else{{this.value='{current}';}}">
+            {options}
+        </select>
+    '''
+    return Markup(html)
+
+
 class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
     """Admin for availability rules (Time-First Menu System)"""
     column_list = [
@@ -1025,7 +1109,7 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
     ]
     column_formatters = {
         AvailabilityRule.scope_type: lambda m, a: format_availability_rule_scope(m),
-        AvailabilityRule.daypart: lambda m, a: Markup(f'<span class="badge bg-info">{m.daypart.value}</span>') if m.daypart else "—",
+        AvailabilityRule.daypart: lambda m, a: format_daypart_selector(m),
     }
     form_columns = [
         "scope_type",
