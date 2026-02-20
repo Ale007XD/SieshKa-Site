@@ -189,7 +189,6 @@ const CartManager = (function() {
       if (newQty <= 0) {
         trackDeleted(items[idx]);
         items.splice(idx, 1);
-        showToast('Товар удален из корзины', 'info');
       } else if (newQty > QTY_MAX) {
         showToast('Достигнут лимит: макс. 20 шт. на товар', 'warning');
         return false;
@@ -255,7 +254,6 @@ const CartManager = (function() {
       items.splice(idx, 1);
       saveCart(items);
       updateAllUI();
-      showToast('Товар удален из корзины', 'info');
       return true;
     }
     
