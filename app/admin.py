@@ -8,7 +8,7 @@ import json
 import csv
 import io
 from typing import List, Dict, Any
-from fastapi.datastructures import UploadFile
+from fastapi import UploadFile
 
 from .models import Category, Product, Order, OrderItem, OrderStatus, DeliverySlot, AdminAuditLog
 from .availability_models import AvailabilityRule, MenuConfiguration
@@ -303,8 +303,6 @@ class ProductAdmin(ModelView, model=Product):
     async def import_products(self, request: Request):
         """Импорт товаров из CSV файла"""
         if request.method == "POST":
-            from starlette.datastructures import UploadFile
-            
             form_data = await request.form()
             uploaded_file = form_data.get("csv_file")
             default_category_id = form_data.get("default_category_id")
