@@ -491,7 +491,7 @@
 {% endblock %}
 
 {% block scripts %}
-494: <script src="/static/menu.js?v=3"></script>
+<script src="/static/menu.js?v=4"></script>
 <script nonce="{{ csp_nonce }}">
   // Image Lightbox
   const lightbox = document.getElementById('imageLightbox');
@@ -560,28 +560,6 @@
     
     initCartButtons();
     CartManager.updateAllUI();
-    
-    function initCartButtons() {
-      // Event delegation for cart buttons - работает с menu-container
-      document.getElementById('menu-container').addEventListener('click', function(e) {
-        const btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        
-        const container = btn.closest('[data-product-id]');
-        if (!container) return;
-        
-        const productId = parseInt(container.dataset.productId);
-        const price = parseInt(container.dataset.price);
-        const name = container.dataset.name;
-        const action = btn.dataset.action;
-        
-        if (action === 'dec') {
-          CartManager.updateQty(productId, -1);
-        } else if (action === 'inc') {
-          CartManager.addItem(productId, price, name);
-        }
-      });
-    }
     
     // Category Filter Logic - работает с menu-category секциями
     initCategoryFilter();
