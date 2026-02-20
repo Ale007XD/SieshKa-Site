@@ -233,7 +233,7 @@
   {% endfor %}
 </div>
 
-<div id="menu-container" class="menu-container">
+<div id="menu-container" class="menu-container d-none">
   {% for cat_data in categories_data %}
     <section class="menu-category mb-4" id="category-{{ cat_data.category.id }}" data-cat-id="{{ cat_data.category.id }}">
       <h2 class="h6 text-uppercase text-muted mb-2">{{ cat_data.category.name }}</h2>
