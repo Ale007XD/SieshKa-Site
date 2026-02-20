@@ -189,6 +189,7 @@ const CartManager = (function() {
       if (newQty <= 0) {
         trackDeleted(items[idx]);
         items.splice(idx, 1);
+        showToast('Товар удален из корзины', 'info');
       } else if (newQty > QTY_MAX) {
         showToast('Достигнут лимит: макс. 20 шт. на товар', 'warning');
         return false;
@@ -203,14 +204,6 @@ const CartManager = (function() {
       
       saveCart(items);
       updateAllUI();
-      
-      if (delta > 0) {
-        showToast('Количество увеличено', 'success');
-      } else if (newQty > 0) {
-        showToast('Количество уменьшено', 'info');
-      } else {
-        showToast('Товар удален из корзины', 'info');
-      }
       
       return true;
     }
@@ -269,10 +262,33 @@ const CartManager = (function() {
     return false;
   }
   
+  let _clearBackup = null;
+  let _clearBackupTimeout = null;
+  
   function clearCart() {
+    const items = loadCart();
+    if (items.length === 0) return true;
+    
+    _clearBackup = JSON.stringify(items);
+    if (_clearBackupTimeout) clearTimeout(_clearBackupTimeout);
+    _clearBackupTimeout = setTimeout(() => {
+      _clearBackup = null;
+    }, 5000);
+    
     saveCart([]);
     updateAllUI();
-    showToast('Корзина очищена', 'info');
+    showUndoToast('Корзина очищена', undoClearCart);
+    return true;
+  }
+  
+  function undoClearCart() {
+    if (!_clearBackup) return false;
+    
+    clearTimeout(_clearBackupTimeout);
+    saveCart(JSON.parse(_clearBackup));
+    _clearBackup = null;
+    updateAllUI();
+    showToast('Корзина восстановлена', 'success');
     return true;
   }
   
@@ -723,9 +739,47 @@ const CartManager = (function() {
     const container = document.getElementById('toastContainer');
     if (!container) return;
     
-    // Add to queue
     toastQueue.push({ message, type, showCartSummary, timestamp: Date.now() });
     processToastQueue();
+  }
+  
+  function showUndoToast(message, undoCallback) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toastId = 'undoToast' + Date.now();
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast show';
+    toastEl.id = toastId;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    toastEl.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; min-width: 280px; background: var(--color-bg-primary); border: 1px solid var(--color-accent-border); border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);';
+    
+    toastEl.innerHTML = `
+      <div class="toast-body d-flex justify-content-between align-items-center p-3">
+        <span class="text-muted">${escapeHtml(message)}</span>
+        <button type="button" class="btn btn-sm btn-link text-brand p-0 ms-3 fw-semibold" style="text-decoration: none;">
+          Отменить
+        </button>
+      </div>
+    `;
+    
+    container.appendChild(toastEl);
+    
+    const undoBtn = toastEl.querySelector('button');
+    if (undoBtn && undoCallback) {
+      undoBtn.addEventListener('click', () => {
+        undoCallback();
+        toastEl.classList.remove('show');
+        setTimeout(() => toastEl.remove(), 300);
+      });
+    }
+    
+    setTimeout(() => {
+      toastEl.classList.remove('show');
+      setTimeout(() => toastEl.remove(), 300);
+    }, 5000);
   }
   
   function processToastQueue() {
@@ -940,6 +994,7 @@ const CartManager = (function() {
     setQty: setQty,
     removeItem: removeItem,
     clearCart: clearCart,
+    undoClearCart: undoClearCart,
     getItemQty: getItemQty,
     getItems: getItems,
     loadCart: loadCart,

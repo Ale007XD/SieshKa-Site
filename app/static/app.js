@@ -56,7 +56,9 @@ function cartSetQty(productId, priceRub, name, qty) {
   const totalItems = getTotalItems(items);
   
   if (diff > 0 && totalItems + diff > MAX_ITEMS) {
-    alert(`Максимум ${MAX_ITEMS} товаров в корзине`);
+    if (typeof CartManager !== 'undefined') {
+      CartManager.showToast(`Максимум ${MAX_ITEMS} товаров в корзине`, 'warning');
+    }
     return false;
   }
 
@@ -114,13 +116,41 @@ function cartGetItems() {
 }
 
 function cartClear() {
-  if (confirm("Очистить корзину?")) {
-    cartSave([]);
+  const items = cartLoad();
+  if (items.length === 0) return;
+  
+  const backupItems = JSON.stringify(items);
+  cartSave([]);
+  updateAllQtyInputs();
+  updateCartBar();
+  updateCartBadge();
+  renderCart();
+  
+  if (typeof CartManager !== 'undefined') {
+    CartManager.showToast('Корзина очищена', 'info');
+  }
+  
+  window._cartClearBackup = backupItems;
+  window._cartClearTimeout = setTimeout(() => {
+    delete window._cartClearBackup;
+  }, 5000);
+}
+
+function cartUndoClear() {
+  if (window._cartClearBackup) {
+    clearTimeout(window._cartClearTimeout);
+    cartSave(JSON.parse(window._cartClearBackup));
+    delete window._cartClearBackup;
     updateAllQtyInputs();
     updateCartBar();
     updateCartBadge();
     renderCart();
+    if (typeof CartManager !== 'undefined') {
+      CartManager.showToast('Корзина восстановлена', 'success');
+    }
+    return true;
   }
+  return false;
 }
 
 function getQty(productId) {
