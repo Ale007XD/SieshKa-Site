@@ -575,10 +575,10 @@ const CartManager = (function() {
           </div>
           <div class="d-flex align-items-center gap-2" style="flex-shrink: 0;">
             <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" style="width: 32px; height: 32px; padding: 0;"
-                    onclick="CartManager.updateQty(${item.product_id}, -1)">−</button>
+                    data-action="dec">−</button>
             <span class="fw-semibold" style="min-width: 28px; text-align: center;">${item.qty}</span>
             <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" style="width: 32px; height: 32px; padding: 0;"
-                    onclick="CartManager.updateQty(${item.product_id}, 1)"
+                    data-action="inc"
                     ${item.qty >= QTY_MAX ? 'disabled' : ''}>+</button>
           </div>
           <div class="fw-bold ms-3" style="min-width: 80px; text-align: right;">${formatPrice(itemTotal)}</div>
