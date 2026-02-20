@@ -163,8 +163,7 @@ class ProductAdmin(ModelView, model=Product):
         label="Активировать",
         confirmation_message="Активировать выбранные товары?",
         add_in_list=True,
-        add_in_detail=False,
-        method="POST"
+        add_in_detail=False
     )
     async def bulk_activate(self, request: Request):
         """Массовая активация товаров"""
@@ -192,8 +191,7 @@ class ProductAdmin(ModelView, model=Product):
         label="Деактивировать",
         confirmation_message="Деактивировать выбранные товары?",
         add_in_list=True,
-        add_in_detail=False,
-        method="POST"
+        add_in_detail=False
     )
     async def bulk_deactivate(self, request: Request):
         """Массовая деактивация товаров"""
