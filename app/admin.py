@@ -507,7 +507,7 @@ class ProductAdmin(ModelView, model=Product):
                 </form>
             </div>
             '''
-            return html
+            return HTMLResponse(content=html)
 
     @action(
         name="export_products",
