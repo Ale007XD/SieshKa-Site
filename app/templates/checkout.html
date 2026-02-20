@@ -34,7 +34,17 @@
           <i class="bi bi-person me-2"></i>Контакты и доставка
         </h2>
 
-        {% if show_delivery_notice %}
+        {% if preorder_info and preorder_info.is_preorder %}
+        <div class="alert alert-warning mb-3">
+          <div class="d-flex align-items-start">
+            <i class="bi bi-clock me-2 mt-1"></i>
+            <div>
+              <strong>Режим предзаказа</strong><br>
+              <small>Ваш заказ будет обработан через <strong>{{ preorder_info.time_until }}</strong> в {{ preorder_info.opens_at }}</small>
+            </div>
+          </div>
+        </div>
+        {% elif show_delivery_notice %}
         <div class="alert alert-info mb-3">
           <div class="d-flex align-items-start">
             <i class="bi bi-info-circle me-2 mt-1"></i>
@@ -73,7 +83,11 @@
             <div class="form-check">
               <input class="form-check-input" type="radio" name="delivery_mode" id="delivery_asap" value="asap" checked onchange="toggleSlot()">
               <label class="form-check-label" for="delivery_asap">
+                {% if preorder_info and preorder_info.is_preorder %}
+                Как можно скорее (в {{ morning_start }})
+                {% else %}
                 Как можно скорее (15–25 минут)
+                {% endif %}
               </label>
             </div>
             <div class="form-check">

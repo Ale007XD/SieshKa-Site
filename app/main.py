@@ -374,13 +374,53 @@ def normalize_ru_phone(phone_raw: str) -> str:
     return phonenumbers.format_number(num, phonenumbers.PhoneNumberFormat.E164)
 
 def get_current_menu_period(now: datetime) -> str | None:
-    """Определяет какое меню показывать (morning/evening)"""
+    """Определяет какое меню показывать (morning/evening)
+    В ночное время (после EVENING_END до MORNING_START) возвращает 'morning' для предзаказа
+    """
     t = now.time()
     if MORNING_START <= t <= MORNING_END:
         return "morning"
     if EVENING_MENU_START <= t <= EVENING_END:
         return "evening"
+    if EVENING_END < t or t < MORNING_START:
+        return "morning"
     return None
+
+def is_preorder_mode(now: datetime) -> bool:
+    """Проверяет, находимся ли в режиме предзаказа (ночное время)"""
+    t = now.time()
+    return EVENING_END < t or t < MORNING_START
+
+def get_preorder_info(now: datetime) -> dict:
+    """Возвращает информацию о предзаказе для ночного времени"""
+    if not is_preorder_mode(now):
+        return {"is_preorder": False}
+    
+    today = now.date()
+    morning_start_dt = datetime.combine(today, MORNING_START)
+    if now.time() > EVENING_END:
+        morning_start_dt = datetime.combine(today + timedelta(days=1), MORNING_START)
+    
+    if now.tzinfo:
+        morning_start_dt = morning_start_dt.replace(tzinfo=now.tzinfo)
+    
+    delta = morning_start_dt - now
+    total_minutes = int(delta.total_seconds() / 60)
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    
+    if hours > 0:
+        time_until = f"{hours} ч {minutes} мин"
+    else:
+        time_until = f"{minutes} мин"
+    
+    return {
+        "is_preorder": True,
+        "opens_at": MORNING_START.strftime("%H:%M"),
+        "time_until": time_until,
+        "hours": hours,
+        "minutes": minutes
+    }
 
 def get_current_period_label(now: datetime) -> str | None:
     """Определяет доступность доставки (morning/evening) - для обратной совместимости"""
@@ -604,13 +644,17 @@ async def index(request: Request, preview_period: str = Query(None)):
             if cat_data['products'] or cat_data['subcategories']:
                 categories_data.append(cat_data)
     
+    preorder_info = get_preorder_info(now)
+    
     data = {
         "categories_data": categories_data,
         "current_period_label": current_period,
         "preview_period": preview_period,
+        "preorder_info": preorder_info,
     }
     
-    menu_cache[cache_key] = data
+    if not preorder_info["is_preorder"]:
+        menu_cache[cache_key] = data
     
     return templates.TemplateResponse("index.html", {
         "request": request,
@@ -628,9 +672,9 @@ async def checkout_page(request: Request):
     now = datetime.now(LOCAL_TZ)
     current_menu_period = get_current_menu_period(now)
     current_delivery_period = get_current_period_label(now)
+    preorder_info = get_preorder_info(now)
     
-    # Проверяем доступность меню (меню доступно с 10:00 для вечернего)
-    if current_menu_period is None:
+    if current_menu_period is None and not preorder_info["is_preorder"]:
         return templates.TemplateResponse("closed.html", {
             "request": request,
             "morning_start": MORNING_START.strftime("%H:%M"),
@@ -639,8 +683,6 @@ async def checkout_page(request: Request):
             "evening_end": EVENING_END.strftime("%H:%M"),
         })
     
-    # Определяем, показывать ли предупреждение о доставке после 15:00
-    # Это нужно когда меню evening, но доставка еще не началась (10:00-15:00)
     show_delivery_notice = (current_menu_period == "evening" and current_delivery_period is None)
     
     return templates.TemplateResponse("checkout.html", {
@@ -649,6 +691,8 @@ async def checkout_page(request: Request):
         "current_menu_period": current_menu_period,
         "show_delivery_notice": show_delivery_notice,
         "evening_delivery_start": EVENING_START.strftime("%H:%M"),
+        "preorder_info": preorder_info,
+        "morning_start": MORNING_START.strftime("%H:%M"),
     })
 
 @app.post("/api/orders", tags=["Orders"])

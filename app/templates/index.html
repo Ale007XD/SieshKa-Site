@@ -45,6 +45,19 @@
   </div>
 </div>
 
+{% if preorder_info and preorder_info.is_preorder %}
+<div class="container py-3">
+  <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center" role="alert">
+    <i class="bi bi-clock me-2 fs-5"></i>
+    <div>
+      <strong>Режим предзаказа</strong><br>
+      <span>Ваш заказ будет обработан через <strong>{{ preorder_info.time_until }}</strong> в {{ preorder_info.opens_at }}</span>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
+  </div>
+</div>
+{% endif %}
+
 <!-- Sticky Category Filter Bar -->
 <div class="category-filter-bar sticky-top" style="top: 110px; z-index: 1020; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-accent-border);">
   <div class="container py-2">
