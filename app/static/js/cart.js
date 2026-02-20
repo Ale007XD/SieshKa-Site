@@ -896,7 +896,11 @@ const CartManager = (function() {
   }
   
   // Event Handlers
+  let _eventsSetup = false;
   function setupEventListeners() {
+    if (_eventsSetup) return;
+    _eventsSetup = true;
+    
     // Offcanvas clear button
     const clearBtn = document.getElementById('offcanvasClearBtn');
     if (clearBtn) {

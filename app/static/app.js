@@ -283,6 +283,9 @@ function generateIdempotencyKey() {
 }
 
 function initCartPage() {
+  if (window._cartPageInitialized) return;
+  window._cartPageInitialized = true;
+  
   renderCart();
   updateCartBar();
   updateCartBadge();
