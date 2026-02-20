@@ -17,6 +17,12 @@ from .db import SessionLocal, engine
 
 logger = logging.getLogger(__name__)
 
+def clear_menu_cache():
+    """Clear menu cache when categories or products are modified"""
+    from .main import menu_cache
+    menu_cache.clear()
+    logger.info("Menu cache cleared")
+
 # Valid status transitions
 VALID_STATUS_TRANSITIONS = {
     OrderStatus.new: [OrderStatus.accepted, OrderStatus.cancelled],
@@ -99,6 +105,11 @@ class CategoryAdmin(ModelView, model=Category):
                 raise ValueError("Нельзя выбрать дочернюю категорию как родителя (циклическая ссылка)")
         
         log_admin_action(request, action, "Category", model.id, None, data)
+        clear_menu_cache()
+    
+    async def on_model_delete(self, model: Category, request: Request) -> None:
+        log_admin_action(request, "delete", "Category", model.id, None, None)
+        clear_menu_cache()
     
     def _is_circular_reference(self, category: Category, new_parent_id: int) -> bool:
         """Check if new_parent_id is a descendant of category (circular reference)"""
@@ -180,6 +191,7 @@ class ProductAdmin(ModelView, model=Product):
                 )
                 db.commit()
                 log_admin_action(request, "bulk_activate", "Product", None, {"count": len(pks)}, {"pks": pks})
+                clear_menu_cache()
         
         referer = request.headers.get("Referer")
         if referer:
@@ -208,6 +220,7 @@ class ProductAdmin(ModelView, model=Product):
                 )
                 db.commit()
                 log_admin_action(request, "bulk_deactivate", "Product", None, {"count": len(pks)}, {"pks": pks})
+                clear_menu_cache()
         
         referer = request.headers.get("Referer")
         if referer:
@@ -241,6 +254,7 @@ class ProductAdmin(ModelView, model=Product):
                     )
                     db.commit()
                     log_admin_action(request, "bulk_move_category", "Product", None, {"count": len(pks)}, {"new_cat": cat_id})
+                    clear_menu_cache()
                 
                 return RedirectResponse(request.url_for("admin:list", identity=self.identity))
         
@@ -274,6 +288,11 @@ class ProductAdmin(ModelView, model=Product):
     async def on_model_change(self, data: dict, model: Product, is_created: bool, request: Request) -> None:
         action = "create" if is_created else "update"
         log_admin_action(request, action, "Product", model.id, None, data)
+        clear_menu_cache()
+    
+    async def on_model_delete(self, model: Product, request: Request) -> None:
+        log_admin_action(request, "delete", "Product", model.id, None, None)
+        clear_menu_cache()
     
     @action(
         name="import_products",
@@ -720,6 +739,7 @@ async def toggle_product_active_endpoint(request: Request):
                 {"is_active": old_status},
                 {"is_active": is_active}
             )
+            clear_menu_cache()
             
             return JSONResponse({
                 "success": True,
