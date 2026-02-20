@@ -146,9 +146,13 @@ function initStickyBar() {
             const method = btn.dataset.method;
             setMethod(method);
 
-            // Update active state
-            methodButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            // Update active state with proper Bootstrap classes
+            methodButtons.forEach(b => {
+                b.classList.remove('btn-brand', 'active');
+                b.classList.add('btn-outline-brand');
+            });
+            btn.classList.remove('btn-outline-brand');
+            btn.classList.add('btn-brand', 'active');
         });
     });
 
