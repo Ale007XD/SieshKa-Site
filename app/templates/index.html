@@ -58,7 +58,64 @@
 </div>
 {% endif %}
 
-<!-- Sticky Category Filter Bar -->
+</div>
+
+<!-- Image Lightbox Modal -->
+<div id="imageLightbox" class="image-lightbox">
+  <button class="close-btn" id="lightboxClose">&times;</button>
+  <img id="lightboxImage" src="" alt="Увеличенное изображение">
+</div>
+
+<!-- Other Date Modal -->
+<div class="modal fade" id="otherDateModal" tabindex="-1" aria-labelledby="otherDateModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="otherDateModalLabel">
+          <i class="bi bi-calendar-check me-2"></i>Заказ на другую дату
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          Для заказа на конкретную дату свяжитесь с нами через мессенджеры. 
+          Мы подготовим для вас индивидуальное меню.
+        </p>
+        
+        <div class="mb-3">
+          <label class="form-label small text-muted">Ваша корзина:</label>
+          <div id="modalCartPreview" class="p-2 bg-light rounded small">
+            <em class="text-muted">Корзина пуста</em>
+          </div>
+        </div>
+        
+        <div class="d-grid gap-2">
+          <a href="https://wa.me/79641027995?text=Здравствуйте! Хочу сделать предзаказ:" 
+             target="_blank" 
+             class="btn btn-success d-flex align-items-center justify-content-center gap-2"
+             id="whatsappOrderBtn">
+            <i class="bi bi-whatsapp"></i>
+            Написать в WhatsApp
+          </a>
+          <a href="https://t.me/sieshka_dostavka" 
+             target="_blank" 
+             class="btn btn-primary d-flex align-items-center justify-content-center gap-2"
+             style="background-color: #0088cc; border-color: #0088cc;">
+            <i class="bi bi-telegram"></i>
+            Написать в Telegram
+          </a>
+        </div>
+        
+        <div class="mt-3 text-center">
+          <small class="text-muted">
+            <i class="bi bi-clock me-1"></i>
+            Работаем ежедневно: 07:00–21:00
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="category-filter-bar sticky-top" style="top: 110px; z-index: 1020; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-accent-border);">
   <div class="container py-2">
     <div class="d-flex align-items-center gap-2 overflow-x-auto" id="categoryCarousel" style="scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
@@ -434,7 +491,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/menu.js?v=2"></script>
+494: <script src="/static/menu.js?v=3"></script>
 <script nonce="{{ csp_nonce }}">
   // Image Lightbox
   const lightbox = document.getElementById('imageLightbox');
