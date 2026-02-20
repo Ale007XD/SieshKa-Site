@@ -263,7 +263,7 @@
                 <!-- Badge placeholder for Time-First -->
                 <div class="availability-badge mb-2"></div>
 
-                <div class="d-flex justify-content-end align-items-center gap-2 product-controls" id="qty-control-{{ p.id }}" data-product-id="{{ p.id }}" data-price="{{ p.price_rub }}" data-name="{{ p.name | replace("'", "\\'") }}">
+                <div class="d-flex justify-content-end align-items-center gap-2 product-controls d-none" id="qty-control-{{ p.id }}" data-product-id="{{ p.id }}" data-price="{{ p.price_rub }}" data-name="{{ p.name | replace("'", "\\'") }}">
                   <button type="button" 
                     class="btn btn-outline-brand btn-sm qty-btn qty-btn-minus" 
                     data-action="dec"
@@ -282,7 +282,6 @@
                 <button 
                   class="btn btn-brand btn-add-to-cart btn-sm" 
                   id="add-btn-{{ p.id }}"
-                  style="display: none;" 
                 >
                   <i class="bi bi-plus-lg me-1"></i>Добавить
                 </button>
@@ -320,14 +319,14 @@
                     <!-- Badge placeholder for Time-First -->
                     <div class="availability-badge mb-2"></div>
 
-                    <div class="d-flex justify-content-end align-items-center gap-2 product-controls" id="qty-control-{{ p.id }}" data-product-id="{{ p.id }}" data-price="{{ p.price_rub }}" data-name="{{ p.name | replace("'", "\\'") }}">
+                    <div class="d-flex justify-content-end align-items-center gap-2 product-controls d-none" id="qty-control-{{ p.id }}" data-product-id="{{ p.id }}" data-price="{{ p.price_rub }}" data-name="{{ p.name | replace("'", "\\'") }}">
                       <button 
                         class="btn btn-outline-brand btn-sm qty-btn qty-btn-minus" 
                         data-action="dec"
                         aria-label="Уменьшить количество"
                       >−</button>
                       
-                      <span class="qty-display fw-bold" style="min-width: 24px; text-align: center;">0</span>
+                      <span class="qty-display fw-bold" id="qty-display-{{ p.id }}" style="min-width: 24px; text-align: center;">0</span>
                       
                       <button 
                         class="btn btn-brand btn-sm qty-btn" 
@@ -335,6 +334,13 @@
                         aria-label="Увеличить количество"
                       >+</button>
                     </div>
+                    
+                    <button 
+                      class="btn btn-brand btn-add-to-cart btn-sm" 
+                      id="add-btn-{{ p.id }}"
+                    >
+                      <i class="bi bi-plus-lg me-1"></i>Добавить
+                    </button>
                   </div>
                 </div>
               </div>
