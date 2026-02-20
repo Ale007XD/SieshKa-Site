@@ -143,11 +143,6 @@ const CartManager = (function() {
     const idx = findItemIndex(items, productId);
     const totalItems = getTotalItems(items);
     
-    if (totalItems >= MAX_ITEMS) {
-      showToast(`Максимум ${MAX_ITEMS} товаров в корзине`, 'warning');
-      return false;
-    }
-
     if (idx >= 0) {
       // Item exists, increment
       const newQty = items[idx].qty + 1;
@@ -157,7 +152,11 @@ const CartManager = (function() {
       }
       items[idx].qty = newQty;
     } else {
-      // New item
+      // New item - check limit only for new items
+      if (totalItems >= MAX_ITEMS) {
+        showToast(`Максимум ${MAX_ITEMS} товаров в корзине`, 'warning');
+        return false;
+      }
       items.push({
         product_id: productId,
         price_rub: priceRub,

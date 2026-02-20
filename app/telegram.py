@@ -27,11 +27,14 @@ class CircuitBreaker:
                     logger.info("Circuit breaker entering HALF_OPEN state")
                 else:
                     raise Exception("Circuit breaker is OPEN")
+            # Capture state to avoid race condition
+            initial_state = self.state
         
         try:
             result = await func(*args, **kwargs)
             async with self._lock:
-                if self.state == "HALF_OPEN":
+                # Use captured state instead of current state to avoid race
+                if initial_state == "HALF_OPEN" or self.state == "HALF_OPEN":
                     self.state = "CLOSED"
                     self.failure_count = 0
                     logger.info("Circuit breaker closed after successful call")

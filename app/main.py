@@ -14,7 +14,7 @@ import uuid
 import bleach
 import logging
 import signal
-from datetime import datetime, time, date, timedelta
+from datetime import datetime, time, date, timedelta, timezone
 from zoneinfo import ZoneInfo
 from contextlib import asynccontextmanager
 from typing import Any, Optional
@@ -100,7 +100,7 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net;"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net;"
     return response
 
 # Request/Response logging middleware
@@ -111,7 +111,7 @@ async def request_response_logging_middleware(request: Request, call_next):
     start_time = datetime.now()
     
     body = await request.body()
-    logger.info(f"[{request_id}] Request {request.method} {request.url.path} - Body: {body[:1000] if body else 'empty'}")
+    logger.info(f"[{request_id}] Request {request.method} {request.url.path} - Body: {'***PII_MASKED***' if request.method in ('POST', 'PUT', 'PATCH') else (body[:1000].decode(errors='ignore') if body else 'empty')}")
     
     try:
         response = await call_next(request)
@@ -233,10 +233,32 @@ class PhoneRateLimiter:
         self.requests = {}
         self.window = 60
         self.max_requests = settings.PHONE_RATE_LIMIT_PER_MINUTE
+        self._cleanup_counter = 0
+        self._cleanup_interval = 100  # Cleanup every 100 requests
+    
+    def _cleanup_old_entries(self):
+        """Remove old entries to prevent memory leak"""
+        now = datetime.now()
+        keys_to_delete = []
+        for key, timestamps in self.requests.items():
+            # Keep only recent entries within the window
+            self.requests[key] = [t for t in timestamps if now - t < timedelta(seconds=self.window)]
+            # Mark empty entries for deletion
+            if not self.requests[key]:
+                keys_to_delete.append(key)
+        # Remove empty entries
+        for key in keys_to_delete:
+            del self.requests[key]
     
     def is_allowed(self, phone: str) -> bool:
         now = datetime.now()
         key = phone
+        
+        # Periodic cleanup to prevent memory leak
+        self._cleanup_counter += 1
+        if self._cleanup_counter >= self._cleanup_interval:
+            self._cleanup_old_entries()
+            self._cleanup_counter = 0
         
         if key not in self.requests:
             self.requests[key] = []
@@ -422,7 +444,7 @@ async def get_version():
         "version": VERSION,
         "app_name": settings.APP_NAME,
         "environment": settings.ENV,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 @app.get("/metrics", tags=["System"])
@@ -454,7 +476,7 @@ async def health():
             version=VERSION,
             database="connected",
             redis=redis_status,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.now(timezone.utc).isoformat()
         )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -469,7 +491,7 @@ async def diagnostics():
     return {
         "version": VERSION,
         "failed_notifications": get_failed_notifications_count(),
-        "time": datetime.utcnow().isoformat(),
+        "time": datetime.now(timezone.utc).isoformat(),
         "menu_available": is_menu_available(datetime.now(LOCAL_TZ))
     }
 
@@ -531,6 +553,14 @@ async def index(request: Request, preview_period: str = Query(None)):
             Category.parent_id == None
         ).order_by(Category.sort).all()
         
+        # Load all active products in ONE query and group by category_id (fix N+1)
+        all_products = db.query(Product).filter(Product.is_active == True).all()
+        products_by_category = {}
+        for p in all_products:
+            if p.category_id not in products_by_category:
+                products_by_category[p.category_id] = []
+            products_by_category[p.category_id].append(p)
+        
         # Build hierarchical structure
         categories_data = []
         
@@ -541,11 +571,8 @@ async def index(request: Request, preview_period: str = Query(None)):
                 'products': []
             }
             
-            # Get products directly in this category
-            direct_products = db.query(Product).filter(
-                Product.category_id == root_cat.id,
-                Product.is_active == True
-            ).all()
+            # Get products directly in this category from preloaded dict
+            direct_products = products_by_category.get(root_cat.id, [])
             
             for p in direct_products:
                 period = p.menu_period_override or root_cat.menu_period
@@ -562,10 +589,8 @@ async def index(request: Request, preview_period: str = Query(None)):
                     'products': []
                 }
                 
-                subcat_products = db.query(Product).filter(
-                    Product.category_id == subcat.id,
-                    Product.is_active == True
-                ).all()
+                # Get products for subcategory from preloaded dict
+                subcat_products = products_by_category.get(subcat.id, [])
                 
                 for p in subcat_products:
                     period = p.menu_period_override or subcat.menu_period

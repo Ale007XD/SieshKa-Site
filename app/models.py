@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from sqlalchemy import (
     String, Integer, Boolean, DateTime, ForeignKey, Text, Enum, Date
 )
@@ -87,7 +87,7 @@ class DeliverySlot(Base):
     slot_time: Mapped[str] = mapped_column(String(20), unique=True)
     max_orders: Mapped[int] = mapped_column(Integer, default=10)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
 
 class Order(Base):
     __tablename__ = "orders"
@@ -105,8 +105,8 @@ class Order(Base):
     delivery_mode: Mapped[DeliveryMode] = mapped_column(Enum(DeliveryMode), default=DeliveryMode.asap)
     delivery_slot: Mapped[str | None] = mapped_column(String(20), index=True)
     delivery_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # Medium Priority Fix
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan")
 
@@ -115,7 +115,7 @@ class OrderItem(Base):
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
-    product_id: Mapped[int] = mapped_column(Integer)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
     name_snapshot: Mapped[str] = mapped_column(String(200))
     price_rub_snapshot: Mapped[int] = mapped_column(Integer)
     qty: Mapped[int] = mapped_column(Integer)
@@ -134,4 +134,4 @@ class AdminAuditLog(Base):
     old_values: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_values: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc), index=True)

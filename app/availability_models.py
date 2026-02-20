@@ -2,7 +2,7 @@
 Availability Rules Models for Time-First Menu System
 """
 import enum
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from typing import Optional, List
 from sqlalchemy import (
     String, Integer, Boolean, DateTime, ForeignKey, Text, Enum, Time, ARRAY, func
@@ -158,11 +158,11 @@ class CartDraft(Base):
     total_rub: Mapped[int] = mapped_column(Integer, default=0)
     
     # Metadata
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, 
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc)
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     
@@ -203,8 +203,8 @@ class MenuConfiguration(Base):
     
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, 
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc)
     )
     
     def __repr__(self) -> str:

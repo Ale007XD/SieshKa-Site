@@ -163,10 +163,14 @@ class ProductAdmin(ModelView, model=Product):
         label="Активировать",
         confirmation_message="Активировать выбранные товары?",
         add_in_list=True,
-        add_in_detail=False
+        add_in_detail=False,
+        method="POST"
     )
     async def bulk_activate(self, request: Request):
         """Массовая активация товаров"""
+        if request.method != "POST":
+            return JSONResponse({"error": "Method not allowed"}, status_code=405)
+        
         pks_str = request.query_params.get("pks", "")
         pks = [pk for pk in pks_str.split(",") if pk]
         
@@ -188,10 +192,14 @@ class ProductAdmin(ModelView, model=Product):
         label="Деактивировать",
         confirmation_message="Деактивировать выбранные товары?",
         add_in_list=True,
-        add_in_detail=False
+        add_in_detail=False,
+        method="POST"
     )
     async def bulk_deactivate(self, request: Request):
         """Массовая деактивация товаров"""
+        if request.method != "POST":
+            return JSONResponse({"error": "Method not allowed"}, status_code=405)
+        
         pks_str = request.query_params.get("pks", "")
         pks = [pk for pk in pks_str.split(",") if pk]
         
@@ -238,11 +246,11 @@ class ProductAdmin(ModelView, model=Product):
                 
                 return RedirectResponse(request.url_for("admin:list", identity=self.identity))
         
-        # Показ формы выбора категории
+          # Показ формы выбора категории
         with SessionLocal() as db:
             categories = db.query(Category).filter(Category.is_active == True).order_by(Category.name).all()
             category_options = "\n".join([
-                f'<option value="{cat.id}">{cat.name}</option>' 
+                f'<option value="{cat.id}">{escape(cat.name)}</option>' 
                 for cat in categories
             ])
             
