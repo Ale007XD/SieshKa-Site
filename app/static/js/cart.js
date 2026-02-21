@@ -484,12 +484,12 @@ const CartManager = (function() {
     
     container.innerHTML = html;
     
-    // Update totals with delivery fee
-    const currentDeliveryFee = await getDeliveryFee();
+    // Update totals with delivery fee (only if there are items)
+    const currentDeliveryFee = subtotal > 0 ? await getDeliveryFee() : 0;
     const grandTotal = subtotal + currentDeliveryFee;
     
     if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
-    if (deliveryEl) deliveryEl.textContent = formatPrice(currentDeliveryFee) + ' (фиксированная)';
+    if (deliveryEl) deliveryEl.textContent = formatPrice(currentDeliveryFee) + (subtotal > 0 ? ' (фиксированная)' : '');
     if (totalEl) totalEl.textContent = formatPrice(grandTotal);
   }
   
