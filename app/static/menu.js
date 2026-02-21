@@ -401,6 +401,7 @@ function createCategoryElement(category) {
     const section = document.createElement('section');
     section.className = 'menu-category mb-5';
     section.id = `category-${category.category_id}`;
+    section.dataset.catId = category.category_id;
     
     const header = document.createElement('h2');
     header.className = 'h4 mb-3';
