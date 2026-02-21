@@ -170,7 +170,6 @@ const CartManager = (function() {
     
     saveCart(items);
     updateAllUI();
-    showToast(`Добавлено: ${name}`, 'success', true);
     return true;
   }
   
@@ -286,7 +285,6 @@ const CartManager = (function() {
     saveCart(JSON.parse(_clearBackup));
     _clearBackup = null;
     updateAllUI();
-    showToast('Корзина восстановлена', 'success');
     return true;
   }
   

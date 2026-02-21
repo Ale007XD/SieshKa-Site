@@ -126,10 +126,6 @@ function cartClear() {
   updateCartBadge();
   renderCart();
   
-  if (typeof CartManager !== 'undefined') {
-    CartManager.showToast('Корзина очищена', 'info');
-  }
-  
   window._cartClearBackup = backupItems;
   window._cartClearTimeout = setTimeout(() => {
     delete window._cartClearBackup;
@@ -145,9 +141,6 @@ function cartUndoClear() {
     updateCartBar();
     updateCartBadge();
     renderCart();
-    if (typeof CartManager !== 'undefined') {
-      CartManager.showToast('Корзина восстановлена', 'success');
-    }
     return true;
   }
   return false;
