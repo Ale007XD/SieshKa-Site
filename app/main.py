@@ -28,7 +28,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.utils import get_openapi
-from sqlalchemy import text
+from sqlalchemy import text, func
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -446,7 +446,10 @@ async def import_products_csv(request: Request):
                         if category_value.isdigit():
                             category_id = int(category_value)
                         else:
-                            cat = db.query(Category).filter(Category.name == category_value).first()
+                            # Case-insensitive search
+                            cat = db.query(Category).filter(
+                                func.lower(Category.name) == category_value.lower()
+                            ).first()
                             if cat:
                                 category_id = cat.id
                     
