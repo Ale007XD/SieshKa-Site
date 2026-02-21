@@ -381,6 +381,11 @@ async def import_products_csv(request: Request):
         # Read CSV
         content = await uploaded_file.read()
         
+        # Log first bytes for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"CSV file size: {len(content)}, first 50 bytes: {content[:50]}")
+        
         # Try different encodings
         csv_text = None
         for encoding in ['utf-8-sig', 'utf-8', 'cp1251', 'latin1']:
@@ -393,9 +398,12 @@ async def import_products_csv(request: Request):
         if csv_text is None:
             return {"success": False, "error": "Не удалось декодировать файл"}
         
+        logger.info(f"CSV first line: {csv_text.split(chr(10))[0][:100]}")
+        
         # Auto-detect delimiter (comma or semicolon)
         first_line = csv_text.split('\n')[0]
         delimiter = ';' if ';' in first_line and ',' not in first_line else ','
+        logger.info(f"Detected delimiter: '{delimiter}'")
         
         csv_reader = csv.DictReader(io.StringIO(csv_text), delimiter=delimiter)
         
