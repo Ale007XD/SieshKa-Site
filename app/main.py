@@ -387,8 +387,11 @@ async def import_products_csv(request: Request):
         fieldnames = csv_reader.fieldnames or []
         fieldnames_lower = [f.lower().strip() for f in fieldnames]
         
+        if not fieldnames:
+            return {"success": False, "error": "Не удалось прочитать CSV файл", "debug": "empty fieldnames"}
+        
         if 'name' not in fieldnames_lower:
-            return {"success": False, "error": "CSV файл должен содержать колонку 'Name'"}
+            return {"success": False, "error": f"CSV файл должен содержать колонку 'Name'. Найдены: {fieldnames}"}
         
         # Import products
         results = {"created": 0, "errors": [], "skipped": 0}
