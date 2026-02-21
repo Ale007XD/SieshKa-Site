@@ -418,7 +418,7 @@ async def import_products_csv(request: Request):
             return {"success": False, "error": f"CSV файл должен содержать колонку 'Name'. Найдены: {fieldnames}"}
         
         # Import products
-        results = {"created": 0, "errors": [], "skipped": 0}
+        results = {"created": 0, "errors": [], "skipped": [], "skipped_count": 0}
         
         with SessionLocal() as db:
             default_cat = None
@@ -432,7 +432,7 @@ async def import_products_csv(request: Request):
                     name = row_lower.get('name', '').strip()
                     if not name:
                         if skip_errors:
-                            results["skipped"] += 1
+                            results["skipped"].append({"name": "(пусто)", "reason": "отсутствует Name"})
                             continue
                         else:
                             results["errors"].append(f"Строка {row_num}: отсутствует Name")
@@ -454,14 +454,17 @@ async def import_products_csv(request: Request):
                                 category_id = cat.id
                     
                     if not category_id:
-                        results["errors"].append(f"Строка {row_num}: категория не найдена")
-                        if not skip_errors:
+                        if skip_errors:
+                            results["skipped"].append({"name": name, "reason": f"категория '{category_value}' не найдена"})
+                            continue
+                        else:
+                            results["errors"].append(f"Строка {row_num}: категория не найдена")
                             continue
                     
                     # Check if product exists
                     existing = db.query(Product).filter(Product.name == name).first()
                     if existing:
-                        results["skipped"] += 1
+                        results["skipped"].append({"name": name, "reason": "товар уже существует"})
                         continue
                     
                     # Create product
@@ -483,7 +486,7 @@ async def import_products_csv(request: Request):
                     
                 except Exception as e:
                     if skip_errors:
-                        results["skipped"] += 1
+                        results["skipped"].append({"name": name if name else "(未知)", "reason": f"ошибка: {str(e)[:50]}"})
                     else:
                         results["errors"].append(f"Строка {row_num}: {str(e)}")
             
@@ -493,6 +496,7 @@ async def import_products_csv(request: Request):
             from .main import menu_cache
             menu_cache.clear()
         
+        results["skipped_count"] = len(results["skipped"])
         return {"success": True, "results": results}
         
     except Exception as e:

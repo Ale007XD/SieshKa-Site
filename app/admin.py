@@ -526,8 +526,15 @@ class ProductAdmin(ModelView, model=Product):
                         if (data.success) {{
                             const r = data.results;
                             let html = '<div class="alert alert-success">Создано товаров: ' + r.created + '</div>';
-                            if (r.skipped > 0) {{
-                                html += '<div class="alert alert-warning">Пропущено: ' + r.skipped + '</div>';
+                            if (r.skipped && r.skipped.length > 0) {{
+                                html += '<div class="alert alert-warning"><h4>Пропущено (' + r.skipped.length + '):</h4><ul>';
+                                r.skipped.slice(0, 10).forEach(function(item) {{
+                                    html += '<li><strong>' + item.name + '</strong> - ' + item.reason + '</li>';
+                                }});
+                                if (r.skipped.length > 10) {{
+                                    html += '<li>... и еще ' + (r.skipped.length - 10) + ' пропущено</li>';
+                                }}
+                                html += '</ul></div>';
                             }}
                             if (r.errors.length > 0) {{
                                 html += '<div class="alert alert-danger"><h4>Ошибки:</h4><ul>';
