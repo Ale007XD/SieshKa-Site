@@ -591,8 +591,9 @@
           if (categoryId === 'all') {
             cat.style.display = '';
           } else {
-            const catId = cat.dataset.catId;
-            cat.style.display = (catId === categoryId) ? '' : 'none';
+            const catId = String(cat.dataset.catId);
+            const selectedId = String(categoryId);
+            cat.style.display = (catId === selectedId) ? '' : 'none';
           }
         });
       }
