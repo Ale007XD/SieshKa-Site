@@ -302,11 +302,11 @@ const CartManager = (function() {
   }
   
   // UI Update Functions
-  function updateNavbarCart() {
+  async function updateNavbarCart() {
     const items = loadCart();
     const totalItems = getTotalItems(items);
     const subtotal = getTotalPrice(items);
-    const deliveryFee = totalItems > 0 ? getDeliveryFee() : 0;
+    const deliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
     const totalPrice = subtotal + deliveryFee;
     
     // Update navbar cart summary
