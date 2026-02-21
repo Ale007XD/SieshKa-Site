@@ -305,7 +305,9 @@ const CartManager = (function() {
   function updateNavbarCart() {
     const items = loadCart();
     const totalItems = getTotalItems(items);
-    const totalPrice = getTotalPrice(items);
+    const subtotal = getTotalPrice(items);
+    const deliveryFee = totalItems > 0 ? getDeliveryFee() : 0;
+    const totalPrice = subtotal + deliveryFee;
     
     // Update navbar cart summary
     const summaryEl = document.getElementById('navbarCartSummary');
