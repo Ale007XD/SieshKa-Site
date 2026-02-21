@@ -359,6 +359,115 @@ async def admin_update_method(request: Request):
     """Proxy to availability rule method update endpoint"""
     return await update_method_endpoint(request)
 
+# Admin API endpoint for CSV product import
+@app.post("/api/admin/products/import-csv")
+async def import_products_csv(request: Request):
+    """API endpoint for CSV product import"""
+    from fastapi import UploadFile
+    from .db import SessionLocal
+    from .models import Product, Category
+    import csv
+    import io
+    
+    try:
+        form_data = await request.form()
+        uploaded_file = form_data.get("csv_file")
+        default_category_id = form_data.get("default_category_id")
+        skip_errors = form_data.get("skip_errors") == "on"
+        
+        if not uploaded_file:
+            return {"success": False, "error": "Файл не загружен"}
+        
+        # Read CSV
+        content = await uploaded_file.read()
+        csv_text = content.decode('utf-8-sig')
+        csv_reader = csv.DictReader(io.StringIO(csv_text))
+        
+        # Check required field
+        fieldnames = csv_reader.fieldnames or []
+        fieldnames_lower = [f.lower().strip() for f in fieldnames]
+        
+        if 'name' not in fieldnames_lower:
+            return {"success": False, "error": "CSV файл должен содержать колонку 'Name'"}
+        
+        # Import products
+        results = {"created": 0, "errors": [], "skipped": 0}
+        
+        with SessionLocal() as db:
+            default_cat = None
+            if default_category_id:
+                default_cat = db.query(Category).filter(Category.id == int(default_category_id)).first()
+            
+            for row_num, row in enumerate(csv_reader, start=2):
+                try:
+                    row_lower = {k.lower().strip(): v.strip() if v else None for k, v in row.items()}
+                    
+                    name = row_lower.get('name', '').strip()
+                    if not name:
+                        if skip_errors:
+                            results["skipped"] += 1
+                            continue
+                        else:
+                            results["errors"].append(f"Строка {row_num}: отсутствует Name")
+                            continue
+                    
+                    # Category
+                    category_id = default_cat.id if default_cat else None
+                    category_value = row_lower.get('category', '').strip()
+                    
+                    if category_value:
+                        if category_value.isdigit():
+                            category_id = int(category_value)
+                        else:
+                            cat = db.query(Category).filter(Category.name == category_value).first()
+                            if cat:
+                                category_id = cat.id
+                    
+                    if not category_id:
+                        results["errors"].append(f"Строка {row_num}: категория не найдена")
+                        if not skip_errors:
+                            continue
+                    
+                    # Check if product exists
+                    existing = db.query(Product).filter(Product.name == name).first()
+                    if existing:
+                        results["skipped"] += 1
+                        continue
+                    
+                    # Create product
+                    description = row_lower.get('description', '')
+                    price_str = row_lower.get('price rub', '').strip()
+                    price = int(price_str) if price_str and price_str.isdigit() else 0
+                    photo_url = row_lower.get('photo url', '')
+                    
+                    product = Product(
+                        name=name,
+                        category_id=category_id,
+                        description=description,
+                        price_rub=price,
+                        photo_url=photo_url,
+                        is_active=True
+                    )
+                    db.add(product)
+                    results["created"] += 1
+                    
+                except Exception as e:
+                    if skip_errors:
+                        results["skipped"] += 1
+                    else:
+                        results["errors"].append(f"Строка {row_num}: {str(e)}")
+            
+            db.commit()
+            
+            # Clear menu cache
+            from .main import menu_cache
+            menu_cache.clear()
+        
+        return {"success": True, "results": results}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 def normalize_ru_phone(phone_raw: str) -> str:
     try:
         num = phonenumbers.parse(phone_raw, None)

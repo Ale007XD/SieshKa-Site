@@ -468,7 +468,7 @@ class ProductAdmin(ModelView, model=Product):
             html = f'''
             <div class="container mt-4">
                 <h3>Импорт товаров из CSV</h3>
-                <form method="POST" enctype="multipart/form-data">
+                <form id="importForm" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label">CSV файл:</label>
                         <input type="file" class="form-control" name="csv_file" accept=".csv" required>
@@ -500,11 +500,59 @@ class ProductAdmin(ModelView, model=Product):
 Борщ,Супы,Традиционный украинский суп,350,https://example.com/borsh.jpg
 Салат Цезарь,Салаты,Классический салат с курицей,420,</pre>
                     </div>
+                    <div id="importResult"></div>
                     <div class="modal-footer" style="padding-left: 0;">
-                        <button type="submit" class="btn btn-primary">Импортировать</button>
+                        <button type="submit" class="btn btn-primary" id="importBtn">Импортировать</button>
                         <a href="/admin/product/list" class="btn btn-secondary">Отмена</a>
                     </div>
                 </form>
+                <script>
+                document.getElementById('importForm').addEventListener('submit', async function(e) {{
+                    e.preventDefault();
+                    const btn = document.getElementById('importBtn');
+                    const resultDiv = document.getElementById('importResult');
+                    btn.disabled = true;
+                    btn.textContent = 'Импорт...';
+                    
+                    const formData = new FormData(this);
+                    
+                    try {{
+                        const response = await fetch('/api/admin/products/import-csv', {{
+                            method: 'POST',
+                            body: formData
+                        }});
+                        const data = await response.json();
+                        
+                        if (data.success) {{
+                            const r = data.results;
+                            let html = '<div class="alert alert-success">Создано товаров: ' + r.created + '</div>';
+                            if (r.skipped > 0) {{
+                                html += '<div class="alert alert-warning">Пропущено: ' + r.skipped + '</div>';
+                            }}
+                            if (r.errors.length > 0) {{
+                                html += '<div class="alert alert-danger"><h4>Ошибки:</h4><ul>';
+                                r.errors.slice(0, 10).forEach(function(err) {{
+                                    html += '<li>' + err + '</li>';
+                                }});
+                                if (r.errors.length > 10) {{
+                                    html += '<li>... и еще ' + (r.errors.length - 10) + ' ошибок</li>';
+                                }}
+                                html += '</ul></div>';
+                            }}
+                            resultDiv.innerHTML = html;
+                            btn.textContent = 'Импорт завершён';
+                        }} else {{
+                            resultDiv.innerHTML = '<div class="alert alert-danger">Ошибка: ' + data.error + '</div>';
+                            btn.disabled = false;
+                            btn.textContent = 'Импортировать';
+                        }}
+                    }} catch (err) {{
+                        resultDiv.innerHTML = '<div class="alert alert-danger">Ошибка: ' + err + '</div>';
+                        btn.disabled = false;
+                        btn.textContent = 'Импортировать';
+                    }}
+                }});
+                </script>
             </div>
             '''
             return HTMLResponse(content=html)
