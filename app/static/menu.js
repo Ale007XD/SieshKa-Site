@@ -123,6 +123,12 @@ function initStickyBar() {
     const stickyBar = document.getElementById('sticky-bar');
     if (!stickyBar) return;
 
+    // Detect initial method from active button in UI
+    const activeBtn = stickyBar.querySelector('[data-method].active');
+    if (activeBtn) {
+        MenuState.method = activeBtn.dataset.method;
+    }
+
     // Day toggle - TEMPORARILY DISABLED
     // const dayButtons = stickyBar.querySelectorAll('[data-day]');
     // dayButtons.forEach(btn => {

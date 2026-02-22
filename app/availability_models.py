@@ -173,6 +173,9 @@ class MenuConfiguration(Base):
     enable_tomorrow_orders: Mapped[bool] = mapped_column(Boolean, default=True)
     tomorrow_order_cutoff: Mapped[time] = mapped_column(Time, default=time(23, 0))
     
+    # Allowed delivery methods in UI: "both", "delivery", "pickup"
+    allowed_methods: Mapped[str] = mapped_column(String(20), default="both")
+    
     # Cache versioning for cache invalidation
     menu_version: Mapped[int] = mapped_column(Integer, default=1)
     

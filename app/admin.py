@@ -1426,6 +1426,7 @@ class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
         "base_buffer_minutes",
         "enable_tomorrow_orders",
         "tomorrow_order_cutoff",
+        "allowed_methods",
         "menu_version",
         "delivery_fee",
     ]
@@ -1434,6 +1435,7 @@ class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
         MenuConfiguration.menu_version: "Версия меню",
         MenuConfiguration.delivery_fee: "Стоимость доставки (₽)",
         MenuConfiguration.enable_tomorrow_orders: "Заказы на завтра",
+        MenuConfiguration.allowed_methods: "Доступные способы (both/delivery/pickup)",
     }
     name = "Настройки меню"
     name_plural = "Настройки меню"

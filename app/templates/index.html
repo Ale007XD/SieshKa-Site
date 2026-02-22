@@ -18,10 +18,16 @@
 
       <!-- Method Toggle -->
       <div class="col-12 col-md-4">
-        <div class="btn-group w-100" role="group" style="min-height: 44px;">
-          <button type="button" class="btn btn-brand active" data-method="delivery" style="font-weight: 600;">Доставка</button>
-          <button type="button" class="btn btn-outline-brand" data-method="pickup" style="font-weight: 600;">Самовывоз</button>
-        </div>
+        {% if allowed_methods == 'delivery' %}
+          <button type="button" class="btn btn-brand w-100 active" data-method="delivery" style="font-weight: 600; min-height: 44px;">Доставка</button>
+        {% elif allowed_methods == 'pickup' %}
+          <button type="button" class="btn btn-brand w-100 active" data-method="pickup" style="font-weight: 600; min-height: 44px;">Самовывоз</button>
+        {% else %}
+          <div class="btn-group w-100" role="group" style="min-height: 44px;">
+            <button type="button" class="btn btn-brand active" data-method="delivery" style="font-weight: 600;">Доставка</button>
+            <button type="button" class="btn btn-outline-brand" data-method="pickup" style="font-weight: 600;">Самовывоз</button>
+          </div>
+        {% endif %}
       </div>
       
       <!-- Slot Selector - TEMPORARILY DISABLED -->

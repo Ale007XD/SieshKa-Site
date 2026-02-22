@@ -769,6 +769,10 @@ async def index(request: Request, preview_period: str = Query(None)):
         })
     
     with SessionLocal() as db:
+        # Load global configuration
+        config = db.query(MenuConfiguration).first()
+        allowed_methods = config.allowed_methods if config else "both"
+
         # Load only root categories (no parent) and their subcategories
         root_cats = db.query(Category).filter(
             Category.is_active == True,
@@ -833,6 +837,7 @@ async def index(request: Request, preview_period: str = Query(None)):
         "current_period_label": current_period,
         "preview_period": preview_period,
         "preorder_info": preorder_info,
+        "allowed_methods": allowed_methods,
     }
     
     if not preorder_info["is_preorder"]:
