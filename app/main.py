@@ -18,7 +18,6 @@ from datetime import datetime, time, date, timedelta, timezone
 from zoneinfo import ZoneInfo
 from contextlib import asynccontextmanager
 from typing import Any, Optional
-from functools import wraps
 
 from fastapi import FastAPI, Request, HTTPException, Query, Depends, APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse, Response, PlainTextResponse
@@ -42,7 +41,7 @@ from cachetools import TTLCache
 
 # Low Priority Fix: Import from config module
 from config import settings
-from config.constants import VERSION, MAX_QTY_PER_ITEM, MAX_ITEMS_IN_CART
+from config.constants import VERSION, MAX_QTY_PER_ITEM, MAX_ITEMS_IN_CART, RATE_LIMIT_WINDOW_SECONDS, RATE_LIMIT_REQUESTS_PER_WINDOW
 
 from .db import engine, SessionLocal
 from .models import Base, Category, Product, Order, OrderItem, PaymentMethod, DeliveryMode, MenuPeriod, DeliverySlot
@@ -57,6 +56,7 @@ try:
     import redis.asyncio as aioredis
     REDIS_AVAILABLE = True
 except ImportError:
+    aioredis = None  # type: ignore
     REDIS_AVAILABLE = False
 
 # Structured logging with correlation IDs
@@ -135,7 +135,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Application v{VERSION} starting up...")
     
     # Initialize Redis connection
-    if REDIS_AVAILABLE:
+    if REDIS_AVAILABLE and aioredis is not None:
         try:
             app.state.redis = aioredis.from_url(
                 settings.REDIS_URL,
@@ -231,10 +231,10 @@ app.add_middleware(
 class PhoneRateLimiter:
     def __init__(self):
         self.requests = {}
-        self.window = 60
+        self.window = RATE_LIMIT_WINDOW_SECONDS
         self.max_requests = settings.PHONE_RATE_LIMIT_PER_MINUTE
         self._cleanup_counter = 0
-        self._cleanup_interval = 100  # Cleanup every 100 requests
+        self._cleanup_interval = RATE_LIMIT_REQUESTS_PER_WINDOW
     
     def _cleanup_old_entries(self):
         """Remove old entries to prevent memory leak"""
@@ -359,141 +359,180 @@ async def admin_update_method(request: Request):
     """Proxy to availability rule method update endpoint"""
     return await update_method_endpoint(request)
 
-# Admin API endpoint for CSV product import
-@app.post("/api/admin/products/import-csv")
-async def import_products_csv(request: Request):
-    """API endpoint for CSV product import"""
+def _parse_csv_form(form_data: Any) -> dict:
+    """Extract form data for CSV import"""
+    uploaded_file = form_data.get("csv_file")
+    default_category_id_raw = form_data.get("default_category_id")
+    skip_errors = form_data.get("skip_errors") == "on"
+    
+    default_category_id: int | None = None
+    if default_category_id_raw and isinstance(default_category_id_raw, str):
+        try:
+            default_category_id = int(default_category_id_raw)
+        except ValueError:
+            pass
+    
+    return {
+        "uploaded_file": uploaded_file,
+        "default_category_id": default_category_id,
+        "skip_errors": skip_errors
+    }
+
+async def _decode_csv_file(uploaded_file: Any) -> tuple[str | None, str | None]:
+    """Read and decode CSV file content. Returns (csv_text, error_message)"""
     from fastapi import UploadFile
-    from .db import SessionLocal
-    from .models import Product, Category
+    
+    if not uploaded_file or not isinstance(uploaded_file, UploadFile):
+        return None, "Файл не загружен"
+    
+    content = await uploaded_file.read()
+    logger.info(f"CSV file size: {len(content)}, first 50 bytes: {content[:50]}")
+    
+    for encoding in ['utf-8-sig', 'utf-8', 'cp1251', 'latin1']:
+        try:
+            csv_text = content.decode(encoding)
+            return csv_text, None
+        except:
+            continue
+    
+    return None, "Не удалось декодировать файл"
+
+def _parse_csv_content(csv_text: str) -> tuple[Any, str | None]:
+    """Parse CSV text into reader. Returns (csv_reader, error_message)"""
     import csv
     import io
     
+    first_line = csv_text.split('\n')[0]
+    delimiter = ';' if ';' in first_line and ',' not in first_line else ','
+    logger.info(f"Detected delimiter: '{delimiter}'")
+    
+    csv_reader = csv.DictReader(io.StringIO(csv_text), delimiter=delimiter)
+    
+    fieldnames = csv_reader.fieldnames or []
+    fieldnames_lower = [f.lower().strip() for f in fieldnames]
+    
+    if not fieldnames:
+        return None, "Не удалось прочитать CSV файл"
+    
+    if 'name' not in fieldnames_lower:
+        return None, f"CSV файл должен содержать колонку 'Name'. Найдены: {fieldnames}"
+    
+    return csv_reader, None
+
+def _process_single_row(
+    row: dict, 
+    row_num: int, 
+    db: Any, 
+    default_cat: Any, 
+    skip_errors: bool
+) -> tuple[dict | None, str | None]:
+    """Process a single CSV row. Returns (skipped_info, error_message)"""
+    row_lower = {k.lower().strip(): (v.strip() if v else None) for k, v in row.items()}
+    
+    name_raw = row_lower.get('name', '')
+    name = name_raw.strip() if name_raw else ''
+    if not name:
+        if skip_errors:
+            return {"name": "(пусто)", "reason": "отсутствует Name"}, None
+        return None, f"Строка {row_num}: отсутствует Name"
+    
+    category_id = default_cat.id if default_cat else None
+    category_raw = row_lower.get('category', '')
+    category_value = category_raw.strip() if category_raw else ''
+    
+    if category_value:
+        if category_value.isdigit():
+            category_id = int(category_value)
+        else:
+            cat = db.query(Category).filter(
+                func.lower(Category.name) == category_value.lower()
+            ).first()
+            if cat:
+                category_id = cat.id
+    
+    if not category_id:
+        if skip_errors:
+            return {"name": name, "reason": f"категория '{category_value}' не найдена"}, None
+        return None, f"Строка {row_num}: категория не найдена"
+    
+    existing = db.query(Product).filter(Product.name == name).first()
+    if existing:
+        return {"name": name, "reason": "товар уже существует"}, None
+    
+    desc_raw = row_lower.get('description', '')
+    description = desc_raw.strip() if desc_raw else ''
+    price_raw = row_lower.get('price rub', '')
+    price_str = price_raw.strip() if price_raw else ''
+    price = int(price_str) if price_str and price_str.isdigit() else 0
+    photo_raw = row_lower.get('photo url', '')
+    photo_url = photo_raw.strip() if photo_raw else ''
+    
+    product = Product(
+        name=name,
+        category_id=category_id,
+        description=description,
+        price_rub=price,
+        photo_url=photo_url,
+        is_active=True
+    )
+    db.add(product)
+    return None, None
+
+# Admin API endpoint for CSV product import
+@app.post("/api/admin/products/import-csv")
+async def import_products_csv(request: Request):
+    """API endpoint for CSV product import - refactored"""
+    from fastapi import UploadFile
+    from .db import SessionLocal
+    from .models import Product, Category
+    
     try:
         form_data = await request.form()
-        uploaded_file = form_data.get("csv_file")
-        default_category_id = form_data.get("default_category_id")
-        skip_errors = form_data.get("skip_errors") == "on"
+        parsed = _parse_csv_form(form_data)
         
-        if not uploaded_file:
-            return {"success": False, "error": "Файл не загружен"}
+        csv_text, error = await _decode_csv_file(parsed["uploaded_file"])
+        if error:
+            return {"success": False, "error": error}
         
-        # Read CSV
-        content = await uploaded_file.read()
+        csv_reader, error = _parse_csv_content(csv_text)  # type: ignore[arg-type]
+        if error:
+            return {"success": False, "error": error}
         
-        # Log first bytes for debugging
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"CSV file size: {len(content)}, first 50 bytes: {content[:50]}")
-        
-        # Try different encodings
-        csv_text = None
-        for encoding in ['utf-8-sig', 'utf-8', 'cp1251', 'latin1']:
-            try:
-                csv_text = content.decode(encoding)
-                break
-            except:
-                continue
-        
-        if csv_text is None:
-            return {"success": False, "error": "Не удалось декодировать файл"}
-        
-        logger.info(f"CSV first line: {csv_text.split(chr(10))[0][:100]}")
-        
-        # Auto-detect delimiter (comma or semicolon)
-        first_line = csv_text.split('\n')[0]
-        delimiter = ';' if ';' in first_line and ',' not in first_line else ','
-        logger.info(f"Detected delimiter: '{delimiter}'")
-        
-        csv_reader = csv.DictReader(io.StringIO(csv_text), delimiter=delimiter)
-        
-        # Check required field
-        fieldnames = csv_reader.fieldnames or []
-        fieldnames_lower = [f.lower().strip() for f in fieldnames]
-        
-        if not fieldnames:
-            return {"success": False, "error": "Не удалось прочитать CSV файл", "debug": "empty fieldnames"}
-        
-        if 'name' not in fieldnames_lower:
-            return {"success": False, "error": f"CSV файл должен содержать колонку 'Name'. Найдены: {fieldnames}"}
-        
-        # Import products
         results = {"created": 0, "errors": [], "skipped": [], "skipped_count": 0}
         
         with SessionLocal() as db:
             default_cat = None
-            if default_category_id:
-                default_cat = db.query(Category).filter(Category.id == int(default_category_id)).first()
+            if parsed["default_category_id"]:
+                default_cat = db.query(Category).filter(
+                    Category.id == parsed["default_category_id"]
+                ).first()
             
-            for row_num, row in enumerate(csv_reader, start=2):
+            for row_num, row in enumerate(csv_reader, start=2):  # type: ignore[union-attr]
                 try:
-                    row_lower = {k.lower().strip(): v.strip() if v else None for k, v in row.items()}
+                    skipped, error = _process_single_row(
+                        row, row_num, db, default_cat, parsed["skip_errors"]
+                    )
                     
-                    name = row_lower.get('name', '').strip()
-                    if not name:
-                        if skip_errors:
-                            results["skipped"].append({"name": "(пусто)", "reason": "отсутствует Name"})
-                            continue
-                        else:
-                            results["errors"].append(f"Строка {row_num}: отсутствует Name")
-                            continue
-                    
-                    # Category
-                    category_id = default_cat.id if default_cat else None
-                    category_value = row_lower.get('category', '').strip()
-                    
-                    if category_value:
-                        if category_value.isdigit():
-                            category_id = int(category_value)
-                        else:
-                            # Case-insensitive search
-                            cat = db.query(Category).filter(
-                                func.lower(Category.name) == category_value.lower()
-                            ).first()
-                            if cat:
-                                category_id = cat.id
-                    
-                    if not category_id:
-                        if skip_errors:
-                            results["skipped"].append({"name": name, "reason": f"категория '{category_value}' не найдена"})
-                            continue
-                        else:
-                            results["errors"].append(f"Строка {row_num}: категория не найдена")
-                            continue
-                    
-                    # Check if product exists
-                    existing = db.query(Product).filter(Product.name == name).first()
-                    if existing:
-                        results["skipped"].append({"name": name, "reason": "товар уже существует"})
+                    if skipped:
+                        results["skipped"].append(skipped)
                         continue
                     
-                    # Create product
-                    description = row_lower.get('description', '')
-                    price_str = row_lower.get('price rub', '').strip()
-                    price = int(price_str) if price_str and price_str.isdigit() else 0
-                    photo_url = row_lower.get('photo url', '')
+                    if error:
+                        if parsed["skip_errors"]:
+                            results["skipped"].append({"name": "(error)", "reason": error})
+                        else:
+                            results["errors"].append(error)
+                        continue
                     
-                    product = Product(
-                        name=name,
-                        category_id=category_id,
-                        description=description,
-                        price_rub=price,
-                        photo_url=photo_url,
-                        is_active=True
-                    )
-                    db.add(product)
                     results["created"] += 1
                     
                 except Exception as e:
-                    if skip_errors:
-                        results["skipped"].append({"name": name if name else "(未知)", "reason": f"ошибка: {str(e)[:50]}"})
+                    if parsed["skip_errors"]:
+                        results["skipped"].append({"name": "(unknown)", "reason": f"ошибка: {str(e)[:50]}"})
                     else:
                         results["errors"].append(f"Строка {row_num}: {str(e)}")
             
             db.commit()
-            
-            # Clear menu cache
-            from .main import menu_cache
             menu_cache.clear()
         
         results["skipped_count"] = len(results["skipped"])
@@ -866,6 +905,9 @@ async def create_order(request: Request, payload: OrderCreate):
                 return {"ok": True, "order_id": existing.id, "existing": True}
             
             if payload.delivery_mode == "slot":
+                if not payload.delivery_slot or not payload.delivery_date:
+                    ORDER_FAILURE_COUNT.labels(reason="missing_slot_data").inc()
+                    raise HTTPException(400, "Не указан слот или дата доставки")
                 if not check_slot_availability(db, payload.delivery_slot, payload.delivery_date):
                     ORDER_FAILURE_COUNT.labels(reason="slot_unavailable").inc()
                     raise HTTPException(400, "Выбранный слот доставки заполнен. Выберите другой.")

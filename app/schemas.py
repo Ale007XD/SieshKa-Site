@@ -81,6 +81,7 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     database: str
+    redis: Optional[str] = None
     timestamp: str
 
 class DeliverySlotResponse(BaseModel):

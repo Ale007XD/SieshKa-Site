@@ -151,9 +151,10 @@ class ProductAdmin(ModelView, model=Product):
         AllUniqueStringValuesFilter(Product.menu_period_override),
         ForeignKeyFilter(Product.category_id, Category.name, title="Категория"),
     ]
-    column_formatters = {
-        Product.is_active: lambda m, a: format_product_active_button(m)
+    _formatters: Any = {
+        Product.is_active: lambda m, a: format_product_active_button(m)  # type: ignore[arg-type]
     }
+    column_formatters = _formatters  # type: ignore[assignment]
     form_columns = [
         "name", 
         "category", 
@@ -244,17 +245,20 @@ class ProductAdmin(ModelView, model=Product):
         # Обработка POST-запроса
         if request.method == "POST":
             form_data = await request.form()
-            target_category_id = form_data.get("target_category_id")
+            target_category_id_raw = form_data.get("target_category_id")
             
-            if target_category_id:
-                cat_id = int(target_category_id)
-                with SessionLocal() as db:
-                    db.query(Product).filter(Product.id.in_([int(pk) for pk in pks])).update(
-                        {Product.category_id: cat_id}, synchronize_session=False
-                    )
-                    db.commit()
-                    log_admin_action(request, "bulk_move_category", "Product", None, {"count": len(pks)}, {"new_cat": cat_id})
-                    clear_menu_cache()
+            if target_category_id_raw and isinstance(target_category_id_raw, str):
+                try:
+                    cat_id = int(target_category_id_raw)
+                    with SessionLocal() as db:
+                        db.query(Product).filter(Product.id.in_([int(pk) for pk in pks])).update(
+                            {Product.category_id: cat_id}, synchronize_session=False
+                        )
+                        db.commit()
+                        log_admin_action(request, "bulk_move_category", "Product", None, {"count": len(pks)}, {"new_cat": cat_id})
+                        clear_menu_cache()
+                except ValueError:
+                    pass
                 
                 return RedirectResponse(request.url_for("admin:list", identity=self.identity))
         
@@ -305,7 +309,7 @@ class ProductAdmin(ModelView, model=Product):
         if request.method == "POST":
             form_data = await request.form()
             uploaded_file = form_data.get("csv_file")
-            default_category_id = form_data.get("default_category_id")
+            default_category_id_raw = form_data.get("default_category_id")
             skip_errors = form_data.get("skip_errors") == "on"
             
             if not uploaded_file or not isinstance(uploaded_file, UploadFile):
@@ -313,6 +317,13 @@ class ProductAdmin(ModelView, model=Product):
                 <div class="alert alert-danger">Файл не загружен</div>
                 <a href="javascript:history.back()" class="btn btn-secondary">Назад</a>
                 """, status_code=400)
+            
+            default_category_id: int | None = None
+            if default_category_id_raw and isinstance(default_category_id_raw, str):
+                try:
+                    default_category_id = int(default_category_id_raw)
+                except ValueError:
+                    pass
             
             # Читаем CSV
             try:
@@ -345,9 +356,10 @@ class ProductAdmin(ModelView, model=Product):
                 for row_num, row in enumerate(csv_reader, start=2):  # start=2 потому что первая строка - заголовки
                     try:
                         # Получаем значения полей (регистронезависимо)
-                        row_lower = {k.lower().strip(): v.strip() if v else None for k, v in row.items()}
+                        row_lower = {k.lower().strip(): (v.strip() if v else None) for k, v in row.items()}
                         
-                        name = row_lower.get('name', '').strip()
+                        name_raw = row_lower.get('name', '')
+                        name = name_raw.strip() if name_raw else ''
                         if not name:
                             if skip_errors:
                                 results["skipped"] += 1
@@ -357,8 +369,9 @@ class ProductAdmin(ModelView, model=Product):
                                 continue
                         
                         # Категория: по ID или по названию
-                        category_id = None
-                        category_value = row_lower.get('category', '').strip()
+                        category_id: int | None = None
+                        category_raw = row_lower.get('category', '')
+                        category_value = category_raw.strip() if category_raw else ''
                         
                         if category_value:
                             if category_value.isdigit():
@@ -377,7 +390,7 @@ class ProductAdmin(ModelView, model=Product):
                         
                         # Если категория не найдена и есть дефолтная
                         if not category_id and default_category_id:
-                            category_id = int(default_category_id)
+                            category_id = default_category_id
                         
                         if not category_id:
                             if skip_errors:
@@ -388,17 +401,22 @@ class ProductAdmin(ModelView, model=Product):
                                 continue
                         
                         # Остальные поля
-                        description = row_lower.get('description', '').strip() or None
+                        desc_raw = row_lower.get('description', '')
+                        description = (desc_raw.strip() if desc_raw else '') or None
                         
                         price_rub = 0
-                        price_str = row_lower.get('price rub', '').strip() or row_lower.get('price_rub', '').strip()
+                        price_raw1 = row_lower.get('price rub', '')
+                        price_raw2 = row_lower.get('price_rub', '')
+                        price_str = (price_raw1.strip() if price_raw1 else '') or (price_raw2.strip() if price_raw2 else '')
                         if price_str:
                             try:
                                 price_rub = int(float(price_str))
                             except ValueError:
                                 pass
                         
-                        photo_url = row_lower.get('photo url', '').strip() or row_lower.get('photo_url', '').strip() or None
+                        photo_raw1 = row_lower.get('photo url', '')
+                        photo_raw2 = row_lower.get('photo_url', '')
+                        photo_url = (photo_raw1.strip() if photo_raw1 else '') or (photo_raw2.strip() if photo_raw2 else '') or None
                         
                         # Создаем товар
                         product = Product(
@@ -649,7 +667,7 @@ class OrderItemAdmin(ModelView, model=OrderItem):
     can_delete = False
 
 def format_status_with_buttons(order: Order) -> str:
-    """Format status column with action buttons for valid transitions"""
+    """Format status column with action buttons for valid transitions (XSS-safe)"""
     current_status = order.status
     valid_next = VALID_STATUS_TRANSITIONS.get(current_status, [])
     
@@ -681,6 +699,7 @@ def format_status_with_buttons(order: Order) -> str:
     
     color = status_colors.get(current_status, "secondary")
     current_label = status_labels.get(current_status, current_status.value)
+    order_id_safe = escape(str(order.id))
     
     html = f'<span class="badge bg-{color}">{current_label}</span>'
     
@@ -689,11 +708,18 @@ def format_status_with_buttons(order: Order) -> str:
         for next_status in valid_next:
             btn_color = "danger" if next_status == OrderStatus.cancelled else "primary"
             label = next_labels.get(next_status, next_status.value)
+            status_safe = escape(next_status.value)
+            confirm_msg = escape(f"Изменить статус заказа #{order.id}?")
+            payload = {"order_id": order.id, "status": next_status.value}
+            payload_json = json.dumps(payload, ensure_ascii=False)
             html += f'''
                 <button type="button" 
                         style="font-size:11px;padding:2px 6px;"
                         class="btn btn-sm btn-{btn_color}"
-                        onclick="if(confirm('Изменить статус заказа #{order.id}?')){{fetch('/admin/api/orders/update-status',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},status:'{next_status.value}'}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
+                        data-admin-action="update-status"
+                        data-entity-id="{order_id_safe}"
+                        data-confirm-message="{confirm_msg}"
+                        data-payload='{payload_json}'>
                     {label}
                 </button>
             '''
@@ -703,55 +729,80 @@ def format_status_with_buttons(order: Order) -> str:
 
 
 def format_payment_with_button(order: Order) -> str:
-    """Format payment_confirmed column with toggle button"""
+    """Format payment_confirmed column with toggle button (XSS-safe)"""
     payment_method_labels = {
         "cash": "Наличные",
         "sbp_transfer": "СБП"
     }
     
     method_label = payment_method_labels.get(order.payment_method.value, order.payment_method.value)
+    order_id_safe = escape(str(order.id))
+    method_safe = escape(method_label)
     
     if order.payment_confirmed:
-        # Зеленая кнопка - Оплачено
+        confirm_msg = escape(f"Отметить заказ #{order.id} как неоплаченный?")
+        payload = {"order_id": order.id, "payment_confirmed": False}
+        payload_json = json.dumps(payload, ensure_ascii=False)
         html = f'''
             <button type="button" 
                     style="font-size:11px;padding:2px 6px;"
                     class="btn btn-sm btn-success"
-                    onclick="if(confirm('Отметить заказ #{order.id} как неоплаченный?')){{fetch('/api/admin/orders/update-payment',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},payment_confirmed:false}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
-                Оплачено ({method_label})
+                    data-admin-action="update-payment"
+                    data-entity-id="{order_id_safe}"
+                    data-confirm-message="{confirm_msg}"
+                    data-payload='{payload_json}'>
+                Оплачено ({method_safe})
             </button>
         '''
     else:
-        # Красная кнопка - Ожидает оплаты
+        confirm_msg = escape(f"Подтвердить оплату заказа #{order.id}?")
+        payload = {"order_id": order.id, "payment_confirmed": True}
+        payload_json = json.dumps(payload, ensure_ascii=False)
         html = f'''
             <button type="button" 
                     style="font-size:11px;padding:2px 6px;"
                     class="btn btn-sm btn-danger"
-                    onclick="if(confirm('Подтвердить оплату заказа #{order.id}?')){{fetch('/api/admin/orders/update-payment',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order_id:{order.id},payment_confirmed:true}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
-                Ожидает оплаты ({method_label})
+                    data-admin-action="update-payment"
+                    data-entity-id="{order_id_safe}"
+                    data-confirm-message="{confirm_msg}"
+                    data-payload='{payload_json}'>
+                Ожидает оплаты ({method_safe})
             </button>
         '''
     return Markup(html)
 
 
 def format_product_active_button(product: Product) -> str:
-    """Format is_active column with toggle button"""
+    """Format is_active column with toggle button (XSS-safe)"""
+    product_id_safe = escape(str(product.id))
     
     if product.is_active:
+        confirm_msg = escape(f"Деактивировать товар #{product.id}?")
+        payload = {"product_id": product.id, "is_active": False}
+        payload_json = json.dumps(payload, ensure_ascii=False)
         html = f'''
             <button type="button" 
                     style="font-size:11px;padding:2px 6px;"
                     class="btn btn-sm btn-success"
-                    onclick="if(confirm('Деактивировать товар #{product.id}?')){{fetch('/api/admin/products/toggle-active',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{product_id:{product.id},is_active:false}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
+                    data-admin-action="toggle-active"
+                    data-entity-id="{product_id_safe}"
+                    data-confirm-message="{confirm_msg}"
+                    data-payload='{payload_json}'>
                 Активен
             </button>
         '''
     else:
+        confirm_msg = escape(f"Активировать товар #{product.id}?")
+        payload = {"product_id": product.id, "is_active": True}
+        payload_json = json.dumps(payload, ensure_ascii=False)
         html = f'''
             <button type="button" 
                     style="font-size:11px;padding:2px 6px;"
                     class="btn btn-sm btn-danger"
-                    onclick="if(confirm('Активировать товар #{product.id}?')){{fetch('/api/admin/products/toggle-active',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{product_id:{product.id},is_active:true}})}}).then(r=>r.json()).then(d=>{{if(d.success){{this.closest('tr').style.background='#d4edda';setTimeout(()=>location.reload(),300);}}else{{alert('Ошибка: '+d.error);}}}}).catch(e=>alert('Ошибка сети: '+e));}}">
+                    data-admin-action="toggle-active"
+                    data-entity-id="{product_id_safe}"
+                    data-confirm-message="{confirm_msg}"
+                    data-payload='{payload_json}'>
                 Неактивен
             </button>
         '''
@@ -1073,10 +1124,11 @@ class OrderAdmin(ModelView, model=Order):
         AllUniqueStringValuesFilter(Order.payment_method),
         AllUniqueStringValuesFilter(Order.delivery_mode),
     ]
-    column_formatters = {
-        Order.status: lambda m, a: format_status_with_buttons(m),
-        Order.payment_confirmed: lambda m, a: format_payment_with_button(m)
+    _order_formatters: Any = {
+        Order.status: lambda m, a: format_status_with_buttons(m),  # type: ignore[arg-type]
+        Order.payment_confirmed: lambda m, a: format_payment_with_button(m)  # type: ignore[arg-type]
     }
+    column_formatters = _order_formatters  # type: ignore[assignment]
     form_columns = [
         "customer_name",
         "phone_e164",
@@ -1204,7 +1256,7 @@ def format_methods(methods: list) -> str:
         "delivery": "Доставка",
         "pickup": "Самовывоз"
     }
-    return ", ".join([method_labels.get(m, m) for m in methods])
+    return ", ".join([str(method_labels.get(m, m)) for m in methods])
 
 
 def format_daypart_selector(rule: AvailabilityRule) -> str:
@@ -1299,11 +1351,12 @@ class AvailabilityRuleAdmin(ModelView, model=AvailabilityRule):
     column_filters = [
         BooleanFilter(AvailabilityRule.is_active),
     ]
-    column_formatters = {
+    _formatters: Any = {
         AvailabilityRule.scope_type: lambda m, a: format_availability_rule_scope(m),
         AvailabilityRule.daypart: lambda m, a: format_daypart_selector(m),
         AvailabilityRule.methods: lambda m, a: format_method_selector(m),
     }
+    column_formatters = _formatters  # type: ignore[assignment]
     form_columns = [
         "scope_type",
         "scope_id",
@@ -1416,7 +1469,9 @@ class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
 
 
 def setup_admin(app, engine):
-    admin = Admin(app, engine, title="Sieshka Admin")
+    import os
+    templates_dir = os.path.join(os.path.dirname(__file__), "templates", "admin")
+    admin = Admin(app, engine, title="Sieshka Admin", templates_dir=templates_dir)
     admin.add_view(CategoryAdmin)
     admin.add_view(ProductAdmin)
     admin.add_view(OrderAdmin)

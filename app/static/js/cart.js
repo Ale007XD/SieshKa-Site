@@ -1116,7 +1116,17 @@ function initCheckoutPage() {
 }
 
 function generateIdempotencyKey() {
-  return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  if (typeof window.crypto !== 'undefined' && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+  if (typeof window.crypto !== 'undefined' && typeof window.crypto.getRandomValues === 'function') {
+    const array = new Uint32Array(4);
+    window.crypto.getRandomValues(array);
+    const hex = Array.from(array, (n) => n.toString(16).padStart(8, '0')).join('');
+    return hex.substring(0, 8) + '-' + hex.substring(8, 12) + '-4' + hex.substring(13, 16) + '-a' + hex.substring(17, 20) + '-' + hex.substring(20, 32);
+  }
+  console.error('Crypto API is not available - idempotency protection disabled');
+  return 'fallback_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
 }
 
 function validatePhone(phone) {

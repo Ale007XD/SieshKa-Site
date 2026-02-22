@@ -9,35 +9,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
-
-
-class Daypart(str, enum.Enum):
-    """Daypart periods for menu availability - must match DB enum values exactly"""
-    MORNING = "MORNING"
-    EVENING = "EVENING"
-    ALLDAY = "ALLDAY"
+from .timefirst_core import Daypart, DeliveryMethod, UnavailabilityReason
 
 
 class AvailabilityScopeType(str, enum.Enum):
     """Scope type for availability rules - must match DB enum values exactly"""
     product = "product"
     category = "category"
-
-
-class DeliveryMethod(str, enum.Enum):
-    """Delivery/pickup methods"""
-    DELIVERY = "delivery"
-    PICKUP = "pickup"
-
-
-class UnavailabilityReason(str, enum.Enum):
-    """Reason codes for unavailability"""
-    OUTSIDE_WINDOW = "OUTSIDE_WINDOW"
-    LEAD_TIME = "LEAD_TIME"
-    METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED"
-    TOMORROW_CUTOFF = "TOMORROW_CUTOFF"
-    INACTIVE = "INACTIVE"
-    NO_RULE = "NO_RULE"
 
 
 class AvailabilityRule(Base):

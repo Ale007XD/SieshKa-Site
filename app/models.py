@@ -76,6 +76,8 @@ class Product(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     menu_period_override: Mapped[MenuPeriod | None] = mapped_column(Enum(MenuPeriod), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=None, onupdate=datetime.now(timezone.utc), nullable=True)
 
     category: Mapped["Category"] = relationship(back_populates="products")
 
