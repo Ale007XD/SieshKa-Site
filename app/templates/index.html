@@ -551,15 +551,15 @@
       setTimeout(function() {
         if (typeof CartManager !== 'undefined') {
           console.log('CartManager loaded on retry');
-          initCartButtons();
           CartManager.updateAllUI();
         }
       }, 500);
       return;
     }
     
-    initCartButtons();
-    CartManager.updateAllUI();
+    if (typeof CartManager !== 'undefined') {
+      CartManager.updateAllUI();
+    }
     
     // Category Filter Logic - работает с menu-category секциями
     initCategoryFilter();

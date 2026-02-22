@@ -241,10 +241,17 @@ function renderMenu(data) {
             }
         });
 
-        // Hide/show category based on visible products
+        // Hide/show category based on visible products AND current category filter
         const categorySection = document.getElementById(`category-${category.category_id}`);
         if (categorySection) {
-            categorySection.style.display = hasVisibleProducts ? '' : 'none';
+            const activeCategoryBtn = document.querySelector('.category-btn.active');
+            const activeCategoryId = activeCategoryBtn ? activeCategoryBtn.dataset.categoryId : 'all';
+            
+            if (activeCategoryId !== 'all' && String(category.category_id) !== String(activeCategoryId)) {
+                categorySection.style.display = 'none';
+            } else {
+                categorySection.style.display = hasVisibleProducts ? '' : 'none';
+            }
         }
     });
 
