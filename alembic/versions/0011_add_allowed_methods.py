@@ -1,7 +1,7 @@
 """add allowed_methods to menu_configuration
 
-Revision ID: 0011
-Revises: 0010
+Revision ID: 0011_add_allowed_methods
+Revises: 0010_add_product_timestamps
 Create Date: 2026-02-22 15:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '0011'
-down_revision = '0010'
+revision = '0011_add_allowed_methods'
+down_revision = '0010_add_product_timestamps'
 branch_labels = None
 depends_on = None
 
