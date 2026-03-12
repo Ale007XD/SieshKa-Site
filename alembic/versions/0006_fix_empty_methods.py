@@ -33,7 +33,6 @@ def upgrade() -> None:
         """)
     )
     
-    print(f"Fixed availability rules with empty methods")
 
 
 def downgrade() -> None:
