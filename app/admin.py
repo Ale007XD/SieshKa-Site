@@ -115,6 +115,14 @@ def _parse_price(row: Dict[str, Any]) -> int:
         return 0
 
 
+def _parse_photo(row: Dict[str, Any]) -> str | None:
+    photo_raw1 = row.get("photo url")
+    photo_raw2 = row.get("photo_url")
+
+    value = (photo_raw1 or "").strip() or (photo_raw2 or "").strip()
+    return value or None
+
+
 class CategoryAdmin(ModelView, model=Category):
     column_list = [
         Category.id, 
