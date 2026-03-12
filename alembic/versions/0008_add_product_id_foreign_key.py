@@ -34,7 +34,6 @@ def upgrade() -> None:
     """))
     
     if result.scalar() > 0:
-        print("Foreign key already exists, skipping")
         return
     
     # First, make product_id nullable (if not already)
@@ -43,10 +42,9 @@ def upgrade() -> None:
                        existing_type=sa.Integer(),
                        nullable=True)
     except Exception as e:
-        print(f"Column alter issue (may be already nullable): {e}")
+        pass
     
     # Clean up stale product_id references BEFORE adding constraint
-    print("Cleaning up stale product_id references in order_items...")
     connection.execute(text("""
         UPDATE order_items
         SET product_id = NULL
@@ -63,8 +61,6 @@ def upgrade() -> None:
         ['id'],
         ondelete='SET NULL'
     )
-    
-    print("Added foreign key constraint order_items_product_id_fkey")
 
 
 def downgrade() -> None:
@@ -72,4 +68,3 @@ def downgrade() -> None:
     Remove foreign key constraint from order_items.product_id.
     """
     op.drop_constraint('order_items_product_id_fkey', 'order_items', type_='foreignkey')
-    print("Removed foreign key constraint order_items_product_id_fkey")

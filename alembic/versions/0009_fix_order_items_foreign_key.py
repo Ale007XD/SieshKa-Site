@@ -24,15 +24,12 @@ def upgrade() -> None:
     connection = op.get_bind()
     
     # Clean up stale product_id references BEFORE adding constraint
-    print("Cleaning up stale product_id references in order_items...")
     connection.execute(text("""
         UPDATE order_items
         SET product_id = NULL
         WHERE product_id IS NOT NULL
           AND product_id NOT IN (SELECT id FROM products)
     """))
-    
-    print("Fixed order_items foreign key references")
 
 
 def downgrade() -> None:

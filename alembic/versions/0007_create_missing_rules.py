@@ -36,7 +36,6 @@ def upgrade() -> None:
     product_ids = [row[0] for row in result.fetchall()]
     
     if not product_ids:
-        print("All active products already have availability rules")
         return
     
     # Create rules for each product
@@ -50,8 +49,6 @@ def upgrade() -> None:
             """),
             {"product_id": product_id}
         )
-    
-    print(f"Created availability rules for {len(product_ids)} products")
 
 
 def downgrade() -> None:
