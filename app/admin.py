@@ -70,6 +70,19 @@ def log_admin_action(request: Request, action: str, entity_type: str, entity_id:
     except Exception as e:
         logger.error(f"Failed to log admin action: {e}")
 
+
+def _read_csv_file(uploaded_file: UploadFile):
+    """Read CSV file and return DictReader"""
+    content = uploaded_file.file.read()
+    csv_text = content.decode("utf-8-sig")
+    return csv.DictReader(io.StringIO(csv_text))
+
+
+def _normalize_row(row: Dict[str, Any]) -> Dict[str, str | None]:
+    """Normalize CSV row keys to lowercase"""
+    return {k.lower().strip(): (v.strip() if v else None) for k, v in row.items()}
+
+
 class CategoryAdmin(ModelView, model=Category):
     column_list = [
         Category.id, 
