@@ -29,7 +29,6 @@ def upgrade() -> None:
     product_ids = [row[0] for row in result.fetchall()]
     
     if not product_ids:
-        print("No active products found, skipping seed")
         return
     
     # Insert availability rules for each product
@@ -45,8 +44,16 @@ def upgrade() -> None:
             """),
             {"product_id": product_id}
         )
-    
-    print(f"Created availability rules for {len(product_ids)} products")
+
+
+def downgrade() -> None:
+    """
+    Remove all product-scoped availability rules.
+    """
+    connection = op.get_bind()
+    connection.execute(
+        text("DELETE FROM availability_rules WHERE scope_type = 'product'")
+    )
 
 
 def downgrade() -> None:
