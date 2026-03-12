@@ -123,6 +123,25 @@ def _parse_photo(row: Dict[str, Any]) -> str | None:
     return value or None
 
 
+def _create_product_from_row(row: Dict[str, Any], category_id: int) -> Product:
+    name = (row.get("name") or "").strip()
+
+    desc_raw = row.get("description")
+    description = (desc_raw.strip() if desc_raw else "") or None
+
+    price_rub = _parse_price(row)
+    photo_url = _parse_photo(row)
+
+    return Product(
+        name=name,
+        category_id=category_id,
+        description=description,
+        price_rub=price_rub,
+        photo_url=photo_url,
+        is_active=True,
+    )
+
+
 class CategoryAdmin(ModelView, model=Category):
     column_list = [
         Category.id, 
