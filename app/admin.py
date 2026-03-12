@@ -420,94 +420,52 @@ class ProductAdmin(ModelView, model=Product):
             
             # Импортируем товары
             results = {"created": 0, "errors": [], "skipped": 0}
-            
+
             with SessionLocal() as db:
-                # Кэш категорий
                 categories_cache = {}
-                
-                for row_num, row in enumerate(csv_reader, start=2):  # start=2 потому что первая строка - заголовки
+
+                for row_num, row in enumerate(csv_reader, start=2):
                     try:
-                        # Получаем значения полей (регистронезависимо)
-                        row_lower = {k.lower().strip(): (v.strip() if v else None) for k, v in row.items()}
-                        
-                        name_raw = row_lower.get('name', '')
-                        name = name_raw.strip() if name_raw else ''
+                        row_lower = _normalize_row(row)
+
+                        name = (row_lower.get("name") or "").strip()
+
                         if not name:
                             if skip_errors:
                                 results["skipped"] += 1
                                 continue
-                            else:
-                                results["errors"].append(f"Строка {row_num}: отсутствует Name")
-                                continue
-                        
-                        # Категория: по ID или по названию
-                        category_id: int | None = None
-                        category_raw = row_lower.get('category', '')
-                        category_value = category_raw.strip() if category_raw else ''
-                        
-                        if category_value:
-                            if category_value.isdigit():
-                                category_id = int(category_value)
-                            else:
-                                # Ищем по названию
-                                if category_value not in categories_cache:
-                                    cat = db.query(Category).filter(
-                                        Category.name.ilike(category_value)
-                                    ).first()
-                                    if cat:
-                                        categories_cache[category_value] = cat.id
-                                    else:
-                                        categories_cache[category_value] = None
-                                category_id = categories_cache.get(category_value)
-                        
-                        # Если категория не найдена и есть дефолтная
-                        if not category_id and default_category_id:
-                            category_id = default_category_id
-                        
+                            results["errors"].append(f"Строка {row_num}: отсутствует Name")
+                            continue
+
+                        category_value = row_lower.get("category")
+
+                        category_id = _resolve_category_id(
+                            db,
+                            category_value,
+                            categories_cache,
+                            default_category_id,
+                        )
+
                         if not category_id:
                             if skip_errors:
                                 results["skipped"] += 1
                                 continue
-                            else:
-                                results["errors"].append(f"Строка {row_num}: категория не найдена для '{category_value}'")
-                                continue
-                        
-                        # Остальные поля
-                        desc_raw = row_lower.get('description', '')
-                        description = (desc_raw.strip() if desc_raw else '') or None
-                        
-                        price_rub = 0
-                        price_raw1 = row_lower.get('price rub', '')
-                        price_raw2 = row_lower.get('price_rub', '')
-                        price_str = (price_raw1.strip() if price_raw1 else '') or (price_raw2.strip() if price_raw2 else '')
-                        if price_str:
-                            try:
-                                price_rub = int(float(price_str))
-                            except ValueError:
-                                pass
-                        
-                        photo_raw1 = row_lower.get('photo url', '')
-                        photo_raw2 = row_lower.get('photo_url', '')
-                        photo_url = (photo_raw1.strip() if photo_raw1 else '') or (photo_raw2.strip() if photo_raw2 else '') or None
-                        
-                        # Создаем товар
-                        product = Product(
-                            name=name,
-                            category_id=category_id,
-                            description=description,
-                            price_rub=price_rub,
-                            photo_url=photo_url,
-                            is_active=True
-                        )
+                            results["errors"].append(
+                                f"Строка {row_num}: категория не найдена"
+                            )
+                            continue
+
+                        product = _create_product_from_row(row_lower, category_id)
+
                         db.add(product)
                         results["created"] += 1
-                        
+
                     except Exception as e:
                         if skip_errors:
                             results["skipped"] += 1
                         else:
                             results["errors"].append(f"Строка {row_num}: {str(e)}")
-                
+
                 # Коммитим если нет ошибок или skip_errors
                 if not results["errors"] or skip_errors:
                     db.commit()
