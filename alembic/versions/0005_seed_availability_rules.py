@@ -55,13 +55,3 @@ def downgrade() -> None:
         text("DELETE FROM availability_rules WHERE scope_type = 'product'")
     )
 
-
-def downgrade() -> None:
-    """
-    Remove all product-scoped availability rules.
-    """
-    connection = op.get_bind()
-    connection.execute(
-        text("DELETE FROM availability_rules WHERE scope_type = 'product'")
-    )
-    print("Removed all product availability rules")
