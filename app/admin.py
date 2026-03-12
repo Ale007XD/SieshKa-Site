@@ -83,6 +83,23 @@ def _normalize_row(row: Dict[str, Any]) -> Dict[str, str | None]:
     return {k.lower().strip(): (v.strip() if v else None) for k, v in row.items()}
 
 
+def _resolve_category_id(db, category_value: str | None, cache: dict, default_category_id: int | None):
+    """Resolve category id from CSV value"""
+    if not category_value:
+        return default_category_id
+
+    category_value = category_value.strip()
+
+    if category_value.isdigit():
+        return int(category_value)
+
+    if category_value not in cache:
+        cat = db.query(Category).filter(Category.name.ilike(category_value)).first()
+        cache[category_value] = cat.id if cat else None
+
+    return cache.get(category_value) or default_category_id
+
+
 class CategoryAdmin(ModelView, model=Category):
     column_list = [
         Category.id, 
