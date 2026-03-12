@@ -100,6 +100,21 @@ def _resolve_category_id(db, category_value: str | None, cache: dict, default_ca
     return cache.get(category_value) or default_category_id
 
 
+def _parse_price(row: Dict[str, Any]) -> int:
+    price_raw1 = row.get("price rub")
+    price_raw2 = row.get("price_rub")
+
+    price_str = (price_raw1 or "").strip() or (price_raw2 or "").strip()
+
+    if not price_str:
+        return 0
+
+    try:
+        return int(float(price_str))
+    except ValueError:
+        return 0
+
+
 class CategoryAdmin(ModelView, model=Category):
     column_list = [
         Category.id, 
