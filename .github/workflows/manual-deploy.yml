@@ -25,6 +25,8 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
+          format: pem
+          overwrite: true
           script: |
             cd ~/SieshKa-Site
             git fetch origin
