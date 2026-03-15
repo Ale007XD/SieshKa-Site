@@ -1,20 +1,20 @@
-name: Deploy Blue (Main)
+name: Deploy Green (Hot Refactor)
 
 on:
   workflow_dispatch:
     inputs:
       color:
-        description: 'Confirm color (should be blue)'
+        description: 'Confirm color (should be green)'
         required: true
-        default: 'blue'
+        default: 'green'
         type: choice
         options:
-          - blue
+          - green
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/hot-refactor'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -27,14 +27,14 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd ~/SieshKa-Site
-            git fetch origin main
-            git checkout main
-            git pull origin main
+            git fetch origin hot-refactor
+            git checkout hot-refactor
+            git pull origin hot-refactor
 
-            # Сборка и запуск Blue на порту 8001
-            docker compose up -d --build api-blue
-            docker compose exec -T api-blue alembic upgrade head
+            # Сборка и запуск Green на порту 8002
+            docker compose up -d --build api-green
+            docker compose exec -T api-green alembic upgrade head
 
-            # Переключение Nginx на Blue:8001
-            echo "upstream api_backend { server api-blue:8001; }" | docker compose exec -T nginx tee /etc/nginx/conf.d/upstream.runtime.conf > /dev/null
+            # Переключение Nginx на Green:8002
+            echo "upstream api_backend { server api-green:8002; }" | docker compose exec -T nginx tee /etc/nginx/conf.d/upstream.runtime.conf > /dev/null
             docker compose exec -T nginx nginx -s reload
