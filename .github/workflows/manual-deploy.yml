@@ -1,22 +1,20 @@
-name: Manual Deploy (Hot Refactor)
+name: Deploy Blue (Main)
 
 on:
   workflow_dispatch:
     inputs:
       color:
-        description: 'Which color to deploy (blue/green)'
+        description: 'Confirm color (should be blue)'
         required: true
         default: 'blue'
         type: choice
         options:
           - blue
-          - green
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Гарантируем, что запуск идет именно из этой ветки
-    if: github.ref == 'refs/heads/hot-refactor' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -27,19 +25,16 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
-          port: 22
           script: |
             cd ~/SieshKa-Site
-            
-            # Переключение на нужную ветку и обновление
-            git fetch origin
-            git checkout ${{ github.ref_name }}
-            git pull origin ${{ github.ref_name }}
+            git fetch origin main
+            git checkout main
+            git pull origin main
 
-            # Сборка и запуск (порт 8001)
-            docker compose up -d --build api-${{ github.event.inputs.color }}
-            # Автоматический прогон миграций Alembic
-            docker compose exec -T api-${{ github.event.inputs.color }} alembic upgrade head
-            # Переключение Nginx на активный цвет
-            echo "upstream api_backend { server api-${{ github.event.inputs.color }}:8001; }" | docker compose exec -T nginx tee /etc/nginx/conf.d/upstream.runtime.conf > /dev/null
+            # Сборка и запуск Blue на порту 8001
+            docker compose up -d --build api-blue
+            docker compose exec -T api-blue alembic upgrade head
+
+            # Переключение Nginx на Blue:8001
+            echo "upstream api_backend { server api-blue:8001; }" | docker compose exec -T nginx tee /etc/nginx/conf.d/upstream.runtime.conf > /dev/null
             docker compose exec -T nginx nginx -s reload
