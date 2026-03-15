@@ -13,6 +13,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       BASE_URL: https://siesh-ka.ru
       DEPLOYMENT_COLOR: blue
+    ports:
+      - "8001:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
     depends_on:
       db:
         condition: service_healthy
@@ -22,15 +25,12 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 15s
+      retries: 5
+      start_period: 20s
     networks:
       - backend
     security_opt:
       - no-new-privileges:true
-    # Temporary port exposure for smoke tests (8081)
-    ports:
-      - "127.0.0.1:8081:8000"
     restart: unless-stopped
     profiles: ["bluegreen"]
 
@@ -42,6 +42,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       BASE_URL: https://siesh-ka.ru
       DEPLOYMENT_COLOR: green
+    ports:
+      - "8002:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
     depends_on:
       db:
         condition: service_healthy
@@ -51,15 +54,12 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 15s
+      retries: 5
+      start_period: 20s
     networks:
       - backend
     security_opt:
       - no-new-privileges:true
-    # Temporary port exposure for smoke tests (8082)
-    ports:
-      - "127.0.0.1:8082:8000"
     restart: unless-stopped
     profiles: ["bluegreen"]
 

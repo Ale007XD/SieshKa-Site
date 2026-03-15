@@ -54,6 +54,58 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  api_blue:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://food:${POSTGRES_PASSWORD}@db:5432/food
+      REDIS_URL: redis://redis:6379/0
+      BASE_URL: https://siesh-ka.ru
+      DEPLOYMENT_COLOR: blue
+    ports:
+      - "8001:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - backend
+    restart: unless-stopped
+
+  api_green:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://food:${POSTGRES_PASSWORD}@db:5432/food
+      REDIS_URL: redis://redis:6379/0
+      BASE_URL: https://siesh-ka.ru
+      DEPLOYMENT_COLOR: green
+    ports:
+      - "8002:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - backend
+    restart: unless-stopped
+
   nginx:
     image: nginx:alpine
     ports:
@@ -66,7 +118,7 @@ services:
       - ./letsencrypt:/etc/letsencrypt:ro
       - certbot-webroot:/var/www/certbot
     depends_on:
-      api:
+      api_blue:
         condition: service_healthy
     restart: unless-stopped
     networks:
