@@ -25,22 +25,21 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
+          username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
+          port: 22
           script: |
             cd ~/SieshKa-Site
+            
+            # Переключение на нужную ветку и обновление
+            git fetch origin
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
 
-            # Обновляем код из нужной ветки на сервере
-            git fetch origin hot-refactor
-            git checkout hot-refactor
-            git pull origin hot-refactor
-
-            # Сборка и запуск выбранного цвета на порту 8001
+            # Сборка и запуск (порт 8001)
             docker compose up -d --build api-${{ github.event.inputs.color }}
-
             # Автоматический прогон миграций Alembic
             docker compose exec -T api-${{ github.event.inputs.color }} alembic upgrade head
-
-            # Переключение Nginx на активный цвет (порт 8001)
+            # Переключение Nginx на активный цвет
             echo "upstream api_backend { server api-${{ github.event.inputs.color }}:8001; }" | docker compose exec -T nginx tee /etc/nginx/conf.d/upstream.runtime.conf > /dev/null
             docker compose exec -T nginx nginx -s reload
