@@ -1,0 +1,42 @@
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      color:
+        description: 'Target Deployment Color'
+        required: true
+        default: 'blue'
+        type: choice
+        options:
+          - blue
+          - green
+
+jobs:
+  manual-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ~/SieshKa-Site
+            git fetch origin
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+            
+            # Деплоим выбранный цвет
+            docker compose up -d --build api-${{ github.event.inputs.color }}
+            
+            echo "Waiting for api-${{ github.event.inputs.color }} to be healthy..."
+            sleep 20
+            
+            # Переключаем nginx
+            echo "upstream api_backend { server api-${{ github.event.inputs.color }}:8000; }" > ./nginx/upstream.runtime.conf
+            docker compose exec nginx nginx -s reload
