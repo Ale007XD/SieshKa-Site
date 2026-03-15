@@ -1,4 +1,4 @@
-name: Manual Deploy
+name: Manual Deploy (Hot Refactor)
 
 on:
   workflow_dispatch:
@@ -15,11 +15,13 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Гарантируем, что запуск идет именно из этой ветки
+    if: github.ref == 'refs/heads/hot-refactor' || github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Deploy via SSH
+      - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -27,16 +29,18 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd ~/SieshKa-Site
-            
-            # Сборка и запуск выбранного цвета
+
+            # Обновляем код из нужной ветки на сервере
+            git fetch origin hot-refactor
+            git checkout hot-refactor
+            git pull origin hot-refactor
+
+            # Сборка и запуск выбранного цвета на порту 8001
             docker compose up -d --build api-${{ github.event.inputs.color }}
-            
-            # Ожидание готовности контейнера
-            sleep 5
-            
+
             # Автоматический прогон миграций Alembic
             docker compose exec -T api-${{ github.event.inputs.color }} alembic upgrade head
-            
+
             # Переключение Nginx на активный цвет (порт 8001)
             echo "upstream api_backend { server api-${{ github.event.inputs.color }}:8001; }" | docker compose exec -T nginx tee /etc/nginx/conf.d/upstream.runtime.conf > /dev/null
             docker compose exec -T nginx nginx -s reload
