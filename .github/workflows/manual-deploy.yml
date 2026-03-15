@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       color:
-        description: 'Target Deployment Color'
+        description: 'Which color to deploy (blue/green)'
         required: true
         default: 'blue'
         type: choice
@@ -13,32 +13,30 @@ on:
           - green
 
 jobs:
-  manual-deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH (Manual)
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
+          username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          format: pem
-          overwrite: true
           script: |
             cd ~/SieshKa-Site
-            git fetch origin
-            git checkout ${{ github.ref_name }}
-            git pull origin ${{ github.ref_name }}
             
-            # Деплоим выбранный цвет
+            # Сборка и запуск выбранного цвета
             docker compose up -d --build api-${{ github.event.inputs.color }}
             
-            echo "Waiting for api-${{ github.event.inputs.color }} to be healthy..."
-            sleep 20
+            # Ожидание готовности контейнера
+            sleep 5
             
-            # Переключаем nginx
-            echo "upstream api_backend { server api-${{ github.event.inputs.color }}:8000; }" > ./nginx/upstream.runtime.conf
-            docker compose exec nginx nginx -s reload
+            # Автоматический прогон миграций Alembic
+            docker compose exec -T api-${{ github.event.inputs.color }} alembic upgrade head
+            
+            # Переключение Nginx на активный цвет (порт 8001)
+            echo "upstream api_backend { server api-${{ github.event.inputs.color }}:8001; }" | docker compose exec -T nginx tee /etc/nginx/conf.d/upstream.runtime.conf > /dev/null
+            docker compose exec -T nginx nginx -s reload
