@@ -1,16 +1,3 @@
-name: Auto Deploy to Green
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Deploy to Server via SSH (Auto)
         uses: appleboy/ssh-action@master
         with:
@@ -20,12 +7,18 @@ jobs:
           fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           script: |
             cd ~/SieshKa-Site
-            git pull origin main
-            # Собираем и запускаем только green
-            docker compose up -d --build api-green
-            # Ждем стабилизации (healthcheck отработает внутри compose)
-            echo "Waiting for api-green to be healthy..."
-            sleep 20
-            # Переключаем nginx на green
-            echo "upstream api_backend { server api-green:8000; }" > ./nginx/upstream.runtime.conf
-            docker compose exec nginx nginx -s reload
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Полный запуск стека
+            docker compose up -d --build
+            
+            # Ждём стабилизации
+            echo "Waiting for services to be healthy..."
+            sleep 30
+            
+            # Проверяем статус
+            docker compose ps
+            docker compose logs nginx --tail=20
+            
+            echo "Deploy completed"
