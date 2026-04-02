@@ -17,6 +17,7 @@ class OrderStatus(str, enum.Enum):
 class PaymentMethod(str, enum.Enum):
     cash = "cash"
     sbp_transfer = "sbp_transfer"
+    yookassa_card = "yookassa_card"
 
 class DeliveryMode(str, enum.Enum):
     asap = "asap"
@@ -109,6 +110,8 @@ class Order(Base):
     delivery_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # Medium Priority Fix
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    yookassa_payment_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    yookassa_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan")
 
