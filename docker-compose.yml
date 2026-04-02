@@ -106,26 +106,24 @@ services:
       - backend
     restart: unless-stopped
 
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
-      - ./nginx/upstream.runtime.conf:/etc/nginx/conf.d/upstream.runtime.conf:rw
-      - ./letsencrypt:/etc/letsencrypt:ro
-      - certbot-webroot:/var/www/certbot
-    depends_on:
-      api_blue:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - backend
-    security_opt:
-      - no-new-privileges:true
-
+     nginx:
+     image: nginx:alpine
+     ports:
+       - "80:80"
+       - "443:443"
+     volumes:
++      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+       - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+-      - ./nginx/upstream.runtime.conf:/etc/nginx/conf.d/upstream.runtime.conf:rw
+       - ./letsencrypt:/etc/letsencrypt:ro
+       - certbot-webroot:/var/www/certbot
+     depends_on:
+-      api_blue:
++      api_green:
+         condition: service_healthy
+     restart: unless-stopped
+    
   certbot:
     image: certbot/certbot:latest
     volumes:
