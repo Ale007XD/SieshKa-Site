@@ -64,6 +64,15 @@ class Settings(BaseSettings):
     SLOT_INTERVAL_MINUTES: int = 15
     BASE_BUFFER_MINUTES: int = 15
     MENU_VERSION: int = 1
+
+    # MAX Messenger
+    MAX_BOT_TOKEN: Optional[str] = None
+    MAX_STAFF_CHAT_IDS: List[int] = []
+
+    # SMS (smsc.ru)
+    SMSC_LOGIN: Optional[str] = None
+    SMSC_PASSWORD: Optional[str] = None
+    STAFF_PHONES: List[str] = []
     
     class Config:
         env_file = ".env"
