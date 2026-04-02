@@ -4,7 +4,7 @@ Replaces Telegram for staff notifications in RF.
 """
 import logging
 import httpx
-from app.settings import settings
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
