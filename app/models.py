@@ -17,6 +17,7 @@ class OrderStatus(str, enum.Enum):
 class PaymentMethod(str, enum.Enum):
     cash = "cash"
     sbp_transfer = "sbp_transfer"
+    yookassa_card = "yookassa_card"
 
 class DeliveryMode(str, enum.Enum):
     asap = "asap"
@@ -104,6 +105,8 @@ class Order(Base):
     status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.new)
     payment_method: Mapped[PaymentMethod] = mapped_column(Enum(PaymentMethod), default=PaymentMethod.cash)
     payment_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    yookassa_payment_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    yookassa_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     delivery_mode: Mapped[DeliveryMode] = mapped_column(Enum(DeliveryMode), default=DeliveryMode.asap)
     delivery_slot: Mapped[str | None] = mapped_column(String(20), index=True)
     delivery_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # Medium Priority Fix
