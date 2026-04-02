@@ -20,3 +20,4 @@ tenacity==8.2.3
 cachetools==5.3.3
 redis==5.0.1
 pydantic-settings==2.1.0
+yookassa==3.*
