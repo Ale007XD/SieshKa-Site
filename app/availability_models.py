@@ -71,7 +71,7 @@ class AvailabilityRule(Base):
     )
     
     # Timezone for this rule
-    timezone: Mapped[str] = mapped_column(String(50), default="Asia/Ho_Chi_Minh")
+    timezone: Mapped[str] = mapped_column(String(50), default="Asia/Irkutsk")
     
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -157,7 +157,7 @@ class MenuConfiguration(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     
     # Business timezone
-    business_tz: Mapped[str] = mapped_column(String(50), default="Asia/Ho_Chi_Minh")
+    business_tz: Mapped[str] = mapped_column(String(50), default="Asia/Irkutsk")
     
     # Daypart windows (can override defaults)
     morning_start: Mapped[time] = mapped_column(Time, default=time(7, 0))
