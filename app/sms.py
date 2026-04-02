@@ -4,7 +4,7 @@ Backup channel when MAX is unavailable.
 """
 import logging
 import httpx
-from app.settings import settings
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
