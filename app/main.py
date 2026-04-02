@@ -48,6 +48,7 @@ from .models import Base, Category, Product, Order, OrderItem, PaymentMethod, De
 from .availability_models import MenuConfiguration
 # [ШАГ 3] Заменён импорт из telegram на notifications-агрегатор
 from .notifications import notify_both, get_failed_notifications_count, init_notifications, start_dlq_worker, stop_dlq_worker
+from .payments import create_yookassa_payment, handle_webhook as handle_yookassa_webhook, YooKassaConfigError, YooKassaWebhookError
 from .admin import setup_admin, update_order_status_endpoint, update_payment_status_endpoint, update_daypart_endpoint, update_method_endpoint
 from .schemas import OrderCreate, HealthResponse, DeliverySlotsAvailability, DeliverySlotResponse
 
@@ -336,6 +337,25 @@ setup_admin(app, engine)
 
 # Include time-first menu API
 app.include_router(timefirst_router)
+
+import ipaddress
+
+# YooKassa IP allowlist (https://yookassa.ru/developers/using-api/webhooks)
+_YOOKASSA_NETWORKS = [
+    ipaddress.ip_network("185.71.76.0/27"),
+    ipaddress.ip_network("185.71.77.0/27"),
+    ipaddress.ip_network("77.75.153.0/25"),
+    ipaddress.ip_network("77.75.156.128/25"),
+    ipaddress.ip_network("77.75.156.11/32"),
+    ipaddress.ip_network("77.75.156.35/32"),
+]
+
+def _is_yookassa_ip(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return any(addr in net for net in _YOOKASSA_NETWORKS)
+    except ValueError:
+        return False
 
 # Admin API endpoint for order status updates
 @app.post("/admin/api/orders/update-status")
@@ -979,6 +999,18 @@ async def create_order(request: Request, payload: OrderCreate):
                 order_item = OrderItem(order_id=order.id, **item_data)
                 db.add(order_item)
 
+            # YooKassa: создать платёж ДО commit, чтобы откатить при ошибке
+            confirmation_url: str | None = None
+                if payload.payment_method == "yookassa_card":
+                    try:
+                        confirmation_url = create_yookassa_payment(order, db)
+                    except (YooKassaConfigError, YooKassaWebhookError) as e:
+                        logger.error(f"YooKassa payment creation failed: {e}")
+                        ORDERFAILURECOUNT.labels(reason="yookassa_error").inc()
+                        raise HTTPException(502, "Платёжный сервис временно недоступен")
+                        
+     ORDERCOUNT.inc()
+            
             ORDER_COUNT.inc()
             logger.info(f"Order {order.id} created successfully")
 
@@ -1010,7 +1042,7 @@ async def create_order(request: Request, payload: OrderCreate):
             except Exception as e:
                 logger.error(f"Failed to send staff notification: {e}")
 
-            return {"ok": True, "order_id": order.id}
+            return {"ok": True, "order_id": order.id, "confirmation_url": confirmation_url}
 
         except HTTPException:
             raise
@@ -1018,6 +1050,45 @@ async def create_order(request: Request, payload: OrderCreate):
             logger.error(f"Error creating order: {e}", exc_info=True)
             ORDER_FAILURE_COUNT.labels(reason="internal_error").inc()
             raise HTTPException(500, "Internal server error")
+
+@app.post("/api/payments/webhook", tags=["Orders"])
+async def payments_webhook(request: Request):
+    """YooKassa IPN webhook: verify IP + signature, update order status."""
+    client_ip = (
+        request.headers.get("X-Real-IP")
+        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or (request.client.host if request.client else "")
+    )
+    if not _is_yookassa_ip(client_ip):
+        logger.warning(f"YooKassa webhook blocked: unauthorized IP {client_ip}")
+        raise HTTPException(403, "Forbidden")
+
+    raw_body = await request.body()
+    signature = request.headers.get("X-Content-SHA256")
+
+    try:
+        payload = request.json()  # уже прочитан через raw_body
+        import json
+        payload = json.loads(raw_body)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+
+    try:
+        with SessionLocal.begin() as db:
+            handle_yookassa_webhook(
+                payload=payload,
+                signature=signature,
+                raw_body=raw_body,
+                db=db,
+            )
+    except YooKassaWebhookError as e:
+        logger.warning(f"YooKassa webhook rejected: {e}")
+        raise HTTPException(400, str(e))
+    except YooKassaConfigError as e:
+        logger.error(f"YooKassa config error in webhook: {e}")
+        raise HTTPException(500, "Internal error")
+
+    return {"ok": True}
 
 @app.get("/thanks/{order_id}", response_class=HTMLResponse, tags=["Orders"])
 async def thanks_page(request: Request, order_id: int):
