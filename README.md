@@ -1,4 +1,4 @@
-# SieshKa-Site v3.0.0-final - Food Delivery Service
+# SieshKa-Site v3.0.0-final - Food Delivery Service 
 
 Production-ready FastAPI-based food delivery service with PostgreSQL, Redis, SQLAdmin admin panel, Telegram notifications, Nginx reverse proxy with SSL/TLS, and automated backups.
 
