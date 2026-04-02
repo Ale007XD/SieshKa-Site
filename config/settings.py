@@ -58,8 +58,8 @@ class Settings(BaseSettings):
     SQLALCHEMY_ECHO: bool = False
     
     # Time-First Menu System (v4.0)
-    BUSINESS_TZ: str = "Asia/Ho_Chi_Minh"
-    TOMORROW_ORDER_CUTOFF: str = "23:00"
+    BUSINESS_TZ: str = "Asia/Irkutsk"
+    TOMORROW_ORDER_CUTOFF: str = "22:00"
     ENABLE_TOMORROW_ORDERS: bool = True
     SLOT_INTERVAL_MINUTES: int = 15
     BASE_BUFFER_MINUTES: int = 15
