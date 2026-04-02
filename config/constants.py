@@ -114,7 +114,7 @@ BASE_BUFFER_MINUTES = 15
 
 # Tomorrow ordering
 TOMORROW_CUTOFF_TIME = time(23, 0)
-DEFAULT_BUSINESS_TZ = "Asia/Ho_Chi_Minh"
+DEFAULT_BUSINESS_TZ = "Asia/Irkutsk"
 
 # Cache TTLs (seconds)
 MENU_CACHE_TTL_SECONDS = 60
