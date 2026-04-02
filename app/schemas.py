@@ -15,7 +15,7 @@ class OrderCreate(BaseModel):
     delivery_mode: str = Field(default="asap", pattern="^(asap|slot)$")
     delivery_slot: Optional[str] = Field(None, pattern="^(10:00-12:00|12:00-14:00|14:00-16:00|16:00-18:00|18:00-20:00)$")
     delivery_date: Optional[date] = None  # Medium Priority Fix
-    payment_method: str = Field(default="cash", pattern="^(cash|sbp_transfer)$")
+    payment_method: str = Field(default="cash", pattern="^(cash|sbp_transfer|yookassa_card)$")
     items: List[OrderItemIn]
     idempotency_key: str = Field(..., min_length=8, max_length=64)
     csrf_token: Optional[str] = Field(None, min_length=32, max_length=128)
