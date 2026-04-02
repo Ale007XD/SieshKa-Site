@@ -10,9 +10,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 from yookassa import Configuration, Payment
 
-from config.settings import settings
-from app.models import Order
-
+from config import settings
+from .models import Order, OrderStatus
 
 class YooKassaConfigError(RuntimeError):
     pass
@@ -25,6 +24,7 @@ class YooKassaWebhookError(RuntimeError):
 def _ensure_yookassa_config() -> None:
     if not settings.YOOKASSA_SHOP_ID or not settings.YOOKASSA_SECRET_KEY:
         raise YooKassaConfigError("YooKassa credentials are not configured")
+        
 
     Configuration.account_id = settings.YOOKASSA_SHOP_ID
     Configuration.secret_key = settings.YOOKASSA_SECRET_KEY
@@ -36,11 +36,10 @@ def _build_return_url(order: Order) -> str:
 
 
 def _amount_value(order: Order) -> str:
-    amount = getattr(order, "total", None)
+    amount = getattr(order, "total_rub", None)
     if amount is None:
-        raise YooKassaConfigError("Order total field is required for YooKassa payment")
+        raise YooKassaConfigError("Order total_rub field is required for YooKassa payment")
     return str(Decimal(str(amount)).quantize(Decimal("0.01")))
-
 
 def _verify_webhook_signature(raw_body: bytes, signature: str | None) -> None:
     if not signature:
@@ -82,8 +81,7 @@ def create_yookassa_payment(order: Order, db: Session) -> str:
     order.yookassa_payment_id = payment.id
     order.yookassa_status = getattr(payment, "status", "pending")
     db.add(order)
-    db.commit()
-    db.refresh(order)
+    db.flush()
 
     confirmation = getattr(payment, "confirmation", None)
     confirmation_url = getattr(confirmation, "confirmation_url", None)
@@ -116,8 +114,7 @@ def handle_webhook(
 
     if status == "succeeded":
         order.payment_confirmed = True
-        if hasattr(order, "status"):
-            order.status = "accepted"
+        order.status = OrderStatus.accepted
 
     db.add(order)
-    db.commit()
+    db.flush()
