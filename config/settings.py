@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     SMSC_LOGIN: Optional[str] = None
     SMSC_PASSWORD: Optional[str] = None
     STAFF_PHONES: List[str] = []
+    YOOKASSA_SHOP_ID: Optional[str] = None
+    YOOKASSA_SECRET_KEY: Optional[str] = None
     
     class Config:
         env_file = ".env"
