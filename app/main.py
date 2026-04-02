@@ -46,7 +46,8 @@ from config.constants import VERSION, MAX_QTY_PER_ITEM, MAX_ITEMS_IN_CART, RATE_
 from .db import engine, SessionLocal
 from .models import Base, Category, Product, Order, OrderItem, PaymentMethod, DeliveryMode, MenuPeriod, DeliverySlot
 from .availability_models import MenuConfiguration
-from .telegram import notify_both, retry_failed_notifications, get_failed_notifications_count
+# [ШАГ 3] Заменён импорт из telegram на notifications-агрегатор
+from .notifications import notify_both, get_failed_notifications_count, init_notifications, start_dlq_worker, stop_dlq_worker
 from .admin import setup_admin, update_order_status_endpoint, update_payment_status_endpoint, update_daypart_endpoint, update_method_endpoint
 from .schemas import OrderCreate, HealthResponse, DeliverySlotsAvailability, DeliverySlotResponse
 
@@ -70,6 +71,7 @@ logging.basicConfig(
     format='%(asctime)s - [%(request_id)s] - %(name)s - %(levelname)s - %(message)s',
     handlers=[logging.StreamHandler(sys.stdout)]
 )
+
 logger = logging.getLogger(__name__)
 
 for handler in logging.root.handlers:
@@ -107,23 +109,23 @@ async def security_headers_middleware(request: Request, call_next):
 async def request_response_logging_middleware(request: Request, call_next):
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
-    
+
     start_time = datetime.now()
-    
+
     body = await request.body()
     logger.info(f"[{request_id}] Request {request.method} {request.url.path} - Body: {'***PII_MASKED***' if request.method in ('POST', 'PUT', 'PATCH') else (body[:1000].decode(errors='ignore') if body else 'empty')}")
-    
+
     try:
         response = await call_next(request)
         duration = (datetime.now() - start_time).total_seconds()
-        
+
         REQUEST_COUNT.labels(
-            method=request.method, 
+            method=request.method,
             endpoint=request.url.path,
             status=response.status_code
         ).inc()
         REQUEST_DURATION.observe(duration)
-        
+
         logger.info(f"[{request_id}] Response {response.status_code} in {duration:.3f}s")
         return response
     except Exception as e:
@@ -133,7 +135,7 @@ async def request_response_logging_middleware(request: Request, call_next):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Application v{VERSION} starting up...")
-    
+
     # Initialize Redis connection
     if REDIS_AVAILABLE and aioredis is not None:
         try:
@@ -143,20 +145,27 @@ async def lifespan(app: FastAPI):
                 decode_responses=True
             )
             logger.info("Redis connection established")
+            # [ШАГ 3] Инициализируем агрегатор нотификаций и запускаем DLQ-воркер
+            init_notifications(app.state.redis)
+            start_dlq_worker()
         except Exception as e:
             logger.warning(f"Redis connection failed: {e}")
             app.state.redis = None
+            init_notifications(None)
     else:
         app.state.redis = None
         logger.warning("Redis not available (aioredis not installed)")
-    
+        init_notifications(None)
+
     yield
-    
+
     # Cleanup
+    # [ШАГ 3] Останавливаем DLQ-воркер перед закрытием Redis
+    stop_dlq_worker()
     if hasattr(app.state, 'redis') and app.state.redis:
         await app.state.redis.close()
         logger.info("Redis connection closed")
-    
+
     logger.info("Application shutting down...")
 
 # Low Priority Fix: Create FastAPI app with OpenAPI metadata
@@ -174,14 +183,14 @@ app = FastAPI(
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     openapi_schema = get_openapi(
         title=settings.APP_NAME,
         version=VERSION,
         description="Food Delivery API for Sieshka restaurant",
         routes=app.routes,
     )
-    
+
     # Add tags metadata
     openapi_schema["tags"] = [
         {
@@ -201,7 +210,7 @@ def custom_openapi():
             "description": "System health and monitoring",
         },
     ]
-    
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
@@ -223,7 +232,7 @@ app.add_middleware(
 app.middleware("http")(security_headers_middleware)
 app.middleware("http")(request_response_logging_middleware)
 app.add_middleware(
-    TrustedHostMiddleware, 
+    TrustedHostMiddleware,
     allowed_hosts=settings.ALLOWED_HOSTS
 )
 
@@ -235,7 +244,7 @@ class PhoneRateLimiter:
         self.max_requests = settings.PHONE_RATE_LIMIT_PER_MINUTE
         self._cleanup_counter = 0
         self._cleanup_interval = RATE_LIMIT_REQUESTS_PER_WINDOW
-    
+
     def _cleanup_old_entries(self):
         """Remove old entries to prevent memory leak"""
         now = datetime.now()
@@ -249,25 +258,25 @@ class PhoneRateLimiter:
         # Remove empty entries
         for key in keys_to_delete:
             del self.requests[key]
-    
+
     def is_allowed(self, phone: str) -> bool:
         now = datetime.now()
         key = phone
-        
+
         # Periodic cleanup to prevent memory leak
         self._cleanup_counter += 1
         if self._cleanup_counter >= self._cleanup_interval:
             self._cleanup_old_entries()
             self._cleanup_counter = 0
-        
+
         if key not in self.requests:
             self.requests[key] = []
-        
+
         self.requests[key] = [t for t in self.requests[key] if now - t < timedelta(seconds=self.window)]
-        
+
         if len(self.requests[key]) >= self.max_requests:
             return False
-        
+
         self.requests[key].append(now)
         return True
 
@@ -281,7 +290,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     logger.warning(f"Rate limit exceeded for {request.client.host if request.client else 'unknown'}")
     ORDER_FAILURE_COUNT.labels(reason="rate_limit").inc()
     return JSONResponse(
-        {"detail": "Too many requests, please try again later"}, 
+        {"detail": "Too many requests, please try again later"},
         status_code=429
     )
 
@@ -312,10 +321,10 @@ TZ_NAME = settings.TZ_NAME
 LOCAL_TZ = ZoneInfo(TZ_NAME)
 
 MORNING_START = _parse_hhmm(settings.MORNING_START)
-MORNING_END   = _parse_hhmm(settings.MORNING_END)
+MORNING_END = _parse_hhmm(settings.MORNING_END)
 EVENING_MENU_START = _parse_hhmm(settings.EVENING_MENU_START)  # Время показа вечернего меню
-EVENING_START = _parse_hhmm(settings.EVENING_START)  # Время начала доставки вечернего меню
-EVENING_END   = _parse_hhmm(settings.EVENING_END)
+EVENING_START = _parse_hhmm(settings.EVENING_START)            # Время начала доставки вечернего меню
+EVENING_END = _parse_hhmm(settings.EVENING_END)
 
 ASAP_TEXT = settings.ASAP_TEXT
 
@@ -364,14 +373,14 @@ def _parse_csv_form(form_data: Any) -> dict:
     uploaded_file = form_data.get("csv_file")
     default_category_id_raw = form_data.get("default_category_id")
     skip_errors = form_data.get("skip_errors") == "on"
-    
+
     default_category_id: int | None = None
     if default_category_id_raw and isinstance(default_category_id_raw, str):
         try:
             default_category_id = int(default_category_id_raw)
         except ValueError:
             pass
-    
+
     return {
         "uploaded_file": uploaded_file,
         "default_category_id": default_category_id,
@@ -381,65 +390,65 @@ def _parse_csv_form(form_data: Any) -> dict:
 async def _decode_csv_file(uploaded_file: Any) -> tuple[str | None, str | None]:
     """Read and decode CSV file content. Returns (csv_text, error_message)"""
     from fastapi import UploadFile
-    
+
     if not uploaded_file or not isinstance(uploaded_file, UploadFile):
         return None, "Файл не загружен"
-    
+
     content = await uploaded_file.read()
     logger.info(f"CSV file size: {len(content)}, first 50 bytes: {content[:50]}")
-    
+
     for encoding in ['utf-8-sig', 'utf-8', 'cp1251', 'latin1']:
         try:
             csv_text = content.decode(encoding)
             return csv_text, None
         except:
             continue
-    
+
     return None, "Не удалось декодировать файл"
 
 def _parse_csv_content(csv_text: str) -> tuple[Any, str | None]:
     """Parse CSV text into reader. Returns (csv_reader, error_message)"""
     import csv
     import io
-    
+
     first_line = csv_text.split('\n')[0]
     delimiter = ';' if ';' in first_line and ',' not in first_line else ','
     logger.info(f"Detected delimiter: '{delimiter}'")
-    
+
     csv_reader = csv.DictReader(io.StringIO(csv_text), delimiter=delimiter)
-    
+
     fieldnames = csv_reader.fieldnames or []
     fieldnames_lower = [f.lower().strip() for f in fieldnames]
-    
+
     if not fieldnames:
         return None, "Не удалось прочитать CSV файл"
-    
+
     if 'name' not in fieldnames_lower:
         return None, f"CSV файл должен содержать колонку 'Name'. Найдены: {fieldnames}"
-    
+
     return csv_reader, None
 
 def _process_single_row(
-    row: dict, 
-    row_num: int, 
-    db: Any, 
-    default_cat: Any, 
+    row: dict,
+    row_num: int,
+    db: Any,
+    default_cat: Any,
     skip_errors: bool
 ) -> tuple[dict | None, str | None]:
     """Process a single CSV row. Returns (skipped_info, error_message)"""
     row_lower = {k.lower().strip(): (v.strip() if v else None) for k, v in row.items()}
-    
+
     name_raw = row_lower.get('name', '')
     name = name_raw.strip() if name_raw else ''
     if not name:
         if skip_errors:
             return {"name": "(пусто)", "reason": "отсутствует Name"}, None
         return None, f"Строка {row_num}: отсутствует Name"
-    
+
     category_id = default_cat.id if default_cat else None
     category_raw = row_lower.get('category', '')
     category_value = category_raw.strip() if category_raw else ''
-    
+
     if category_value:
         if category_value.isdigit():
             category_id = int(category_value)
@@ -449,16 +458,16 @@ def _process_single_row(
             ).first()
             if cat:
                 category_id = cat.id
-    
+
     if not category_id:
         if skip_errors:
             return {"name": name, "reason": f"категория '{category_value}' не найдена"}, None
         return None, f"Строка {row_num}: категория не найдена"
-    
+
     existing = db.query(Product).filter(Product.name == name).first()
     if existing:
         return {"name": name, "reason": "товар уже существует"}, None
-    
+
     desc_raw = row_lower.get('description', '')
     description = desc_raw.strip() if desc_raw else ''
     price_raw = row_lower.get('price rub', '')
@@ -466,7 +475,7 @@ def _process_single_row(
     price = int(price_str) if price_str and price_str.isdigit() else 0
     photo_raw = row_lower.get('photo url', '')
     photo_url = photo_raw.strip() if photo_raw else ''
-    
+
     product = Product(
         name=name,
         category_id=category_id,
@@ -475,6 +484,7 @@ def _process_single_row(
         photo_url=photo_url,
         is_active=True
     )
+
     db.add(product)
     return None, None
 
@@ -485,59 +495,59 @@ async def import_products_csv(request: Request):
     from fastapi import UploadFile
     from .db import SessionLocal
     from .models import Product, Category
-    
+
     try:
         form_data = await request.form()
         parsed = _parse_csv_form(form_data)
-        
+
         csv_text, error = await _decode_csv_file(parsed["uploaded_file"])
         if error:
             return {"success": False, "error": error}
-        
+
         csv_reader, error = _parse_csv_content(csv_text)  # type: ignore[arg-type]
         if error:
             return {"success": False, "error": error}
-        
+
         results = {"created": 0, "errors": [], "skipped": [], "skipped_count": 0}
-        
+
         with SessionLocal() as db:
             default_cat = None
             if parsed["default_category_id"]:
                 default_cat = db.query(Category).filter(
                     Category.id == parsed["default_category_id"]
                 ).first()
-            
+
             for row_num, row in enumerate(csv_reader, start=2):  # type: ignore[union-attr]
                 try:
                     skipped, error = _process_single_row(
                         row, row_num, db, default_cat, parsed["skip_errors"]
                     )
-                    
+
                     if skipped:
                         results["skipped"].append(skipped)
                         continue
-                    
+
                     if error:
                         if parsed["skip_errors"]:
                             results["skipped"].append({"name": "(error)", "reason": error})
                         else:
                             results["errors"].append(error)
                         continue
-                    
+
                     results["created"] += 1
-                    
+
                 except Exception as e:
                     if parsed["skip_errors"]:
                         results["skipped"].append({"name": "(unknown)", "reason": f"ошибка: {str(e)[:50]}"})
                     else:
                         results["errors"].append(f"Строка {row_num}: {str(e)}")
-            
+
             db.commit()
             menu_cache.clear()
-        
+
         results["skipped_count"] = len(results["skipped"])
         return {"success": True, "results": results}
-        
+
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -577,25 +587,25 @@ def get_preorder_info(now: datetime) -> dict:
     """Возвращает информацию о предзаказе для ночного времени"""
     if not is_preorder_mode(now):
         return {"is_preorder": False}
-    
+
     today = now.date()
     morning_start_dt = datetime.combine(today, MORNING_START)
     if now.time() > EVENING_END:
         morning_start_dt = datetime.combine(today + timedelta(days=1), MORNING_START)
-    
+
     if now.tzinfo:
         morning_start_dt = morning_start_dt.replace(tzinfo=now.tzinfo)
-    
+
     delta = morning_start_dt - now
     total_minutes = int(delta.total_seconds() / 60)
     hours = total_minutes // 60
     minutes = total_minutes % 60
-    
+
     if hours > 0:
         time_until = f"{hours} ч {minutes} мин"
     else:
         time_until = f"{minutes} мин"
-    
+
     return {
         "is_preorder": True,
         "opens_at": MORNING_START.strftime("%H:%M"),
@@ -626,36 +636,36 @@ def check_slot_availability(db, slot_time: str, delivery_date: date) -> bool:
         DeliverySlot.slot_time == slot_time,
         DeliverySlot.is_active == True
     ).first()
-    
+
     if not slot:
         return False
-    
+
     current_orders = db.query(Order).filter(
         Order.delivery_slot == slot_time,
         Order.delivery_date == delivery_date,
         Order.status.notin_(["cancelled"])
     ).count()
-    
+
     return current_orders < slot.max_orders
 
 def get_slot_availability(db, target_date: date) -> list:
     slots = db.query(DeliverySlot).filter(DeliverySlot.is_active == True).all()
     availability = []
-    
+
     for slot in slots:
         current_orders = db.query(Order).filter(
             Order.delivery_slot == slot.slot_time,
             Order.delivery_date == target_date,
             Order.status.notin_(["cancelled"])
         ).count()
-        
+
         availability.append({
             "slot_time": slot.slot_time,
             "max_orders": slot.max_orders,
             "current_orders": current_orders,
             "available": current_orders < slot.max_orders
         })
-    
+
     return availability
 
 # Low Priority Fix: Version endpoint
@@ -683,7 +693,7 @@ async def health():
     try:
         with SessionLocal() as db:
             db.execute(text("SELECT 1"))
-        
+
         # Check Redis
         redis_status = "not_configured"
         if hasattr(app.state, 'redis') and app.state.redis:
@@ -692,7 +702,7 @@ async def health():
                 redis_status = "connected"
             except Exception as e:
                 redis_status = f"error: {str(e)}"
-        
+
         return HealthResponse(
             status="ok",
             version=VERSION,
@@ -700,6 +710,7 @@ async def health():
             redis=redis_status,
             timestamp=datetime.now(timezone.utc).isoformat()
         )
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
@@ -712,7 +723,8 @@ async def diagnostics():
     """System diagnostics for administrators"""
     return {
         "version": VERSION,
-        "failed_notifications": get_failed_notifications_count(),
+        # [ШАГ 3] get_failed_notifications_count теперь async (читает dlq:max из Redis)
+        "failed_notifications": await get_failed_notifications_count(),
         "time": datetime.now(timezone.utc).isoformat(),
         "menu_available": is_menu_available(datetime.now(LOCAL_TZ))
     }
@@ -722,7 +734,7 @@ async def get_slots_availability(target_date: date = Query(default_factory=date.
     """Get delivery slot availability for a specific date"""
     if target_date < date.today():
         raise HTTPException(400, "Cannot check availability for past dates")
-    
+
     with SessionLocal() as db:
         slots = get_slot_availability(db, target_date)
         return DeliverySlotsAvailability(
@@ -743,12 +755,12 @@ async def get_delivery_fee():
 async def index(request: Request, preview_period: str = Query(None)):
     """Main menu page"""
     now = datetime.now(LOCAL_TZ)
-    
+
     if preview_period in ("morning", "evening"):
         current_period = preview_period
     else:
         current_period = get_current_menu_period(now)
-    
+
     if current_period is None and not preview_period:
         return templates.TemplateResponse("closed.html", {
             "request": request,
@@ -757,17 +769,17 @@ async def index(request: Request, preview_period: str = Query(None)):
             "evening_start": EVENING_START.strftime("%H:%M"),
             "evening_end": EVENING_END.strftime("%H:%M"),
         })
-    
+
     cache_key = f"menu_{current_period}_{preview_period}"
     cached_data = menu_cache.get(cache_key)
-    
+
     if cached_data:
         logger.debug(f"Serving menu from cache: {cache_key}")
         return templates.TemplateResponse("index.html", {
             "request": request,
             **cached_data
         })
-    
+
     with SessionLocal() as db:
         # Load global configuration
         config = db.query(MenuConfiguration).first()
@@ -778,7 +790,7 @@ async def index(request: Request, preview_period: str = Query(None)):
             Category.is_active == True,
             Category.parent_id == None
         ).order_by(Category.sort).all()
-        
+
         # Load all active products in ONE query and group by category_id (fix N+1)
         all_products = db.query(Product).filter(Product.is_active == True).all()
         products_by_category = {}
@@ -786,67 +798,67 @@ async def index(request: Request, preview_period: str = Query(None)):
             if p.category_id not in products_by_category:
                 products_by_category[p.category_id] = []
             products_by_category[p.category_id].append(p)
-        
+
         # Build hierarchical structure
         categories_data = []
-        
+
         for root_cat in root_cats:
             cat_data = {
                 'category': root_cat,
                 'subcategories': [],
                 'products': []
             }
-            
+
             # Get products directly in this category from preloaded dict
             direct_products = products_by_category.get(root_cat.id, [])
-            
+
             for p in direct_products:
                 period = p.menu_period_override or root_cat.menu_period
                 if period == MenuPeriod.both or period.value == current_period:
                     cat_data['products'].append(p)
-            
+
             # Get subcategories and their products
             for subcat in root_cat.children:
                 if not subcat.is_active:
                     continue
-                    
+
                 subcat_data = {
                     'category': subcat,
                     'products': []
                 }
-                
+
                 # Get products for subcategory from preloaded dict
                 subcat_products = products_by_category.get(subcat.id, [])
-                
+
                 for p in subcat_products:
                     period = p.menu_period_override or subcat.menu_period
                     if period == MenuPeriod.both or period.value == current_period:
                         subcat_data['products'].append(p)
-                
+
                 if subcat_data['products']:
                     cat_data['subcategories'].append(subcat_data)
-            
+
             # Only add category if it has products or subcategories with products
             if cat_data['products'] or cat_data['subcategories']:
                 categories_data.append(cat_data)
-    
-    preorder_info = get_preorder_info(now)
-    
-    data = {
-        "categories_data": categories_data,
-        "current_period_label": current_period,
-        "preview_period": preview_period,
-        "preorder_info": preorder_info,
-        "allowed_methods": allowed_methods,
-    }
-    
-    if not preorder_info["is_preorder"]:
-        menu_cache[cache_key] = data
-    
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        **data
-    })
+
+        preorder_info = get_preorder_info(now)
+
+        data = {
+            "categories_data": categories_data,
+            "current_period_label": current_period,
+            "preview_period": preview_period,
+            "preorder_info": preorder_info,
+            "allowed_methods": allowed_methods,
+        }
+
+        if not preorder_info["is_preorder"]:
+            menu_cache[cache_key] = data
+
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            **data
+        })
 
 @app.get("/cart", response_class=HTMLResponse, tags=["Menu"])
 async def cart_page(request: Request):
@@ -860,7 +872,7 @@ async def checkout_page(request: Request):
     current_menu_period = get_current_menu_period(now)
     current_delivery_period = get_current_period_label(now)
     preorder_info = get_preorder_info(now)
-    
+
     if current_menu_period is None and not preorder_info["is_preorder"]:
         return templates.TemplateResponse("closed.html", {
             "request": request,
@@ -869,9 +881,9 @@ async def checkout_page(request: Request):
             "evening_start": EVENING_START.strftime("%H:%M"),
             "evening_end": EVENING_END.strftime("%H:%M"),
         })
-    
+
     show_delivery_notice = (current_menu_period == "evening" and current_delivery_period is None)
-    
+
     return templates.TemplateResponse("checkout.html", {
         "request": request,
         "delivery_slots": DELIVERY_SLOTS,
@@ -887,28 +899,28 @@ async def checkout_page(request: Request):
 async def create_order(request: Request, payload: OrderCreate):
     """Create a new order with idempotency protection and slot validation"""
     logger.info(f"Creating order from {request.client.host if request.client else 'unknown'}")
-    
+
     try:
         phone_e164 = normalize_ru_phone(payload.phone)
     except HTTPException:
         ORDER_FAILURE_COUNT.labels(reason="invalid_phone").inc()
         raise
-    
+
     if not phone_rate_limiter.is_allowed(phone_e164):
         logger.warning(f"Phone rate limit exceeded for {phone_e164}")
         ORDER_FAILURE_COUNT.labels(reason="phone_rate_limit").inc()
         raise HTTPException(429, "Слишком много заказов с этого номера. Попробуйте позже.")
-    
+
     with SessionLocal.begin() as db:
         try:
             existing = db.query(Order).filter(
                 Order.idempotency_key == payload.idempotency_key
             ).first()
-            
+
             if existing:
                 logger.info(f"Returning existing order {existing.id} for idempotency key")
                 return {"ok": True, "order_id": existing.id, "existing": True}
-            
+
             if payload.delivery_mode == "slot":
                 if not payload.delivery_slot or not payload.delivery_date:
                     ORDER_FAILURE_COUNT.labels(reason="missing_slot_data").inc()
@@ -916,29 +928,29 @@ async def create_order(request: Request, payload: OrderCreate):
                 if not check_slot_availability(db, payload.delivery_slot, payload.delivery_date):
                     ORDER_FAILURE_COUNT.labels(reason="slot_unavailable").inc()
                     raise HTTPException(400, "Выбранный слот доставки заполнен. Выберите другой.")
-            
+
             product_ids = [i.product_id for i in payload.items]
             products = db.query(Product).filter(
                 Product.id.in_(product_ids),
                 Product.is_active == True
             ).all()
-            
+
             if len(products) != len(product_ids):
                 logger.warning(f"Some products not found or inactive: {product_ids}")
                 ORDER_FAILURE_COUNT.labels(reason="invalid_products").inc()
                 raise HTTPException(400, "Some products not found or inactive")
-            
+
             pmap = {p.id: p for p in products}
-            
+
             total = 0
             order_items = []
-            
+
             for item in payload.items:
                 product = pmap.get(item.product_id)
                 if not product:
                     ORDER_FAILURE_COUNT.labels(reason="product_not_found").inc()
                     raise HTTPException(400, f"Product {item.product_id} not found")
-                
+
                 total += product.price_rub * item.qty
                 order_items.append({
                     "product_id": product.id,
@@ -946,7 +958,7 @@ async def create_order(request: Request, payload: OrderCreate):
                     "price_rub_snapshot": product.price_rub,
                     "qty": item.qty
                 })
-            
+
             order = Order(
                 customer_name=payload.name.strip(),
                 phone_e164=phone_e164,
@@ -959,31 +971,31 @@ async def create_order(request: Request, payload: OrderCreate):
                 delivery_slot=payload.delivery_slot if payload.delivery_mode == "slot" else None,
                 delivery_date=payload.delivery_date if payload.delivery_mode == "slot" else None,
             )
-            
+
             db.add(order)
             db.flush()
-            
+
             for item_data in order_items:
                 order_item = OrderItem(order_id=order.id, **item_data)
                 db.add(order_item)
-            
+
             ORDER_COUNT.inc()
             logger.info(f"Order {order.id} created successfully")
-            
+
             try:
                 items_text = "\n".join(
                     f"• {item['name_snapshot']} x{item['qty']} = {item['price_rub_snapshot'] * item['qty']}₽"
                     for item in order_items
                 )
-                
+
                 delivery_info = ""
                 if order.delivery_mode.value == "slot":
                     delivery_info = f"\nСлот: {order.delivery_slot} ({order.delivery_date})"
                 else:
                     delivery_info = f"\nДоставка: как можно скорее"
-                
+
                 payment_method = "Наличные" if order.payment_method.value == "cash" else "СБП"
-                
+
                 await notify_both(
                     f"🛒 Новый заказ #{order.id}\n"
                     f"👤 {order.customer_name}\n"
@@ -994,11 +1006,12 @@ async def create_order(request: Request, payload: OrderCreate):
                     f"📦 Состав:\n{items_text}\n\n"
                     f"💵 Итого: {order.total_rub}₽"
                 )
+
             except Exception as e:
-                logger.error(f"Failed to send Telegram notification: {e}")
-            
+                logger.error(f"Failed to send staff notification: {e}")
+
             return {"ok": True, "order_id": order.id}
-            
+
         except HTTPException:
             raise
         except Exception as e:
@@ -1013,24 +1026,24 @@ async def thanks_page(request: Request, order_id: int):
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             raise HTTPException(404, "Order not found")
-    
-    # Определяем, является ли заказ предзаказом вечернего меню (10:00-15:00)
-    is_evening_preorder = False
-    if order.delivery_mode.value == "asap" and order.created_at:
-        # Конвертируем UTC в локальное время
-        order_local_time = order.created_at.replace(tzinfo=None).replace(tzinfo=LOCAL_TZ)
-        order_time = order_local_time.time()
-        # Если заказ сделан между 10:00 и 15:00 - это предзаказ вечернего меню
-        if EVENING_MENU_START <= order_time < EVENING_START:
-            is_evening_preorder = True
-    
-    return templates.TemplateResponse("thanks.html", {
-        "request": request,
-        "order": order,
-        "asap_text": ASAP_TEXT,
-        "is_evening_preorder": is_evening_preorder,
-        "evening_delivery_start": EVENING_START.strftime("%H:%M"),
-    })
+
+        # Определяем, является ли заказ предзаказом вечернего меню (10:00-15:00)
+        is_evening_preorder = False
+        if order.delivery_mode.value == "asap" and order.created_at:
+            # Конвертируем UTC в локальное время
+            order_local_time = order.created_at.replace(tzinfo=None).replace(tzinfo=LOCAL_TZ)
+            order_time = order_local_time.time()
+            # Если заказ сделан между 10:00 и 15:00 - это предзаказ вечернего меню
+            if EVENING_MENU_START <= order_time < EVENING_START:
+                is_evening_preorder = True
+
+        return templates.TemplateResponse("thanks.html", {
+            "request": request,
+            "order": order,
+            "asap_text": ASAP_TEXT,
+            "is_evening_preorder": is_evening_preorder,
+            "evening_delivery_start": EVENING_START.strftime("%H:%M"),
+        })
 
 if __name__ == "__main__":
     import uvicorn
