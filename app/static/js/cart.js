@@ -1245,8 +1245,13 @@ function setupCheckoutForm() {
       
       if (response.ok && data.ok) {
         // Clear cart on successful order
-        localStorage.setItem('cart', '[]');
-        window.location.href = '/thanks/' + data.order_id;
+        localStorage.setItem("cart", "[]");
+        if (data.confirmation_url) {
+          window.location.href = data.confirmation_url;
+      } else {
+          window.location.href = `/thanks/${data.order_id}`;
+      }
+      
       } else {
         const errorMsg = data.detail || 'Ошибка при оформлении заказа';
         CartManager.showToast(errorMsg, 'error');
