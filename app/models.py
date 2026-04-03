@@ -120,7 +120,9 @@ class Order(Base):
     phone_e164: Mapped[str] = mapped_column(String(32), index=True)
     address: Mapped[str] = mapped_column(String(300))
     comment: Mapped[str | None] = mapped_column(String(500))
-    idempotency_key: Mapped[str] = mapped_column(String(64), unique=True)
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True
+    )
     total_rub: Mapped[int] = mapped_column(Integer)
     status: Mapped[OrderStatus] = mapped_column(
         Enum(OrderStatus), default=OrderStatus.new
