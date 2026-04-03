@@ -1006,11 +1006,9 @@ async def create_order(request: Request, payload: OrderCreate):
                     confirmation_url = create_yookassa_payment(order, db)
                 except (YooKassaConfigError, YooKassaWebhookError) as e:
                     logger.error(f"YooKassa payment creation failed: {e}")
-                    ORDERFAILURECOUNT.labels(reason="yookassa_error").inc()
+                    ORDER_FAILURE_COUNT.labels(reason="yookassa_error").inc()
                     raise HTTPException(502, "Платёжный сервис временно недоступен")
-                        
-     ORDERCOUNT.inc()
-            
+
             ORDER_COUNT.inc()
             logger.info(f"Order {order.id} created successfully")
 
