@@ -1,10 +1,18 @@
 {
   "manifest_version": "1.0.0",
   "project_name": "SieshKa-Site",
-  "project_description": "FastAPI-based food delivery service with PostgreSQL, Redis, SQLAdmin, Telegram notifications, and Nginx",
+  "project_description": "FastAPI-based food delivery service with PostgreSQL, Redis, SQLAdmin, Telegram notifications, Nginx, YooKassa payments, and SMS/Max notifications",
   "baseline_version": "v3.0.0",
-  "final_version": "v3.0.0-final",
-  "created_at": "2026-02-13T13:00:00Z",
+  "final_version": "v3.1.0-rc1",
+  "created_at": "2026-04-03T04:00:00Z",
+  "current_status": {
+    "milestone": "Checkout flow restored, YooKassa schema compatible",
+    "completion_percentage": 85,
+    "api_status": "healthy (localhost:8002/health)",
+    "db_migrations": "9c445de5fdf5 (head)",
+    "cash_flow": "200 OK ✅",
+    "yookassa_card_flow": "502 (awaiting SHOP_ID/SECRET_KEY) ✅"
+  },
   "versions": {
     "v1": {
       "path": "SieshKa-Site-v1",
@@ -16,172 +24,126 @@
       "description": "Added Alembic migrations and basic admin panel",
       "status": "archived"
     },
-    "v3": {
+    "v3.0": {
       "path": "SieshKa-Site-v3",
-      "description": "Production-ready version with Redis, monitoring, and security improvements",
+      "description": "Production-ready baseline with Redis, monitoring, security",
       "status": "baseline"
     },
-    "final": {
-      "path": "SieshKa-Site-final",
-      "description": "Assembled final release with documentation and deployment scripts",
-      "status": "release"
+    "v3.1-rc1": {
+      "path": "SieshKa-Site-v3.1-rc1",
+      "description": "YooKassa schema + nullable idempotency_key, checkout restored",
+      "status": "current"
     }
   },
   "files": {
     "configuration": {
       ".env.example": {
         "type": "environment_template",
-        "description": "Environment variables template",
+        "description": "Environment variables template - ADD YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY",
         "required": true,
-        "checksum_required": true
+        "checksum_required": true,
+        "pending": ["YOOKASSA vars"]
       },
       "docker-compose.yml": {
         "type": "docker_compose",
-        "description": "Docker Compose configuration for all services",
+        "description": "Blue/green deploy: api_green:8002, api_blue:8001, nginx:80/443",
         "required": true,
         "checksum_required": true,
-        "services": ["db", "redis", "api", "nginx", "certbot", "backup"]
+        "services": ["db", "redis", "api_green", "nginx", "certbot", "backup"]
       },
       "Dockerfile": {
         "type": "dockerfile",
-        "description": "Multi-stage Docker build for API service",
+        "description": "Multi-stage Python 3.12 build",
         "required": true,
         "checksum_required": true
       },
       "alembic.ini": {
         "type": "alembic_config",
-        "description": "Alembic migration tool configuration",
+        "description": "Alembic configuration",
         "required": true,
-        "checksum_required": false
-      },
-      "Makefile": {
-        "type": "build_automation",
-        "description": "Common development and deployment commands",
-        "required": false,
         "checksum_required": false
       }
     },
     "application": {
       "app/main.py": {
         "type": "fastapi_app",
-        "description": "Main FastAPI application with routes and middleware",
-        "required": true
+        "description": "Main app 1037loc - create_order handles yookassa_card branch, webhook pending",
+        "line_count": 1037,
+        "status": "needs refactor to routers"
       },
       "app/models.py": {
         "type": "sqlalchemy_models",
-        "description": "SQLAlchemy ORM models",
-        "required": true
+        "description": "Order.idempotency_key nullable, yookassa_payment_id/status nullable",
+        "status": "fixed"
       },
       "app/schemas.py": {
         "type": "pydantic_schemas",
-        "description": "Pydantic validation schemas",
-        "required": true
+        "description": "OrderCreate.payment_method supports yookassa_card, idempotency_key Optional",
+        "status": "fixed"
       },
       "app/db.py": {
         "type": "database_config",
-        "description": "Database connection and session management",
-        "required": true
+        "description": "Sync SQLAlchemy SessionLocal",
+        "status": "baseline"
       },
-      "app/admin.py": {
-        "type": "sqladmin_config",
-        "description": "SQLAdmin admin panel configuration",
-        "required": true
+      "app/payments.py": {
+        "type": "yookassa_integration",
+        "description": "create_yookassa_payment + handle_webhook ready, awaits config",
+        "status": "ready"
       },
       "app/telegram.py": {
         "type": "notification_service",
-        "description": "Telegram bot notification service",
-        "required": true
+        "description": "notify_both - to be replaced by notifications.py aggregator",
+        "status": "legacy"
       },
       "config/settings.py": {
         "type": "pydantic_settings",
-        "description": "Application configuration with validation",
-        "required": true
-      },
-      "config/constants.py": {
-        "type": "constants",
-        "description": "Application constants",
-        "required": true
+        "description": "YOOKASSA_SHOP_ID/SECRET_KEY Optional(None)",
+        "pending": ["MAX_BOT_TOKEN", "SMSC_LOGIN/PASSWORD"]
       }
     },
     "migrations": {
       "alembic/env.py": {
         "type": "alembic_environment",
-        "description": "Alembic environment configuration",
+        "description": "Imports all models for autogenerate",
         "required": true
       },
       "alembic/versions/0001_full_schema.py": {
         "type": "database_migration",
-        "description": "Initial database schema migration",
-        "required": true,
         "version": "0001_full_schema"
+      },
+      "alembic/versions/0011_add_allowed_methods.py": {
+        "type": "database_migration",
+        "version": "0011_add_allowed_methods"
+      },
+      "alembic/versions/9c445de5fdf5_0012_make_idempotency_key_nullable.py": {
+        "type": "database_migration",
+        "version": "9c445de5fdf5 (current head)",
+        "status": "applied"
       }
     },
     "frontend": {
-      "app/templates/base.html": {
-        "type": "jinja2_template",
-        "description": "Base HTML template",
-        "required": true
-      },
-      "app/templates/index.html": {
-        "type": "jinja2_template",
-        "description": "Menu page template",
-        "required": true
-      },
-      "app/templates/cart.html": {
-        "type": "jinja2_template",
-        "description": "Shopping cart template",
-        "required": true
-      },
       "app/templates/checkout.html": {
         "type": "jinja2_template",
-        "description": "Checkout page template",
-        "required": true
+        "description": "Pending: yookassa_card redirect handling",
+        "status": "needs update"
       },
       "app/templates/thanks.html": {
         "type": "jinja2_template",
-        "description": "Order confirmation template",
-        "required": true
+        "description": "Pending: pending state for yookassa_card",
+        "status": "needs update"
       },
-      "app/templates/closed.html": {
-        "type": "jinja2_template",
-        "description": "Restaurant closed page template",
-        "required": true
-      },
-      "app/static/app.js": {
+      "static/js/cart.js": {
         "type": "javascript",
-        "description": "Frontend JavaScript for cart functionality",
-        "required": true
+        "description": "Pending: if confirmation_url -> window.location.href",
+        "status": "needs update"
       }
     },
     "infrastructure": {
       "nginx/default.conf": {
         "type": "nginx_config",
-        "description": "Nginx reverse proxy configuration with SSL",
-        "required": true
-      },
-      "scripts/backup.sh": {
-        "type": "shell_script",
-        "description": "Database backup script",
-        "required": true
-      }
-    },
-    "documentation": {
-      "README.md": {
-        "type": "documentation",
-        "description": "Project documentation and setup instructions",
-        "required": true
-      }
-    },
-    "ignore_files": {
-      ".gitignore": {
-        "type": "git_ignore",
-        "description": "Git ignore patterns",
-        "required": true
-      },
-      ".dockerignore": {
-        "type": "docker_ignore",
-        "description": "Docker build ignore patterns",
-        "required": true
+        "description": "Proxy api_green:8002, api_blue:8001 -> upstream",
+        "status": "working"
       }
     }
   },
@@ -189,6 +151,7 @@
     "python": {
       "version": "3.12",
       "requirements_file": "requirements.txt",
+      "pending": ["yookassa==3.*"],
       "key_packages": [
         "fastapi==0.115.8",
         "uvicorn[standard]==0.30.6",
@@ -200,55 +163,106 @@
     },
     "docker": {
       "services": {
-        "db": "postgres:16-alpine",
-        "redis": "redis:7-alpine",
-        "nginx": "nginx:alpine",
-        "certbot": "certbot/certbot:latest"
+        "db": "postgres:16-alpine (healthy)",
+        "redis": "redis:7-alpine (healthy)",
+        "api_green": "api_green:8002->8000 (healthy)",
+        "nginx": "nginx:alpine (80/443)",
+        "certbot": "certbot:latest (80/443)",
+        "backup": "postgres:16-alpine (Restarting 126)"
       }
     }
   },
-  "health_checks": {
-    "api": "http://localhost:8000/health",
-    "db": "pg_isready -U food -d food",
-    "redis": "redis-cli ping"
+  "environment": {
+    "deployment": "Hetzner VPS, GitHub Actions -> SCP",
+    "ports": {
+      "api_green": "8002->8000/tcp",
+      "nginx": "80/443/tcp"
+    },
+    "database": "food/food@5432",
+    "redis": "6379/tcp"
   },
+  "health_checks": {
+    "api": "http://localhost:8002/health -> 200 OK",
+    "db": "pg_isready -U food -d food",
+    "redis": "redis-cli ping -> PONG",
+    "nginx": "curl -I http://localhost/health",
+    "alembic": "docker compose exec api_green alembic current -> 9c445de5fdf5"
+  },
+  "pending_tasks": [
+    {
+      "priority": "high",
+      "task": "YooKassa config",
+      "details": "YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY -> smoke-test confirmation_url",
+      "files": [".env.example", "config/settings.py"]
+    },
+    {
+      "priority": "high",
+      "task": "Webhook /api/payments/webhook",
+      "details": "IP allowlist + X-Content-SHA256 verify in main.py",
+      "files": ["app/main.py", "app/payments.py"]
+    },
+    {
+      "priority": "medium",
+      "task": "Frontend updates",
+      "details": "cart.js confirmation_url redirect, thanks.html pending state",
+      "files": ["static/js/cart.js", "templates/thanks.html"]
+    },
+    {
+      "priority": "low",
+      "task": "Notifications refactor",
+      "details": "app/max_notify.py, app/sms.py, app/notifications.py -> replace notify_both()",
+      "dependencies": ["MAX_BOT_TOKEN", "SMSC_LOGIN/PASSWORD"]
+    },
+    {
+      "priority": "low",
+      "task": "Refactoring",
+      "details": "TZ fix, blocking SessionLocal -> asyncio.to_thread, split main.py",
+      "files": ["app/main.py", "app/routers/*"]
+    }
+  ],
+  "validation_passed": [
+    "API health 200 OK",
+    "cash checkout 200 OK",
+    "yookassa_card schema validation OK",
+    "DB migrations applied",
+    "idempotency_key nullable"
+  ],
+  "blockers": [
+    "YooKassa credentials",
+    "SMS/Max credentials"
+  ],
   "build_instructions": {
     "steps": [
       {
         "step": 1,
-        "command": "docker compose build",
-        "description": "Build all Docker images"
+        "command": "docker compose up -d --build api_green",
+        "description": "Rebuild and restart API"
       },
       {
         "step": 2,
-        "command": "docker compose up -d",
-        "description": "Start all services"
+        "command": "docker compose exec api_green alembic upgrade head",
+        "description": "Apply migrations"
       },
       {
         "step": 3,
-        "command": "docker compose run --rm api alembic upgrade head",
-        "description": "Run database migrations"
+        "command": "curl -i http://localhost:8002/health",
+        "description": "Verify health"
       },
       {
         "step": 4,
-        "command": "docker compose ps",
-        "description": "Verify all services are running"
+        "command": "curl -i -X POST http://localhost:8002/api/orders -H 'Content-Type: application/json' -d '{\"name\":\"Test\",\"phone\":\"+79123456789\",\"address\":\"test\",\"payment_method\":\"cash\",\"delivery_mode\":\"asap\",\"items\":[{\"product_id\":18,\"qty\":1}]}'",
+        "description": "Smoke test cash checkout"
       }
     ]
   },
-  "cleanup_exclusions": [
-    ".git",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "node_modules",
-    "dist",
-    "build",
-    ".pytest_cache",
-    "*.pyc",
-    "*.log",
-    "*.tmp",
-    "backups/*.sql.gz",
-    "logs/*.log"
-  ]
+  "next_milestones": {
+    "v3.1.0": {
+      "features": ["YooKassa live payments", "Webhook processing"],
+      "blockers": ["YOOKASSA_SHOP_ID/SECRET_KEY"]
+    },
+    "v3.2.0": {
+      "features": ["SMS/Max notifications", "Redis DLQ"],
+      "blockers": ["MAX_BOT_TOKEN", "SMSC_LOGIN/PASSWORD"]
+    }
+  }
 }
