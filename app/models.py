@@ -1,10 +1,9 @@
 import enum
 from datetime import datetime, date, timezone
-from sqlalchemy import (
-    String, Integer, Boolean, DateTime, ForeignKey, Text, Enum, Date
-)
+from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Text, Enum, Date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
+
 
 class OrderStatus(str, enum.Enum):
     new = "new"
@@ -14,19 +13,23 @@ class OrderStatus(str, enum.Enum):
     delivered = "delivered"
     cancelled = "cancelled"
 
+
 class PaymentMethod(str, enum.Enum):
     cash = "cash"
     sbp_transfer = "sbp_transfer"
     yookassa_card = "yookassa_card"
 
+
 class DeliveryMode(str, enum.Enum):
     asap = "asap"
     slot = "slot"
+
 
 class MenuPeriod(str, enum.Enum):
     morning = "morning"
     evening = "evening"
     both = "both"
+
 
 class Category(Base):
     __tablename__ = "categories"
@@ -35,19 +38,25 @@ class Category(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     sort: Mapped[int] = mapped_column(Integer, default=100)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    menu_period: Mapped[MenuPeriod] = mapped_column(Enum(MenuPeriod), default=MenuPeriod.both, index=True)
-    
+    menu_period: Mapped[MenuPeriod] = mapped_column(
+        Enum(MenuPeriod), default=MenuPeriod.both, index=True
+    )
+
     # Self-referential relationship for subcategories
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True, index=True)
-    
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id"), nullable=True, index=True
+    )
+
     # Relationships
     products: Mapped[list["Product"]] = relationship(back_populates="category")
-    parent: Mapped["Category | None"] = relationship(remote_side=[id], back_populates="children")
+    parent: Mapped["Category | None"] = relationship(
+        remote_side=[id], back_populates="children"
+    )
     children: Mapped[list["Category"]] = relationship(back_populates="parent")
 
     def __repr__(self) -> str:
         return self.name
-    
+
     def get_all_products(self) -> list["Product"]:
         """Recursively get all products from category and its subcategories"""
         products = [p for p in self.products if p.is_active]
@@ -55,20 +64,21 @@ class Category(Base):
             if child.is_active:
                 products.extend(child.get_all_products())
         return products
-    
+
     def get_hierarchy_path(self) -> str:
         """Get full path like 'Parent > Child > Subchild'"""
         if self.parent:
             return f"{self.parent.get_hierarchy_path()} > {self.name}"
         return self.name
-    
+
     def is_leaf_category(self) -> bool:
         """Check if category has no subcategories"""
         return len(self.children) == 0
 
+
 class Product(Base):
     __tablename__ = "products"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), index=True)
     name: Mapped[str] = mapped_column(String(200), index=True)
@@ -76,25 +86,35 @@ class Product(Base):
     price_rub: Mapped[int] = mapped_column(Integer)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    menu_period_override: Mapped[MenuPeriod | None] = mapped_column(Enum(MenuPeriod), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=None, onupdate=datetime.now(timezone.utc), nullable=True)
+    menu_period_override: Mapped[MenuPeriod | None] = mapped_column(
+        Enum(MenuPeriod), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=None, onupdate=datetime.now(timezone.utc), nullable=True
+    )
 
     category: Mapped["Category"] = relationship(back_populates="products")
+
 
 # Medium Priority Fix: Delivery slot capacity management
 class DeliverySlot(Base):
     __tablename__ = "delivery_slots"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     slot_time: Mapped[str] = mapped_column(String(20), unique=True)
     max_orders: Mapped[int] = mapped_column(Integer, default=10)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now(timezone.utc)
+    )
+
 
 class Order(Base):
     __tablename__ = "orders"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     customer_name: Mapped[str] = mapped_column(String(120))
     phone_e164: Mapped[str] = mapped_column(String(32), index=True)
@@ -102,35 +122,57 @@ class Order(Base):
     comment: Mapped[str | None] = mapped_column(String(500))
     idempotency_key: Mapped[str] = mapped_column(String(64), unique=True)
     total_rub: Mapped[int] = mapped_column(Integer)
-    status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.new)
-    payment_method: Mapped[PaymentMethod] = mapped_column(Enum(PaymentMethod), default=PaymentMethod.cash)
+    status: Mapped[OrderStatus] = mapped_column(
+        Enum(OrderStatus), default=OrderStatus.new
+    )
+    payment_method: Mapped[PaymentMethod] = mapped_column(
+        Enum(PaymentMethod), default=PaymentMethod.cash
+    )
     payment_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
-    yookassa_payment_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    yookassa_payment_id: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True
+    )
     yookassa_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    delivery_mode: Mapped[DeliveryMode] = mapped_column(Enum(DeliveryMode), default=DeliveryMode.asap)
+    delivery_mode: Mapped[DeliveryMode] = mapped_column(
+        Enum(DeliveryMode), default=DeliveryMode.asap
+    )
     delivery_slot: Mapped[str | None] = mapped_column(String(20), index=True)
-    delivery_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # Medium Priority Fix
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    delivery_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True
+    )  # Medium Priority Fix
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+    )
 
-    items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan")
+    items: Mapped[list["OrderItem"]] = relationship(
+        back_populates="order", cascade="all, delete-orphan"
+    )
+
 
 class OrderItem(Base):
     __tablename__ = "order_items"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"), nullable=True
+    )
     name_snapshot: Mapped[str] = mapped_column(String(200))
     price_rub_snapshot: Mapped[int] = mapped_column(Integer)
     qty: Mapped[int] = mapped_column(Integer)
 
     order: Mapped["Order"] = relationship(back_populates="items")
 
+
 # Medium Priority Fix: Admin audit log
 class AdminAuditLog(Base):
     __tablename__ = "admin_audit_log"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     admin_user: Mapped[str] = mapped_column(String(120))
     action: Mapped[str] = mapped_column(String(50))
@@ -139,4 +181,6 @@ class AdminAuditLog(Base):
     old_values: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_values: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now(timezone.utc), index=True
+    )

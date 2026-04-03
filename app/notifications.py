@@ -4,6 +4,7 @@ Drop-in replacement for telegram.notify_both().
 Channels: MAX (primary) → SMS (backup).
 DLQ for MAX failures: Redis list dlq:max.
 """
+
 import json
 import logging
 import asyncio
@@ -35,11 +36,13 @@ async def notify_both(text: str) -> None:
 
     if failed_uids and _redis:
         for uid in failed_uids:
-            entry = json.dumps({
-                "user_id": uid,
-                "text": text,
-                "timestamp": datetime.now().isoformat(),
-            })
+            entry = json.dumps(
+                {
+                    "user_id": uid,
+                    "text": text,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
             await _redis.rpush("dlq:max", entry)
             logger.warning("MAX failed for uid=%s → pushed to dlq:max", uid)
 

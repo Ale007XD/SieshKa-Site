@@ -2,6 +2,7 @@
 SMS notifications via smsc.ru.
 Backup channel when MAX is unavailable.
 """
+
 import logging
 import httpx
 from config.settings import settings

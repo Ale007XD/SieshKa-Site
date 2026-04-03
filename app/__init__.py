@@ -7,7 +7,7 @@ __version__ = VERSION
 
 __all__ = [
     "Base",
-    "engine", 
+    "engine",
     "SessionLocal",
     "Category",
     "Product",
@@ -15,5 +15,5 @@ __all__ = [
     "OrderItem",
     "DeliverySlot",
     "AdminAuditLog",
-    "__version__"
+    "__version__",
 ]

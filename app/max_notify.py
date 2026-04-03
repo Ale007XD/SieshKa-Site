@@ -2,6 +2,7 @@
 MAX messenger notifications (platform-api.max.ru).
 Replaces Telegram for staff notifications in RF.
 """
+
 import logging
 import httpx
 from config.settings import settings
