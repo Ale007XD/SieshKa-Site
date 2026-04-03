@@ -23,7 +23,7 @@ class OrderCreate(BaseModel):
         default="cash", pattern="^(cash|sbp_transfer|yookassa_card)$"
     )
     items: List[OrderItemIn]
-    idempotency_key: str = Field(..., min_length=8, max_length=64)
+    idempotency_key: Optional[str] = Field(None, min_length=8, max_length=64)
     csrf_token: Optional[str] = Field(None, min_length=32, max_length=128)
 
     @field_validator("name")
