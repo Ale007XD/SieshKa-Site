@@ -38,7 +38,9 @@
         <span class="text-muted">Оплата:</span>
         <span>
           {% if order.payment_method.value == "sbp_transfer" %}
-            СБП (перевод)
+            СБП перевод
+          {% elif order.payment_method.value == "yookassa_card" %}
+            Банковской картой
           {% else %}
             Наличными
           {% endif %}
@@ -66,6 +68,15 @@
         <div class="text-muted small">Статус оплаты будет обновлен вручную.</div>
       </div>
     {% endif %}
+
+    {% if order.payment_method.value == "yookassa_card" %}
+        <div class="alert alert-info mt-4 mx-auto" style="max-width: 400px;">
+          <div class="fw-semibold mb-2">Ожидаем подтверждение оплаты</div>
+          <p class="mb-2 small">Если вы завершили оплату в ЮKassa, подтверждение поступит автоматически.</p>
+          <div class="text-muted small">Статус заказа обновится после обработки платёжного уведомления.</div>
+        </div>
+      {% endif %}
+    
   </div>
 </div>
 
