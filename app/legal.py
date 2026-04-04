@@ -2,6 +2,7 @@
 app/legal.py
 Юридические страницы: реквизиты, оферта, соглашение, политика ПД.
 """
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
