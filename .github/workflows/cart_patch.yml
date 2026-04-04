@@ -1,0 +1,31 @@
+  name: Apply cart.js hotfix patch
+  shell: bash
+  run: |
+    cat > /tmp/cart-fix.patch <<'PATCH'
+    diff --git a/app/static/js/cart.js b/app/static/js/cart.js
+    --- a/app/static/js/cart.js
+    +++ b/app/static/js/cart.js
+    @@ -306,8 +306,8 @@
+      async function updateNavbarCart() {
+        const items = loadCart();
+        const totalItems = getTotalItems(items);
+        const subtotal = getTotalPrice(items);
+    -    const deliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
+    -    const totalPrice = subtotal + deliveryFee;
+    +    const currentDeliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
+    +    const totalPrice = subtotal + currentDeliveryFee;
+        
+        // Update navbar cart summary
+        const summaryEl = document.getElementById('navbarCartSummary');
+    @@ -718,7 +718,7 @@
+    
+    async function updateAllUI() {
+    -    updateNavbarCart();
+    +    await updateNavbarCart();
+        await updateOffcanvasCart();
+        updateProductControls();
+        await renderCartPage();
+    PATCH
+
+    git apply --check /tmp/cart-fix.patch || git apply -3 --check /tmp/cart-fix.patch
+    git apply /tmp/cart-fix.patch || git apply -3 /tmp/cart-fix.patch
