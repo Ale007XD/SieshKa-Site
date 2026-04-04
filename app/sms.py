@@ -1,6 +1,6 @@
 """
 SMS notifications via smsc.ru.
-Backup channel when MAX is unavailable.
+Parallel staff notification channel.
 """
 
 import logging
