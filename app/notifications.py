@@ -1,7 +1,7 @@
 """
 Staff notifications aggregator.
 Drop-in replacement for telegram.notify_both().
-Channels: MAX (primary) → SMS (backup).
+Channels: MAX + SMS (parallel).
 DLQ for MAX failures: Redis list dlq:max.
 """
 
@@ -29,10 +29,14 @@ def init_notifications(redis_client) -> None:
 async def notify_both(text: str) -> None:
     """
     Drop-in replacement for telegram.notify_both(text).
-    MAX staff broadcast → failed UIDs → Redis dlq:max.
-    SMS staff broadcast (backup, always fires).
+    Sends notifications through MAX and SMS in parallel channel model.
+    Failed MAX deliveries are pushed to Redis dlq:max.
     """
     failed_uids = await notify_max_staff(text)
+
+    failed_phones = await notify_sms_staff(text)
+    if failed_phones:
+        logger.warning("SMS failed for phones=%s", failed_phones)
 
     if failed_uids and _redis:
         for uid in failed_uids:
