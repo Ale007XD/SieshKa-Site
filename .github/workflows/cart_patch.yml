@@ -1,31 +1,66 @@
-  name: Apply cart.js hotfix patch
-  shell: bash
-  run: |
-    cat > /tmp/cart-fix.patch <<'PATCH'
-    diff --git a/app/static/js/cart.js b/app/static/js/cart.js
-    --- a/app/static/js/cart.js
-    +++ b/app/static/js/cart.js
-    @@ -306,8 +306,8 @@
-      async function updateNavbarCart() {
-        const items = loadCart();
-        const totalItems = getTotalItems(items);
-        const subtotal = getTotalPrice(items);
-    -    const deliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
-    -    const totalPrice = subtotal + deliveryFee;
-    +    const currentDeliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
-    +    const totalPrice = subtotal + currentDeliveryFee;
-        
-        // Update navbar cart summary
-        const summaryEl = document.getElementById('navbarCartSummary');
-    @@ -718,7 +718,7 @@
-    
-    async function updateAllUI() {
-    -    updateNavbarCart();
-    +    await updateNavbarCart();
-        await updateOffcanvasCart();
-        updateProductControls();
-        await renderCartPage();
-    PATCH
+name: Apply cart.js hotfix
 
-    git apply --check /tmp/cart-fix.patch || git apply -3 --check /tmp/cart-fix.patch
-    git apply /tmp/cart-fix.patch || git apply -3 /tmp/cart-fix.patch
+on:
+  workflow_dispatch:
+
+jobs:
+  apply-cart-patch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create hotfix branch
+        run: |
+          BRANCH="hotfix/cart-deliveryfee-tdz"
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Apply cart.js patch
+        shell: bash
+        run: |
+          cat > /tmp/cart-fix.patch <<'PATCH'
+          diff --git a/app/static/js/cart.js b/app/static/js/cart.js
+          --- a/app/static/js/cart.js
+          +++ b/app/static/js/cart.js
+          @@ -306,8 +306,8 @@
+            async function updateNavbarCart() {
+              const items = loadCart();
+              const totalItems = getTotalItems(items);
+              const subtotal = getTotalPrice(items);
+          -    const deliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
+          -    const totalPrice = subtotal + deliveryFee;
+          +    const currentDeliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
+          +    const totalPrice = subtotal + currentDeliveryFee;
+              
+              // Update navbar cart summary
+              const summaryEl = document.getElementById('navbarCartSummary');
+          @@ -718,7 +718,7 @@
+          
+          async function updateAllUI() {
+          -    updateNavbarCart();
+          +    await updateNavbarCart();
+              await updateOffcanvasCart();
+              updateProductControls();
+              await renderCartPage();
+          PATCH
+
+          git apply --check /tmp/cart-fix.patch || git apply -3 --check /tmp/cart-fix.patch
+          git apply /tmp/cart-fix.patch || git apply -3 /tmp/cart-fix.patch
+
+      - name: Commit changes
+        run: |
+          git add app/static/js/cart.js
+          git commit -m "fix(cart): avoid TDZ in navbar delivery fee update"
+
+      - name: Push branch
+        run: |
+          git push --set-upstream origin "$BRANCH"
