@@ -92,6 +92,9 @@ from .schemas import (
 # Time-First Menu System (v4.0)
 from .timefirst_api import router as timefirst_router
 
+# Юридические страницы
+from .legal import router as legal_router
+
 try:
     import redis.asyncio as aioredis
 
@@ -409,6 +412,9 @@ setup_admin(app, engine)
 
 # Include time-first menu API
 app.include_router(timefirst_router)
+
+# Юридические страницы
+app.include_router(legal_router)
 
 import ipaddress
 
