@@ -3,8 +3,11 @@ name: Apply cart.js hotfix
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  apply-cart-patch:
+  apply-cart-hotfix:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,41 +27,49 @@ jobs:
           git checkout -b "$BRANCH"
           echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
 
-      - name: Apply cart.js patch
+      - name: Apply cart.js hotfix
         shell: bash
         run: |
-          cat > /tmp/cart-fix.patch <<'PATCH'
-          diff --git a/app/static/js/cart.js b/app/static/js/cart.js
-          --- a/app/static/js/cart.js
-          +++ b/app/static/js/cart.js
-          @@ -306,8 +306,8 @@
-            async function updateNavbarCart() {
-              const items = loadCart();
-              const totalItems = getTotalItems(items);
-              const subtotal = getTotalPrice(items);
-          -    const deliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
-          -    const totalPrice = subtotal + deliveryFee;
-          +    const currentDeliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
-          +    const totalPrice = subtotal + currentDeliveryFee;
-              
-              // Update navbar cart summary
-              const summaryEl = document.getElementById('navbarCartSummary');
-          @@ -718,7 +718,7 @@
-          
-          async function updateAllUI() {
-          -    updateNavbarCart();
-          +    await updateNavbarCart();
-              await updateOffcanvasCart();
-              updateProductControls();
-              await renderCartPage();
-          PATCH
+          python - <<'PY'
+          from pathlib import Path
 
-          git apply --check /tmp/cart-fix.patch || git apply -3 --check /tmp/cart-fix.patch
-          git apply /tmp/cart-fix.patch || git apply -3 /tmp/cart-fix.patch
+          path = Path("app/static/js/cart.js")
+          if not path.exists():
+              raise SystemExit("File not found: app/static/js/cart.js")
+
+          text = path.read_text(encoding="utf-8")
+
+          old_1 = "const deliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;"
+          new_1 = "const currentDeliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;"
+
+          old_2 = "const totalPrice = subtotal + deliveryFee;"
+          new_2 = "const totalPrice = subtotal + currentDeliveryFee;"
+
+          old_3 = "    updateNavbarCart();"
+          new_3 = "    await updateNavbarCart();"
+
+          if old_1 not in text:
+              raise SystemExit("Target line not found: " + old_1)
+          if old_2 not in text:
+              raise SystemExit("Target line not found: " + old_2)
+          if old_3 not in text:
+              raise SystemExit("Target line not found: " + old_3)
+
+          text = text.replace(old_1, new_1, 1)
+          text = text.replace(old_2, new_2, 1)
+          text = text.replace(old_3, new_3, 1)
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Show diff
+        run: |
+          git diff -- app/static/js/cart.js
 
       - name: Commit changes
         run: |
           git add app/static/js/cart.js
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "fix(cart): avoid TDZ in navbar delivery fee update"
 
       - name: Push branch
