@@ -816,3 +816,26 @@ button:focus-visible,
     top: 56px !important;
   }
 }
+
+/* ============================================================
+   Юридические страницы 
+   ============================================================ */
+
+/* Ссылки в футере */
+.legal-footer-links {
+  border-top: 1px solid var(--color-accent-border, rgba(0,0,0,.1));
+  padding-top: 0.75rem;
+  padding-bottom: 0.5rem;
+}
+
+.legal-footer-links a {
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #6c757d);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.legal-footer-links a:hover {
+  color: var(--color-element-primary, #0d6efd);
+  text-decoration: underline;
+}
