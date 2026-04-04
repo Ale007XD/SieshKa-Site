@@ -32,7 +32,10 @@ async def notify_both(text: str) -> None:
     Sends notifications through MAX and SMS in parallel channel model.
     Failed MAX deliveries are pushed to Redis dlq:max.
     """
-    failed_uids = await notify_max_staff(text)
+    failed_uids, failed_phones = await asyncio.gather(
+        notify_max_staff(text),
+        notify_sms_staff(text),
+    )
 
     failed_phones = await notify_sms_staff(text)
     if failed_phones:
