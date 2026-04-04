@@ -37,7 +37,6 @@ async def notify_both(text: str) -> None:
         notify_sms_staff(text),
     )
 
-    failed_phones = await notify_sms_staff(text)
     if failed_phones:
         logger.warning("SMS failed for phones=%s", failed_phones)
 
@@ -52,8 +51,6 @@ async def notify_both(text: str) -> None:
             )
             await _redis.rpush("dlq:max", entry)
             logger.warning("MAX failed for uid=%s → pushed to dlq:max", uid)
-
-    await notify_sms_staff(text)
 
 
 async def get_failed_notifications_count() -> int:
@@ -84,8 +81,8 @@ async def _dlq_worker() -> None:
                     if ok:
                         retried += 1
                     else:
-                        await _redis.rpush("dlq:max", item)  # back to tail
-                        break  # stop until next cycle
+                        await _redis.rpush("dlq:max", item)
+                        break
                 except Exception as e:
                     logger.error("DLQ item processing error: %s", e)
                     await _redis.rpush("dlq:max", item)
