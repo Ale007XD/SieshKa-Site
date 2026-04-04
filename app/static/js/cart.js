@@ -306,8 +306,8 @@ const CartManager = (function() {
     const items = loadCart();
     const totalItems = getTotalItems(items);
     const subtotal = getTotalPrice(items);
-    const deliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
-    const totalPrice = subtotal + deliveryFee;
+    const currentDeliveryFee = totalItems > 0 && deliveryFeeLoaded ? deliveryFee : 0;
+    const totalPrice = subtotal + currentDeliveryFee;
     
     // Update navbar cart summary
     const summaryEl = document.getElementById('navbarCartSummary');
@@ -718,7 +718,7 @@ const CartManager = (function() {
   }
   
   async function updateAllUI() {
-    updateNavbarCart();
+    await updateNavbarCart();
     await updateOffcanvasCart();
     updateProductControls();
     await renderCartPage();
