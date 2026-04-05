@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     
     # App
     APP_NAME: str = "Sieshka"
-    APP_VERSION: str = "3.0.0"
+    APP_VERSION: str = "3.0.1"
     DEBUG: bool = False
     ENV: str = "production"
     
