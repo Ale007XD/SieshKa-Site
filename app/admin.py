@@ -844,7 +844,9 @@ def format_status_with_buttons(order: Order) -> str:
             btn_color = "danger" if next_status == OrderStatus.cancelled else "primary"
             label = next_labels.get(next_status, next_status.value)
             status_safe = escape(next_status.value)
-            confirm_msg = escape(f"Изменить статус заказа #{order.order_number or order.id}?")
+            confirm_msg = escape(
+                f"Изменить статус заказа #{order.order_number or order.id}?"
+            )
             payload = {"order_id": order.id, "status": next_status.value}
             payload_json = json.dumps(payload, ensure_ascii=False)
             html += f'''
@@ -874,7 +876,9 @@ def format_payment_with_button(order: Order) -> str:
     method_safe = escape(method_label)
 
     if order.payment_confirmed:
-        confirm_msg = escape(f"Отметить заказ #{order.order_number or order.id} как неоплаченный?")
+        confirm_msg = escape(
+            f"Отметить заказ #{order.order_number or order.id} как неоплаченный?"
+        )
         payload = {"order_id": order.id, "payment_confirmed": False}
         payload_json = json.dumps(payload, ensure_ascii=False)
         html = f'''
@@ -889,7 +893,9 @@ def format_payment_with_button(order: Order) -> str:
             </button>
         '''
     else:
-        confirm_msg = escape(f"Подтвердить оплату заказа #{order.order_number or order.id}?")
+        confirm_msg = escape(
+            f"Подтвердить оплату заказа #{order.order_number or order.id}?"
+        )
         payload = {"order_id": order.id, "payment_confirmed": True}
         payload_json = json.dumps(payload, ensure_ascii=False)
         html = f'''
@@ -1038,7 +1044,9 @@ async def update_order_status_endpoint(request: Request):
             # Send notification
             if old_status != new_status:
                 try:
-                    await notify_order_status(order.order_number or str(order.id), new_status.value)
+                    await notify_order_status(
+                        order.order_number or str(order.id), new_status.value
+                    )
                 except Exception as e:
                     logger.error(f"Failed to send status notification: {e}")
 
@@ -1091,7 +1099,9 @@ async def update_payment_status_endpoint(request: Request):
             # Send notification if payment confirmed
             if not old_payment_status and new_payment_status:
                 try:
-                    await notify_order_status(order.order_number or str(order.id), "payment_confirmed")
+                    await notify_order_status(
+                        order.order_number or str(order.id), "payment_confirmed"
+                    )
                 except Exception as e:
                     logger.error(f"Failed to send payment notification: {e}")
 
@@ -1248,7 +1258,12 @@ class OrderAdmin(ModelView, model=Order):
         Order.customer_name,
     ]
     column_searchable_list = [Order.phone_e164, Order.address, Order.order_number]
-    column_sortable_list = [Order.created_at, Order.id, Order.total_rub, Order.order_number]
+    column_sortable_list = [
+        Order.created_at,
+        Order.id,
+        Order.total_rub,
+        Order.order_number,
+    ]
     column_filters = [
         AllUniqueStringValuesFilter(Order.status),
         AllUniqueStringValuesFilter(Order.payment_method),

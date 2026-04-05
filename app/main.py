@@ -1169,7 +1169,9 @@ async def create_order(request: Request, payload: OrderCreate):
                     raise HTTPException(502, "Платёжный сервис временно недоступен")
 
             ORDER_COUNT.inc()
-            logger.info(f"Order {order.order_number} (id={order.id}) created successfully")
+            logger.info(
+                f"Order {order.order_number} (id={order.id}) created successfully"
+            )
 
             try:
                 items_text = "\n".join(
