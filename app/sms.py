@@ -24,13 +24,12 @@ async def send_sms(phone: str, text: str) -> bool:
     phone — E.164 format (+79XXXXXXXXX).
     Returns True on success, False on any error.
     """
-    if not settings.SMSC_LOGIN or not settings.SMSC_PASSWORD:
-        logger.warning("SMSC credentials not set, skipping SMS")
+    if not settings.SMSC_API_KEY:
+        logger.warning("SMSC_API_KEY not set, skipping SMS")
         return False
 
     params = {
-        "login": settings.SMSC_LOGIN,
-        "psw": settings.SMSC_PASSWORD,
+        "apikey": settings.SMSC_API_KEY,
         "phones": phone,
         "mes": _truncate(text),
         "charset": "utf-8",
