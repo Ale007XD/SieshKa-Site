@@ -1,7 +1,7 @@
 # SieshKa-Site Final Assembly Report
 
-**Date**: 2026-02-13  
-**Version**: v3.0.0-final  
+**Date**: 2026-04-05  
+**Version**: v3.0.1  
 **Baseline**: SieshKa-Site-v3 (v3.0.0)
 
 ---
@@ -49,7 +49,7 @@ SieshKa-Site-final/
 │   │   ├── index.html
 │   │   ├── cart.html
 │   │   ├── checkout.html
-│   │   ├── thanks.html
+│   │   ├── thanks.html         ✅ v3.0.1: delivery_fee + total_with_delivery
 │   │   └── closed.html
 │   └── static/
 │       └── app.js              # Frontend JavaScript
@@ -159,7 +159,7 @@ docker compose ps
 - [x] requirements.txt (23 dependencies)
 - [x] .env.example (45 variables)
 - [x] alembic.ini (39 lines)
-- [x] app/main.py (607 lines)
+- [x] app/main.py (1290 lines)
 - [x] app/models.py (111 lines, 6 models)
 - [x] All 6 HTML templates
 - [x] nginx/default.conf (64 lines)
@@ -261,6 +261,11 @@ Run: `./cleanup.sh`
 
 ## 📈 Next Steps (Future Versions)
 
+### v3.0.1 ✅ Выпущено (2026-04-05)
+- [x] thanks.html: фиксированная стоимость доставки из MenuConfiguration
+- [x] thanks.html: итого к оплате = сумма заказа + доставка
+- [x] main.py: thanks_page передаёт delivery_fee и total_with_delivery в шаблон
+
 ### v3.1.0 Potential Improvements
 - [ ] Automated testing suite
 - [ ] CI/CD pipeline configuration
@@ -335,6 +340,6 @@ The assembled release includes:
 
 ---
 
-*Generated: 2026-02-13*  
-*Assembler: SieshKa-Site Assembly Tool*  
+*Generated: 2026-04-05*  
+*Version: v3.0.1*  
 *Baseline: SieshKa-Site-v3.0.0*

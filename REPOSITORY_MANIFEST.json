@@ -2,12 +2,12 @@
   "manifest_version": "1.0.0",
   "project_name": "SieshKa-Site",
   "project_description": "FastAPI-based food delivery service with PostgreSQL, Redis, SQLAdmin, Telegram notifications, Nginx, YooKassa payments, and SMS/Max notifications",
-  "baseline_version": "v3.0.0",
-  "final_version": "v3.1.0-rc1",
-  "created_at": "2026-04-03T04:00:00Z",
+  "baseline_version": "v3.0.1",
+  "final_version": "v3.0.1",
+  "created_at": "2026-04-05T00:00:00Z",
   "current_status": {
-    "milestone": "Checkout flow restored, YooKassa schema compatible",
-    "completion_percentage": 85,
+    "milestone": "v3.0.1 — показ стоимости доставки и итого на странице thanks",
+    "completion_percentage": 87,
     "api_status": "healthy (localhost:8002/health)",
     "db_migrations": "9c445de5fdf5 (head)",
     "cash_flow": "200 OK ✅",
@@ -32,6 +32,11 @@
     "v3.1-rc1": {
       "path": "SieshKa-Site-v3.1-rc1",
       "description": "YooKassa schema + nullable idempotency_key, checkout restored",
+      "status": "previous"
+    },
+    "v3.0.1": {
+      "path": "SieshKa-Site-main",
+      "description": "Страница thanks: добавлены фиксированная стоимость доставки и итого к оплате",
       "status": "current"
     }
   },
@@ -42,14 +47,23 @@
         "description": "Environment variables template - ADD YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY",
         "required": true,
         "checksum_required": true,
-        "pending": ["YOOKASSA vars"]
+        "pending": [
+          "YOOKASSA vars"
+        ]
       },
       "docker-compose.yml": {
         "type": "docker_compose",
         "description": "Blue/green deploy: api_green:8002, api_blue:8001, nginx:80/443",
         "required": true,
         "checksum_required": true,
-        "services": ["db", "redis", "api_green", "nginx", "certbot", "backup"]
+        "services": [
+          "db",
+          "redis",
+          "api_green",
+          "nginx",
+          "certbot",
+          "backup"
+        ]
       },
       "Dockerfile": {
         "type": "dockerfile",
@@ -67,8 +81,8 @@
     "application": {
       "app/main.py": {
         "type": "fastapi_app",
-        "description": "Main app 1037loc - create_order handles yookassa_card branch, webhook pending",
-        "line_count": 1037,
+        "description": "Main app 1290loc — thanks_page передаёт delivery_fee и total_with_delivery из MenuConfiguration",
+        "line_count": 1290,
         "status": "needs refactor to routers"
       },
       "app/models.py": {
@@ -98,8 +112,11 @@
       },
       "config/settings.py": {
         "type": "pydantic_settings",
-        "description": "YOOKASSA_SHOP_ID/SECRET_KEY Optional(None)",
-        "pending": ["MAX_BOT_TOKEN", "SMSC_LOGIN/PASSWORD"]
+        "description": "APP_VERSION=3.0.1, Pydantic settings",
+        "pending": [
+          "MAX_BOT_TOKEN",
+          "SMSC_LOGIN/PASSWORD"
+        ]
       }
     },
     "migrations": {
@@ -130,8 +147,8 @@
       },
       "app/templates/thanks.html": {
         "type": "jinja2_template",
-        "description": "Pending: pending state for yookassa_card",
-        "status": "needs update"
+        "description": "Показывает сумму заказа, фиксированную стоимость доставки и итого к оплате",
+        "status": "updated v3.0.1"
       },
       "static/js/cart.js": {
         "type": "javascript",
@@ -151,7 +168,9 @@
     "python": {
       "version": "3.12",
       "requirements_file": "requirements.txt",
-      "pending": ["yookassa==3.*"],
+      "pending": [
+        "yookassa==3.*"
+      ],
       "key_packages": [
         "fastapi==0.115.8",
         "uvicorn[standard]==0.30.6",
@@ -193,31 +212,46 @@
       "priority": "high",
       "task": "YooKassa config",
       "details": "YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY -> smoke-test confirmation_url",
-      "files": [".env.example", "config/settings.py"]
+      "files": [
+        ".env.example",
+        "config/settings.py"
+      ]
     },
     {
       "priority": "high",
       "task": "Webhook /api/payments/webhook",
       "details": "IP allowlist + X-Content-SHA256 verify in main.py",
-      "files": ["app/main.py", "app/payments.py"]
+      "files": [
+        "app/main.py",
+        "app/payments.py"
+      ]
     },
     {
       "priority": "medium",
       "task": "Frontend updates",
-      "details": "cart.js confirmation_url redirect, thanks.html pending state",
-      "files": ["static/js/cart.js", "templates/thanks.html"]
+      "details": "cart.js confirmation_url redirect (pending); thanks.html delivery_fee+total — DONE v3.0.1",
+      "files": [
+        "static/js/cart.js",
+        "templates/thanks.html"
+      ]
     },
     {
       "priority": "low",
       "task": "Notifications refactor",
       "details": "app/max_notify.py, app/sms.py, app/notifications.py -> replace notify_both()",
-      "dependencies": ["MAX_BOT_TOKEN", "SMSC_LOGIN/PASSWORD"]
+      "dependencies": [
+        "MAX_BOT_TOKEN",
+        "SMSC_LOGIN/PASSWORD"
+      ]
     },
     {
       "priority": "low",
       "task": "Refactoring",
       "details": "TZ fix, blocking SessionLocal -> asyncio.to_thread, split main.py",
-      "files": ["app/main.py", "app/routers/*"]
+      "files": [
+        "app/main.py",
+        "app/routers/*"
+      ]
     }
   ],
   "validation_passed": [
@@ -257,12 +291,36 @@
   },
   "next_milestones": {
     "v3.1.0": {
-      "features": ["YooKassa live payments", "Webhook processing"],
-      "blockers": ["YOOKASSA_SHOP_ID/SECRET_KEY"]
+      "features": [
+        "YooKassa live payments",
+        "Webhook processing"
+      ],
+      "blockers": [
+        "YOOKASSA_SHOP_ID/SECRET_KEY"
+      ]
     },
     "v3.2.0": {
-      "features": ["SMS/Max notifications", "Redis DLQ"],
-      "blockers": ["MAX_BOT_TOKEN", "SMSC_LOGIN/PASSWORD"]
+      "features": [
+        "SMS/Max notifications",
+        "Redis DLQ"
+      ],
+      "blockers": [
+        "MAX_BOT_TOKEN",
+        "SMSC_LOGIN/PASSWORD"
+      ]
     }
-  }
+  },
+  "changelog": [
+    {
+      "version": "3.0.1",
+      "date": "2026-04-05",
+      "changes": [
+        "thanks.html: добавлена строка «Стоимость доставки» (фиксированная из MenuConfiguration)",
+        "thanks.html: добавлена строка «Итого к оплате» (сумма заказа + доставка)",
+        "main.py: thanks_page читает MenuConfiguration.delivery_fee и передаёт в шаблон",
+        "config/constants.py: VERSION = 3.0.1",
+        "config/settings.py: APP_VERSION = 3.0.1"
+      ]
+    }
+  ]
 }
