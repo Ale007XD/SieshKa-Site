@@ -25,21 +25,28 @@ def upgrade():
     op.create_index('ix_orders_order_number', 'orders', ['order_number'], unique=True)
 
     # Заполняем order_number для уже существующих заказов в формате ГГ-ММ-ДД-00N
+    # ROW_NUMBER() нельзя использовать напрямую в UPDATE — используем CTE
     op.execute("""
-        UPDATE orders
-        SET order_number = (
-            TO_CHAR(created_at, 'YY-MM-DD') || '-' ||
-            LPAD(
-                CAST(
-                    ROW_NUMBER() OVER (
-                        PARTITION BY DATE(created_at)
-                        ORDER BY id
-                    ) AS TEXT
-                ),
-                3, '0'
-            )
+        WITH numbered AS (
+            SELECT
+                id,
+                TO_CHAR(created_at, 'YY-MM-DD') || '-' ||
+                LPAD(
+                    CAST(
+                        ROW_NUMBER() OVER (
+                            PARTITION BY DATE(created_at)
+                            ORDER BY id
+                        ) AS TEXT
+                    ),
+                    3, '0'
+                ) AS new_order_number
+            FROM orders
+            WHERE order_number IS NULL
         )
-        WHERE order_number IS NULL
+        UPDATE orders
+        SET order_number = numbered.new_order_number
+        FROM numbered
+        WHERE orders.id = numbered.id
     """)
 
 
