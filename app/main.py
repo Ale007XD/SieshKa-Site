@@ -1267,6 +1267,9 @@ async def thanks_page(request: Request, order_id: int):
             if EVENING_MENU_START <= order_time < EVENING_START:
                 is_evening_preorder = True
 
+        config = db.query(MenuConfiguration).first()
+        delivery_fee = config.delivery_fee if config else 0
+
         return templates.TemplateResponse(
             "thanks.html",
             {
@@ -1275,6 +1278,8 @@ async def thanks_page(request: Request, order_id: int):
                 "asap_text": ASAP_TEXT,
                 "is_evening_preorder": is_evening_preorder,
                 "evening_delivery_start": EVENING_START.strftime("%H:%M"),
+                "delivery_fee": delivery_fee,
+                "total_with_delivery": order.total_rub + delivery_fee,
             },
         )
 
