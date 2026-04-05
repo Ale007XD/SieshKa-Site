@@ -48,8 +48,26 @@
       </div>
       
       <div class="d-flex justify-content-between mb-2">
-        <span class="text-muted">Сумма:</span>
-        <span class="fw-bold">{{ order.total_rub }} ₽</span>
+        <span class="text-muted">Сумма заказа:</span>
+        <span>{{ order.total_rub }} ₽</span>
+      </div>
+
+      <div class="d-flex justify-content-between mb-2">
+        <span class="text-muted">Стоимость доставки:</span>
+        <span>
+          {% if delivery_fee > 0 %}
+            {{ delivery_fee }} ₽ (фиксированная)
+          {% else %}
+            Бесплатно
+          {% endif %}
+        </span>
+      </div>
+
+      <hr class="my-2">
+
+      <div class="d-flex justify-content-between mb-2">
+        <span class="fw-semibold">Итого к оплате:</span>
+        <span class="fw-bold fs-5">{{ total_with_delivery }} ₽</span>
       </div>
     </div>
 
