@@ -70,9 +70,10 @@ class Settings(BaseSettings):
     MAX_STAFF_CHAT_IDS: List[int] = []
 
     # SMS (smsc.ru)
-    SMSC_LOGIN: Optional[str] = None
-    SMSC_PASSWORD: Optional[str] = None
+    SMSC_API_KEY: Optional[str] = None
     STAFF_PHONES: List[str] = []
+
+    # YOOKASSA (yookassa.ru)
     YOOKASSA_SHOP_ID: Optional[str] = None
     YOOKASSA_SECRET_KEY: Optional[str] = None
     
