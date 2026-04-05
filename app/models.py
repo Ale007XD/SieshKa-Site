@@ -116,6 +116,9 @@ class Order(Base):
     __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    order_number: Mapped[str | None] = mapped_column(
+        String(20), unique=True, nullable=True, index=True
+    )
     customer_name: Mapped[str] = mapped_column(String(120))
     phone_e164: Mapped[str] = mapped_column(String(32), index=True)
     address: Mapped[str] = mapped_column(String(300))

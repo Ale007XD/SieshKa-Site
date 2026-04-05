@@ -1143,6 +1143,17 @@ async def create_order(request: Request, payload: OrderCreate):
             db.add(order)
             db.flush()
 
+            # Генерация номера заказа: ГГ-ММ-ДД-00N
+            today = date.today()
+            prefix = today.strftime("%y-%m-%d")
+            count_today = (
+                db.query(func.count(Order.id))
+                .filter(func.date(Order.created_at) == today)
+                .scalar()
+                or 0
+            )
+            order.order_number = f"{prefix}-{count_today:03d}"
+
             for item_data in order_items:
                 order_item = OrderItem(order_id=order.id, **item_data)
                 db.add(order_item)
@@ -1158,7 +1169,7 @@ async def create_order(request: Request, payload: OrderCreate):
                     raise HTTPException(502, "Платёжный сервис временно недоступен")
 
             ORDER_COUNT.inc()
-            logger.info(f"Order {order.id} created successfully")
+            logger.info(f"Order {order.order_number} (id={order.id}) created successfully")
 
             try:
                 items_text = "\n".join(
@@ -1179,7 +1190,7 @@ async def create_order(request: Request, payload: OrderCreate):
                 )
 
                 await notify_both(
-                    f"🛒 Новый заказ #{order.id}\n"
+                    f"🛒 Новый заказ #{order.order_number}\n"
                     f"👤 {order.customer_name}\n"
                     f"📞 {order.phone_e164}\n"
                     f"📍 {order.address}\n"

@@ -133,9 +133,9 @@ async def notify_both(text: str) -> None:
     await send_message(KITCHEN_CHAT, safe_text)
 
 
-async def notify_order_status(order_id: int, status: str) -> None:
+async def notify_order_status(order_number: str, status: str) -> None:
     """Notify about order status change"""
-    text = f"Заказ #{order_id}: статус → {status}"
+    text = f"Заказ #{order_number}: статус → {status}"
     await notify_both(text)
 
 
