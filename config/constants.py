@@ -4,7 +4,7 @@ Low Priority Fix: Application constants
 from datetime import time
 
 # Version
-VERSION = "3.0.0"
+VERSION = "3.0.1"
 
 # Order Limits
 MAX_QTY_PER_ITEM = 20
