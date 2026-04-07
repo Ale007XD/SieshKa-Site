@@ -285,9 +285,7 @@ class ProductAdmin(ModelView, model=Product):
     )
     async def bulk_activate(self, request: Request):
         """Массовая активация товаров"""
-        if request.method != "POST":
-            return JSONResponse({"error": "Method not allowed"}, status_code=405)
-
+        
         pks_str = request.query_params.get("pks", "")
         pks = [pk for pk in pks_str.split(",") if pk]
 
@@ -321,9 +319,7 @@ class ProductAdmin(ModelView, model=Product):
     )
     async def bulk_deactivate(self, request: Request):
         """Массовая деактивация товаров"""
-        if request.method != "POST":
-            return JSONResponse({"error": "Method not allowed"}, status_code=405)
-
+        
         pks_str = request.query_params.get("pks", "")
         pks = [pk for pk in pks_str.split(",") if pk]
 
