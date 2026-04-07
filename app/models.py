@@ -126,6 +126,7 @@ class Order(Base):
     idempotency_key: Mapped[str | None] = mapped_column(
         String(64), unique=True, nullable=True
     )
+    delivery_fee_rub: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_rub: Mapped[int] = mapped_column(Integer)
     status: Mapped[OrderStatus] = mapped_column(
         Enum(OrderStatus), default=OrderStatus.new

@@ -1123,13 +1123,19 @@ async def create_order(request: Request, payload: OrderCreate):
                     }
                 )
 
+            # Добавляем стоимость доставки к итоговой сумме заказа
+            config = db.query(MenuConfiguration).first()
+            delivery_fee = config.delivery_fee if config else 0
+            total_with_delivery = total + delivery_fee
+
             order = Order(
                 customer_name=payload.name.strip(),
                 phone_e164=phone_e164,
                 address=payload.address.strip(),
                 comment=payload.comment.strip() if payload.comment else None,
                 idempotency_key=payload.idempotency_key,
-                total_rub=total,
+                delivery_fee_rub=delivery_fee,
+                total_rub=total_with_delivery,
                 payment_method=PaymentMethod(payload.payment_method),
                 delivery_mode=DeliveryMode(payload.delivery_mode),
                 delivery_slot=payload.delivery_slot
@@ -1187,8 +1193,15 @@ async def create_order(request: Request, payload: OrderCreate):
                 else:
                     delivery_info = "\nДоставка: как можно скорее"
 
-                payment_method = (
-                    "Наличные" if order.payment_method.value == "cash" else "СБП"
+                payment_method_label = {
+                    "cash": "Наличные",
+                    "sbp_transfer": "СБП",
+                    "yookassa_card": "Банковская карта",
+                }.get(order.payment_method.value, order.payment_method.value)
+
+                subtotal = total  # сумма товаров без доставки
+                delivery_fee_line = (
+                    f"\n🚚 Доставка: {delivery_fee}₽" if delivery_fee > 0 else "\n🚚 Доставка: бесплатно"
                 )
 
                 await notify_both(
@@ -1196,10 +1209,11 @@ async def create_order(request: Request, payload: OrderCreate):
                     f"👤 {order.customer_name}\n"
                     f"📞 {order.phone_e164}\n"
                     f"📍 {order.address}\n"
-                    f"💰 Оплата: {payment_method}\n"
-                    f"{delivery_info}\n\n"
+                    f"💰 Оплата: {payment_method_label}\n"
+                    f"{delivery_info}"
+                    f"{delivery_fee_line}\n\n"
                     f"📦 Состав:\n{items_text}\n\n"
-                    f"💵 Итого: {order.total_rub}₽"
+                    f"💵 Итого (с доставкой): {order.total_rub}₽"
                 )
 
             except Exception as e:
@@ -1281,7 +1295,10 @@ async def thanks_page(request: Request, order_id: int):
                 is_evening_preorder = True
 
         config = db.query(MenuConfiguration).first()
-        delivery_fee = config.delivery_fee if config else 0
+        config_delivery_fee = config.delivery_fee if config else 0
+        # Используем delivery_fee_rub из заказа (если заказ создан после фикса),
+        # иначе fallback на текущий config (для старых заказов)
+        delivery_fee = order.delivery_fee_rub if order.delivery_fee_rub is not None else config_delivery_fee
 
         return templates.TemplateResponse(
             "thanks.html",
@@ -1292,7 +1309,9 @@ async def thanks_page(request: Request, order_id: int):
                 "is_evening_preorder": is_evening_preorder,
                 "evening_delivery_start": EVENING_START.strftime("%H:%M"),
                 "delivery_fee": delivery_fee,
-                "total_with_delivery": order.total_rub + delivery_fee,
+                # total_rub уже включает доставку (после фикса)
+                # для старых заказов: order.delivery_fee_rub is None — прибавляем из config
+                "total_with_delivery": order.total_rub if order.delivery_fee_rub is not None else order.total_rub + config_delivery_fee,
             },
         )
 
