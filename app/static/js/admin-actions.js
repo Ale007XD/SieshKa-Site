@@ -4,29 +4,38 @@
     function getSelectedPks() {
         const selected = [];
 
-        document.querySelectorAll('input[name="pks"], input[data-pk]:checked, input[type="checkbox"][value]:checked').forEach(function(el) {
-            if (el.name === 'pks' && el.checked && el.value) {
-                selected.push(el.value);
-                return;
-            }
-
-            if (el.dataset.pk) {
-                selected.push(el.dataset.pk);
-                return;
-            }
-
-            if (el.checked && el.value && el.value !== 'on') {
+        document.querySelectorAll('input[name="pks"]:checked').forEach(function(el) {
+            if (el.value) {
                 selected.push(el.value);
             }
         });
 
-        return [...new Set(selected)].join(',');
+        return selected;
+    }
+
+    function setLoadingState(el, isLoading) {
+        if (!el) return;
+
+        if (isLoading) {
+            el.dataset.originalText = el.innerHTML;
+            el.classList.add('disabled');
+            el.setAttribute('aria-disabled', 'true');
+            el.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        } else {
+            if (el.dataset.originalText) {
+                el.innerHTML = el.dataset.originalText;
+            }
+            el.classList.remove('disabled');
+            el.removeAttribute('aria-disabled');
+        }
     }
 
     async function postJson(endpoint, payload) {
         const response = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(payload)
         });
 
@@ -36,18 +45,21 @@
             return await response.json();
         }
 
-        if (response.redirected || response.ok) {
+        if (response.ok || response.redirected) {
             return { success: true };
         }
 
         return { success: false, error: 'Неожиданный ответ сервера' };
     }
 
-    async function postForm(endpoint, formData) {
-        const response = await fetch(endpoint, {
+    async function postBulkAction(endpoint, pks) {
+        const url = endpoint + '?pks=' + encodeURIComponent(pks.join(','));
+
+        const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-            body: new URLSearchParams(formData).toString()
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
         });
 
         const contentType = response.headers.get('content-type') || '';
@@ -56,76 +68,119 @@
             return await response.json();
         }
 
-        if (response.redirected || response.ok) {
+        if (response.ok || response.redirected) {
             return { success: true };
         }
 
         return { success: false, error: 'Неожиданный ответ сервера' };
     }
 
-    function initAdminActions() {
-        document.body.addEventListener('click', async function(e) {
-            const btn = e.target.closest('[data-admin-action]');
-            if (!btn) return;
+    async function handleDataAdminAction(btn) {
+        const action = btn.dataset.adminAction;
+        const confirmMsg = btn.dataset.confirmMessage;
+        const payload = btn.dataset.payload ? JSON.parse(btn.dataset.payload) : {};
 
-            e.preventDefault();
+        if (confirmMsg && !confirm(confirmMsg)) {
+            return;
+        }
 
-            const action = btn.dataset.adminAction;
-            const confirmMsg = btn.dataset.confirmMessage;
-            const payload = btn.dataset.payload ? JSON.parse(btn.dataset.payload) : {};
+        setLoadingState(btn, true);
 
-            if (confirmMsg && !confirm(confirmMsg)) {
+        try {
+            let endpoint;
+
+            if (action === 'update-status') {
+                endpoint = '/admin/api/orders/update-status';
+            } else if (action === 'update-payment') {
+                endpoint = '/api/admin/orders/update-payment';
+            } else if (action === 'toggle-active') {
+                endpoint = '/api/admin/products/toggle-active';
+            } else {
+                console.error('Unknown action:', action);
+                setLoadingState(btn, false);
                 return;
             }
 
-            btn.disabled = true;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            const data = await postJson(endpoint, payload);
 
-            try {
-                let data;
-
-                if (action === 'update-status') {
-                    data = await postJson('/admin/api/orders/update-status', payload);
-                } else if (action === 'update-payment') {
-                    data = await postJson('/api/admin/orders/update-payment', payload);
-                } else if (action === 'toggle-active') {
-                    data = await postJson('/api/admin/products/toggle-active', payload);
-                } else if (action === 'bulk-activate' || action === 'bulk-deactivate') {
-                    const pks = getSelectedPks();
-
-                    if (!pks) {
-                        alert('Сначала выбери товары');
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                        return;
-                    }
-
-                    data = await postForm('/admin/product/action/' + action, { pks: pks });
-                } else {
-                    console.error('Unknown action:', action);
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
-                    return;
+            if (data.success) {
+                const row = btn.closest('tr');
+                if (row) {
+                    row.style.background = '#d4edda';
                 }
+                setTimeout(function() {
+                    location.reload();
+                }, 300);
+            } else {
+                alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                setLoadingState(btn, false);
+            }
+        } catch (err) {
+            alert('Ошибка сети: ' + err.message);
+            setLoadingState(btn, false);
+        }
+    }
 
-                if (data.success) {
-                    const row = btn.closest('tr');
-                    if (row) {
-                        row.style.background = '#d4edda';
-                    }
-                    setTimeout(function() {
-                        location.reload();
-                    }, 300);
-                } else {
-                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
-                }
-            } catch (err) {
-                alert('Ошибка сети: ' + err.message);
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+    async function handleBulkAction(link, endpoint, confirmMessage) {
+        const pks = getSelectedPks();
+
+        if (!pks.length) {
+            alert('Сначала выбери товары');
+            return;
+        }
+
+        if (confirmMessage && !confirm(confirmMessage)) {
+            return;
+        }
+
+        setLoadingState(link, true);
+
+        try {
+            const data = await postBulkAction(endpoint, pks);
+
+            if (data.success) {
+                setTimeout(function() {
+                    location.reload();
+                }, 300);
+            } else {
+                alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                setLoadingState(link, false);
+            }
+        } catch (err) {
+            alert('Ошибка сети: ' + err.message);
+            setLoadingState(link, false);
+        }
+    }
+
+    function initAdminActions() {
+        document.body.addEventListener('click', async function(e) {
+            const btn = e.target.closest('[data-admin-action]');
+            if (btn) {
+                e.preventDefault();
+                await handleDataAdminAction(btn);
+                return;
+            }
+
+            const bulkDeactivateLink = e.target.closest('#action-customconfirm-bulk-deactivate');
+            if (bulkDeactivateLink) {
+                e.preventDefault();
+                await handleBulkAction(
+                    bulkDeactivateLink,
+                    '/admin/product/action/bulk_deactivate',
+                    'Деактивировать выбранные товары?'
+                );
+                return;
+            }
+
+            const bulkActivateLink = e.target.closest('#action-customconfirm-bulk-activate');
+            if (bulkActivateLink) {
+                e.preventDefault();
+                await handleBulkAction(
+                    bulkActivateLink,
+                    '/admin/product/action/bulk_activate',
+                    'Активировать выбранные товары?'
+                );
+                return;
             }
         });
     }
