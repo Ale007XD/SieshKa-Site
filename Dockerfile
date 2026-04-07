@@ -34,6 +34,10 @@ COPY scripts ./scripts
 COPY config ./config
 COPY alembic.ini .
 
+# Patch sqladmin static: override admin-actions.js with our custom version
+COPY app/static/js/admin-actions.js \
+    /usr/local/lib/python3.12/site-packages/sqladmin/statics/js/admin-actions.js
+
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
