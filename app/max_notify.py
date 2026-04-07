@@ -23,11 +23,12 @@ async def send_max_message(user_id: int, text: str) -> bool:
         return False
 
     headers = {"Authorization": settings.MAX_BOT_TOKEN}
-    payload = {"user_id": user_id, "text": text}
+    params = {"user_id": user_id}
+    body = {"text": text}
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.post(MAX_API_URL, json=payload, headers=headers)
+            resp = await client.post(MAX_API_URL, params=params, json=body, headers=headers)
             resp.raise_for_status()
             return True
     except httpx.HTTPStatusError as e:
