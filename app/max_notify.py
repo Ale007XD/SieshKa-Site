@@ -80,10 +80,11 @@ async def answer_max_callback(
     body: dict[str, Any] = {}
     if notification:
         body["notification"] = notification
-    if message_text is not None:
-        body["message"] = {"text": message_text}
-        if attachments:
-            body["message"]["attachments"] = attachments
+    if message_text is not None or attachments is not None:
+        body["message"] = {}
+        if message_text is not None:
+            body["message"]["text"] = message_text
+        body["message"]["attachments"] = attachments or []
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
