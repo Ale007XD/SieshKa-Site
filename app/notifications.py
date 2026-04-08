@@ -37,6 +37,7 @@ async def _push_failed_max_to_dlq(failed_uids: list[int], text: str) -> None:
                 "user_id": uid,
                 "text": text,
                 "timestamp": datetime.now().isoformat(),
+                "retries": 0,
             }
         )
         await _redis.rpush("dlq:max", entry)
@@ -100,11 +101,15 @@ async def _dlq_worker() -> None:
                     break
                 try:
                     data = json.loads(item)
+                    if data.get("retries", 0) >= 5:
+                        logger.error("DLQ: dropping after 5 retries for uid=%s", data["user_id"])
+                        break
                     ok = await send_max_message(data["user_id"], data["text"])
                     if ok:
                         retried += 1
                     else:
-                        await _redis.rpush("dlq:max", item)
+                        data["retries"] = data.get("retries", 0) + 1
+                        await _redis.rpush("dlq:max", json.dumps(data))
                         break
                 except Exception as e:
                     logger.error("DLQ item processing error: %s", e)
