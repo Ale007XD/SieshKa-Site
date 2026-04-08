@@ -64,7 +64,6 @@ from .availability_models import MenuConfiguration
 
 # [ШАГ 3] Заменён импорт из telegram на notifications-агрегатор
 from .notifications import (
-    notify_both,
     notify_order_to_staff,
     get_failed_notifications_count,
     init_notifications,
@@ -1329,7 +1328,6 @@ async def thanks_page(request: Request, order_id: int):
         )
 
 
-
 @app.post("/api/max/callback", tags=["Orders"])
 async def max_callback(request: Request):
     """
@@ -1368,14 +1366,18 @@ async def max_callback(request: Request):
         payload = json.loads(callback.get("data") or "")
     except (TypeError, json.JSONDecodeError):
         if callback_id:
-            await answer_max_callback(callback_id, notification="Некорректные данные кнопки")
+            await answer_max_callback(
+                callback_id, notification="Некорректные данные кнопки"
+            )
         raise HTTPException(status_code=400, detail="Invalid callback payload")
 
     order_id = payload.get("order_id")
     status_str = payload.get("status")
     if not order_id or not status_str:
         if callback_id:
-            await answer_max_callback(callback_id, notification="Недостаточно данных для смены статуса")
+            await answer_max_callback(
+                callback_id, notification="Недостаточно данных для смены статуса"
+            )
         raise HTTPException(status_code=400, detail="Missing order_id or status")
 
     # Переиспользуем логику admin endpoint

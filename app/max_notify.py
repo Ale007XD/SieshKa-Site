@@ -16,7 +16,7 @@ from .order_status import get_next_statuses
 logger = logging.getLogger(__name__)
 
 MAX_MESSAGES_URL = "https://platform-api.max.ru/messages"
-MAX_ANSWERS_URL  = "https://platform-api.max.ru/answers"
+MAX_ANSWERS_URL = "https://platform-api.max.ru/answers"
 _TIMEOUT = 10.0
 
 
@@ -45,7 +45,9 @@ async def send_max_message(
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.post(MAX_MESSAGES_URL, params=params, json=body, headers=headers)
+            resp = await client.post(
+                MAX_MESSAGES_URL, params=params, json=body, headers=headers
+            )
             resp.raise_for_status()
         return True
     except httpx.HTTPStatusError as e:
@@ -85,11 +87,17 @@ async def answer_max_callback(
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.post(MAX_ANSWERS_URL, params=params, json=body, headers=headers)
+            resp = await client.post(
+                MAX_ANSWERS_URL, params=params, json=body, headers=headers
+            )
             resp.raise_for_status()
         return True
     except httpx.HTTPStatusError as e:
-        logger.error("MAX answers HTTP error for callback_id=%s: %s", callback_id, e.response.text)
+        logger.error(
+            "MAX answers HTTP error for callback_id=%s: %s",
+            callback_id,
+            e.response.text,
+        )
     except httpx.RequestError as e:
         logger.error("MAX answers request error for callback_id=%s: %s", callback_id, e)
     return False
@@ -110,17 +118,21 @@ def build_order_status_keyboard(
             {"order_id": order_id, "status": next_status.value},
             ensure_ascii=False,
         )
-        buttons_row.append({
-            "type": "callback",
-            "text": next_status.value,
-            "payload": payload,
-        })
+        buttons_row.append(
+            {
+                "type": "callback",
+                "text": next_status.value,
+                "payload": payload,
+            }
+        )
     if not buttons_row:
         return []
-    return [{
-        "type": "inline_keyboard",
-        "payload": {"buttons": [buttons_row]},
-    }]
+    return [
+        {
+            "type": "inline_keyboard",
+            "payload": {"buttons": [buttons_row]},
+        }
+    ]
 
 
 async def send_max_order_message(

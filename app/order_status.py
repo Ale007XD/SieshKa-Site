@@ -5,12 +5,12 @@ from .models import Order, OrderStatus
 # Валидные переходы статусов заказа.
 # Ключ — текущий статус, значение — кортеж допустимых следующих.
 VALID_STATUS_TRANSITIONS: dict[OrderStatus, tuple[OrderStatus, ...]] = {
-    OrderStatus.new:        (OrderStatus.accepted, OrderStatus.cancelled),
-    OrderStatus.accepted:   (OrderStatus.cooking,  OrderStatus.cancelled),
-    OrderStatus.cooking:    (OrderStatus.on_the_way, OrderStatus.cancelled),
+    OrderStatus.new: (OrderStatus.accepted, OrderStatus.cancelled),
+    OrderStatus.accepted: (OrderStatus.cooking, OrderStatus.cancelled),
+    OrderStatus.cooking: (OrderStatus.on_the_way, OrderStatus.cancelled),
     OrderStatus.on_the_way: (OrderStatus.delivered, OrderStatus.cancelled),
-    OrderStatus.delivered:  (),
-    OrderStatus.cancelled:  (),
+    OrderStatus.delivered: (),
+    OrderStatus.cancelled: (),
 }
 
 
@@ -31,7 +31,9 @@ def parse_status(value: str) -> OrderStatus:
     return OrderStatus(value)
 
 
-def update_order_status(order: Order, new_status: OrderStatus) -> tuple[OrderStatus, bool]:
+def update_order_status(
+    order: Order, new_status: OrderStatus
+) -> tuple[OrderStatus, bool]:
     """
     Обновляет статус заказа с валидацией перехода.
 

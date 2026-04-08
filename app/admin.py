@@ -27,7 +27,6 @@ from .availability_models import AvailabilityRule, MenuConfiguration
 from .db import SessionLocal
 from .order_status import (
     VALID_STATUS_TRANSITIONS,
-    is_valid_transition,
     parse_status,
     update_order_status,
 )
@@ -41,7 +40,6 @@ def clear_menu_cache():
 
     menu_cache.clear()
     logger.info("Menu cache cleared")
-
 
 
 def log_admin_action(
@@ -280,7 +278,7 @@ class ProductAdmin(ModelView, model=Product):
     )
     async def bulk_activate(self, request: Request):
         """Массовая активация товаров"""
-        
+
         pks_str = request.query_params.get("pks", "")
         pks = [pk for pk in pks_str.split(",") if pk]
 
@@ -314,7 +312,7 @@ class ProductAdmin(ModelView, model=Product):
     )
     async def bulk_deactivate(self, request: Request):
         """Массовая деактивация товаров"""
-        
+
         pks_str = request.query_params.get("pks", "")
         pks = [pk for pk in pks_str.split(",") if pk]
 

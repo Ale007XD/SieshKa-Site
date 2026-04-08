@@ -32,11 +32,13 @@ async def _push_failed_max_to_dlq(failed_uids: list[int], text: str) -> None:
     if not failed_uids or not _redis:
         return
     for uid in failed_uids:
-        entry = json.dumps({
-            "user_id": uid,
-            "text": text,
-            "timestamp": datetime.now().isoformat(),
-        })
+        entry = json.dumps(
+            {
+                "user_id": uid,
+                "text": text,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
         await _redis.rpush("dlq:max", entry)
         logger.warning("MAX failed for uid=%s → pushed to dlq:max", uid)
 
