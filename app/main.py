@@ -1332,77 +1332,121 @@ async def thanks_page(request: Request, order_id: int):
 async def max_callback(request: Request):
     """
     MAX Platform webhook: обработка нажатий inline-кнопок смены статуса заказа.
-    Документация: https://dev.max.ru/docs/api-bots#tag/Callbacks
+    Для callback-кнопок MAX присылает событие message_callback, а payload кнопки
+    передаётся в callback-объекте как строка payload; для совместимости оставляем
+    fallback на data.
     """
-    # Проверка секрета (опционально, настраивается через MAX_WEBHOOK_SECRET)
     secret = request.headers.get("X-Max-Bot-Api-Secret")
     if settings.MAX_WEBHOOK_SECRET and secret != settings.MAX_WEBHOOK_SECRET:
         logger.warning("MAX callback: invalid webhook secret")
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    update = await request.json()
+    raw_body = await request.body()
+    print(f"MAX RAW BODY: {raw_body.decode('utf-8', errors='replace')}")
 
-    # Игнорируем всё кроме callback-кнопок
+    try:
+        update = await request.json()
+    except Exception as e:
+        print(f"MAX JSON PARSE ERROR: {e!r}")
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    print(f"MAX PARSED UPDATE: {update!r}")
+
     if update.get("type") != "message_callback":
+        print(f"MAX IGNORED UPDATE TYPE: {update.get('type')!r}")
         return JSONResponse({"ok": True, "ignored": True})
 
     callback = update.get("message_callback") or {}
+    print(f"MAX CALLBACK OBJECT: {callback!r}")
+
     callback_id: str | None = callback.get("callback_id")
+
     sender = callback.get("from") or {}
     try:
         sender_id: int | None = int(sender.get("user_id"))
     except (TypeError, ValueError):
         sender_id = None
 
-    # ACL по user_id (опционально)
+    print(f"MAX CALLBACK SENDER: sender_id={sender_id!r}")
+
     if settings.MAX_ALLOWED_USER_IDS and sender_id not in settings.MAX_ALLOWED_USER_IDS:
         logger.warning("MAX callback: forbidden user_id=%s", sender_id)
+        print(f"MAX ACL DENY: sender_id={sender_id!r}")
         if callback_id:
             await answer_max_callback(callback_id, notification="Недостаточно прав")
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # Парсим payload кнопки: {"order_id": int, "status": str}
+    raw_payload = callback.get("payload")
+    if raw_payload is None:
+        raw_payload = callback.get("data")
+
+    print(f"MAX CALLBACK PAYLOAD RAW: {raw_payload!r}")
+
     try:
-        payload = json.loads(callback.get("data") or "")
-    except (TypeError, json.JSONDecodeError):
+        payload = json.loads(raw_payload or "")
+    except (TypeError, json.JSONDecodeError) as e:
+        print(f"MAX CALLBACK PAYLOAD JSON ERROR: {e!r}")
         if callback_id:
             await answer_max_callback(
-                callback_id, notification="Некорректные данные кнопки"
+                callback_id,
+                notification="Некорректные данные кнопки",
             )
         raise HTTPException(status_code=400, detail="Invalid callback payload")
 
+    print(f"MAX CALLBACK PAYLOAD PARSED: {payload!r}")
+
     order_id = payload.get("order_id")
     status_str = payload.get("status")
+
     if not order_id or not status_str:
+        print(
+            f"MAX CALLBACK PAYLOAD MISSING FIELDS: "
+            f"order_id={order_id!r} status={status_str!r}"
+        )
         if callback_id:
             await answer_max_callback(
-                callback_id, notification="Недостаточно данных для смены статуса"
+                callback_id,
+                notification="Недостаточно данных для смены статуса",
             )
         raise HTTPException(status_code=400, detail="Missing order_id or status")
 
-    # Переиспользуем логику admin endpoint
+    print(f"MAX CALLBACK TARGET: order_id={order_id!r} status={status_str!r}")
+
     resp = await update_order_status_endpoint(
-        _MaxCallbackRequest({"order_id": order_id, "status": status_str})
+        _MaxCallbackRequest(
+            {"order_id": order_id, "status": status_str},
+            headers=request.headers,
+            client=request.client,
+        )
     )
 
     try:
         body = json.loads(resp.body.decode("utf-8"))
-        print(f"MAX DEBUG: order_id={order_id!r} status={status_str!r} body={body!r}")
-        
-    except Exception:
+    except Exception as e:
+        print(f"MAX RESPONSE PARSE ERROR: {e!r}")
         body = {"success": False, "error": "Unknown response"}
-        print(f"MAX DEBUG: order_id={order_id} status={status_str} body={body}")
+
+    print(
+        f"MAX UPDATE RESULT: order_id={order_id!r} "
+        f"status={status_str!r} response={body!r}"
+    )
 
     if callback_id:
         if body.get("success"):
             new_st = body.get("new_status", status_str)
-            print(f"MAX ERROR: order_id={order_id} status={status_str} error={body.get('error')}")
+            print(
+                f"MAX SUCCESS: order_id={order_id!r} "
+                f"status={status_str!r} new_status={new_st!r}"
+            )
             await answer_max_callback(
                 callback_id,
                 notification=f"Статус обновлён: {new_st}",
             )
         else:
-            print(f"MAX ERROR: order_id={order_id!r} status={status_str!r} error={body.get('error')!r}")
+            print(
+                f"MAX ERROR: order_id={order_id!r} "
+                f"status={status_str!r} error={body.get('error')!r}"
+            )
             await answer_max_callback(
                 callback_id,
                 notification=body.get("error", "Не удалось обновить статус"),
@@ -1414,8 +1458,10 @@ async def max_callback(request: Request):
 class _MaxCallbackRequest:
     """Минимальная обёртка для передачи payload в update_order_status_endpoint."""
 
-    def __init__(self, data: dict) -> None:
+    def __init__(self, data: dict, headers=None, client=None) -> None:
         self._data = data
+        self.headers = headers or {}
+        self.client = client
 
     async def json(self) -> dict:
         return self._data
