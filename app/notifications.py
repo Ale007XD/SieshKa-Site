@@ -2,7 +2,7 @@
 Staff notifications aggregator.
 Drop-in replacement for telegram.notify_both().
 Channels: MAX + SMS (parallel).
-DLQ for MAX failures: Redis list dlq:max.
+DLQ для MAX-ошибок: Redis list dlq:max.
 """
 
 import json
@@ -11,7 +11,8 @@ import asyncio
 from datetime import datetime
 from typing import Optional
 
-from .max_notify import notify_max_staff, send_max_message
+from .max_notify import notify_max_staff, notify_max_staff_order, send_max_message
+from .models import OrderStatus
 from .sms import notify_sms_staff
 
 logger = logging.getLogger(__name__)
@@ -21,40 +22,60 @@ _dlq_task: Optional[asyncio.Task] = None
 
 
 def init_notifications(redis_client) -> None:
-    """Inject Redis client. Call once from lifespan after Redis init."""
+    """Инжектирует Redis-клиент. Вызывается один раз из lifespan после инициализации Redis."""
     global _redis
     _redis = redis_client
 
 
+async def _push_failed_max_to_dlq(failed_uids: list[int], text: str) -> None:
+    """Пушит неудавшиеся MAX-доставки в DLQ."""
+    if not failed_uids or not _redis:
+        return
+    for uid in failed_uids:
+        entry = json.dumps({
+            "user_id": uid,
+            "text": text,
+            "timestamp": datetime.now().isoformat(),
+        })
+        await _redis.rpush("dlq:max", entry)
+        logger.warning("MAX failed for uid=%s → pushed to dlq:max", uid)
+
+
 async def notify_both(text: str) -> None:
     """
-    Drop-in replacement for telegram.notify_both(text).
-    Sends notifications through MAX and SMS in parallel channel model.
-    Failed MAX deliveries are pushed to Redis dlq:max.
+    Drop-in replacement для telegram.notify_both(text).
+    Отправляет уведомления через MAX и SMS параллельно.
+    Неудавшиеся MAX-доставки попадают в Redis dlq:max.
     """
     failed_uids, failed_phones = await asyncio.gather(
         notify_max_staff(text),
         notify_sms_staff(text),
     )
-
     if failed_phones:
         logger.warning("SMS failed for phones=%s", failed_phones)
+    await _push_failed_max_to_dlq(failed_uids, text)
 
-    if failed_uids and _redis:
-        for uid in failed_uids:
-            entry = json.dumps(
-                {
-                    "user_id": uid,
-                    "text": text,
-                    "timestamp": datetime.now().isoformat(),
-                }
-            )
-            await _redis.rpush("dlq:max", entry)
-            logger.warning("MAX failed for uid=%s → pushed to dlq:max", uid)
+
+async def notify_order_to_staff(
+    text: str,
+    order_id: int,
+    current_status: OrderStatus,
+) -> None:
+    """
+    Уведомление о заказе с кнопками смены статуса (MAX) + SMS параллельно.
+    Используется вместо notify_both при создании/обновлении заказа.
+    """
+    failed_uids, failed_phones = await asyncio.gather(
+        notify_max_staff_order(text, order_id, current_status),
+        notify_sms_staff(text),
+    )
+    if failed_phones:
+        logger.warning("SMS failed for phones=%s", failed_phones)
+    await _push_failed_max_to_dlq(failed_uids, text)
 
 
 async def get_failed_notifications_count() -> int:
-    """DLQ size from Redis. Replaces sync get_failed_notifications_count() from telegram.py."""
+    """Размер DLQ из Redis. Async-замена sync get_failed_notifications_count() из telegram.py."""
     if _redis:
         try:
             return await _redis.llen("dlq:max")
@@ -64,7 +85,7 @@ async def get_failed_notifications_count() -> int:
 
 
 async def _dlq_worker() -> None:
-    """Retry dlq:max every 60 seconds."""
+    """Ретраит dlq:max каждые 60 секунд."""
     while True:
         await asyncio.sleep(60)
         if not _redis:
@@ -94,7 +115,7 @@ async def _dlq_worker() -> None:
 
 
 def start_dlq_worker() -> asyncio.Task:
-    """Start background DLQ task. Call from lifespan."""
+    """Запускает фоновую DLQ-задачу. Вызывается из lifespan."""
     global _dlq_task
     _dlq_task = asyncio.create_task(_dlq_worker())
     logger.info("DLQ worker started")
@@ -102,7 +123,7 @@ def start_dlq_worker() -> asyncio.Task:
 
 
 def stop_dlq_worker() -> None:
-    """Cancel DLQ task. Call from lifespan cleanup."""
+    """Отменяет DLQ-задачу. Вызывается из lifespan cleanup."""
     if _dlq_task and not _dlq_task.done():
         _dlq_task.cancel()
         logger.info("DLQ worker stopped")

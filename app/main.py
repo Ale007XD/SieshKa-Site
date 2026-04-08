@@ -11,6 +11,7 @@ Low Priority Fixes:
 
 import sys
 import uuid
+import json
 import logging
 import signal
 from datetime import datetime, time, date, timedelta, timezone
@@ -64,11 +65,13 @@ from .availability_models import MenuConfiguration
 # [ШАГ 3] Заменён импорт из telegram на notifications-агрегатор
 from .notifications import (
     notify_both,
+    notify_order_to_staff,
     get_failed_notifications_count,
     init_notifications,
     start_dlq_worker,
     stop_dlq_worker,
 )
+from .max_notify import answer_max_callback
 from .payments import (
     create_yookassa_payment,
     handle_webhook as handle_yookassa_webhook,
@@ -1206,7 +1209,7 @@ async def create_order(request: Request, payload: OrderCreate):
                     else "\n🚚 Доставка: бесплатно"
                 )
 
-                await notify_both(
+                await notify_order_to_staff(
                     f"🛒 Новый заказ #{order.order_number}\n"
                     f"👤 {order.customer_name}\n"
                     f"📞 {order.phone_e164}\n"
@@ -1215,7 +1218,9 @@ async def create_order(request: Request, payload: OrderCreate):
                     f"{delivery_info}"
                     f"{delivery_fee_line}\n\n"
                     f"📦 Состав:\n{items_text}\n\n"
-                    f"💵 Итого (с доставкой): {order.total_rub}₽"
+                    f"💵 Итого (с доставкой): {order.total_rub}₽",
+                    order_id=order.id,
+                    current_status=order.status,
                 )
 
             except Exception as e:
@@ -1322,6 +1327,91 @@ async def thanks_page(request: Request, order_id: int):
                 else order.total_rub + config_delivery_fee,
             },
         )
+
+
+
+@app.post("/api/max/callback", tags=["Orders"])
+async def max_callback(request: Request):
+    """
+    MAX Platform webhook: обработка нажатий inline-кнопок смены статуса заказа.
+    Документация: https://dev.max.ru/docs/api-bots#tag/Callbacks
+    """
+    # Проверка секрета (опционально, настраивается через MAX_WEBHOOK_SECRET)
+    secret = request.headers.get("X-Max-Webhook-Secret")
+    if settings.MAX_WEBHOOK_SECRET and secret != settings.MAX_WEBHOOK_SECRET:
+        logger.warning("MAX callback: invalid webhook secret")
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    update = await request.json()
+
+    # Игнорируем всё кроме callback-кнопок
+    if update.get("type") != "message_callback":
+        return JSONResponse({"ok": True, "ignored": True})
+
+    callback = update.get("message_callback") or {}
+    callback_id: str | None = callback.get("callback_id")
+    sender = callback.get("from") or {}
+    try:
+        sender_id: int | None = int(sender.get("user_id"))
+    except (TypeError, ValueError):
+        sender_id = None
+
+    # ACL по user_id (опционально)
+    if settings.MAX_ALLOWED_USER_IDS and sender_id not in settings.MAX_ALLOWED_USER_IDS:
+        logger.warning("MAX callback: forbidden user_id=%s", sender_id)
+        if callback_id:
+            await answer_max_callback(callback_id, notification="Недостаточно прав")
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    # Парсим payload кнопки: {"order_id": int, "status": str}
+    try:
+        payload = json.loads(callback.get("data") or "")
+    except (TypeError, json.JSONDecodeError):
+        if callback_id:
+            await answer_max_callback(callback_id, notification="Некорректные данные кнопки")
+        raise HTTPException(status_code=400, detail="Invalid callback payload")
+
+    order_id = payload.get("order_id")
+    status_str = payload.get("status")
+    if not order_id or not status_str:
+        if callback_id:
+            await answer_max_callback(callback_id, notification="Недостаточно данных для смены статуса")
+        raise HTTPException(status_code=400, detail="Missing order_id or status")
+
+    # Переиспользуем логику admin endpoint
+    resp = await update_order_status_endpoint(
+        _MaxCallbackRequest({"order_id": order_id, "status": status_str})
+    )
+
+    try:
+        body = json.loads(resp.body.decode("utf-8"))
+    except Exception:
+        body = {"success": False, "error": "Unknown response"}
+
+    if callback_id:
+        if body.get("success"):
+            new_st = body.get("new_status", status_str)
+            await answer_max_callback(
+                callback_id,
+                notification=f"Статус обновлён: {new_st}",
+            )
+        else:
+            await answer_max_callback(
+                callback_id,
+                notification=body.get("error", "Не удалось обновить статус"),
+            )
+
+    return resp
+
+
+class _MaxCallbackRequest:
+    """Минимальная обёртка для передачи payload в update_order_status_endpoint."""
+
+    def __init__(self, data: dict) -> None:
+        self._data = data
+
+    async def json(self) -> dict:
+        return self._data
 
 
 if __name__ == "__main__":

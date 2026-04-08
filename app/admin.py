@@ -24,8 +24,13 @@ from .models import (
     AdminAuditLog,
 )
 from .availability_models import AvailabilityRule, MenuConfiguration
-from .telegram import notify_order_status
 from .db import SessionLocal
+from .order_status import (
+    VALID_STATUS_TRANSITIONS,
+    is_valid_transition,
+    parse_status,
+    update_order_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +42,6 @@ def clear_menu_cache():
     menu_cache.clear()
     logger.info("Menu cache cleared")
 
-
-# Valid status transitions
-VALID_STATUS_TRANSITIONS = {
-    OrderStatus.new: [OrderStatus.accepted, OrderStatus.cancelled],
-    OrderStatus.accepted: [OrderStatus.cooking, OrderStatus.cancelled],
-    OrderStatus.cooking: [OrderStatus.on_the_way, OrderStatus.cancelled],
-    OrderStatus.on_the_way: [OrderStatus.delivered, OrderStatus.cancelled],
-    OrderStatus.delivered: [],
-    OrderStatus.cancelled: [],
-}
 
 
 def log_admin_action(
@@ -1013,51 +1008,42 @@ async def update_order_status_endpoint(request: Request):
                     {"success": False, "error": "Order not found"}, status_code=404
                 )
 
-            old_status = order.status
             try:
-                new_status = OrderStatus(new_status_str)
+                new_status = parse_status(new_status_str)
             except ValueError:
                 return JSONResponse(
                     {"success": False, "error": f"Invalid status: {new_status_str}"},
                     status_code=400,
                 )
 
-            # Validate transition
-            valid_next = VALID_STATUS_TRANSITIONS.get(old_status, [])
-            if new_status not in valid_next and old_status != new_status:
+            try:
+                old_status, changed = update_order_status(order, new_status)
+            except ValueError as e:
                 return JSONResponse(
-                    {
-                        "success": False,
-                        "error": f"Invalid transition: {old_status.value} -> {new_status.value}",
-                    },
+                    {"success": False, "error": str(e)},
                     status_code=400,
                 )
 
-            # Update status
-            order.status = new_status
             db.commit()
 
-            # Send notification
-            if old_status != new_status:
-                try:
-                    await notify_order_status(
-                        order.order_number or str(order.id), new_status.value
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to send status notification: {e}")
-
-            # Log action
-            log_admin_action(
-                request,
-                "update_status",
-                "Order",
-                order.id,
-                {"status": old_status.value},
-                {"status": new_status.value},
-            )
+            if changed:
+                log_admin_action(
+                    request,
+                    "update_status",
+                    "Order",
+                    order.id,
+                    {"status": old_status.value},
+                    {"status": new_status.value},
+                )
 
             return JSONResponse(
-                {"success": True, "new_status": new_status.value, "order_id": order.id}
+                {
+                    "success": True,
+                    "new_status": new_status.value,
+                    "old_status": old_status.value,
+                    "order_id": order.id,
+                    "changed": changed,
+                }
             )
 
     except Exception as e:
