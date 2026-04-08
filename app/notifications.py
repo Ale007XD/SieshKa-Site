@@ -1,6 +1,6 @@
 """
 Staff notifications aggregator.
-Drop-in replacement for telegram.notify_both().
+Drop-in replacement для telegram.notify_both().
 Channels: MAX + SMS (parallel).
 DLQ для MAX-ошибок: Redis list dlq:max.
 """

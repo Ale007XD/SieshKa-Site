@@ -19,6 +19,14 @@ MAX_MESSAGES_URL = "https://platform-api.max.ru/messages"
 MAX_ANSWERS_URL = "https://platform-api.max.ru/answers"
 _TIMEOUT = 10.0
 
+# Русские метки и цвета кнопок (intent: positive=зелёный, negative=красный, default=синий/серый)
+_STATUS_LABEL: dict[OrderStatus, tuple[str, str]] = {
+    OrderStatus.new:       ("🟠 НОВЫЙ",     "default"),
+    OrderStatus.accepted:  ("🔵 ПРИНЯТ",    "default"),
+    OrderStatus.delivered: ("✅ ДОСТАВЛЕН", "positive"),
+    OrderStatus.cancelled: ("❌ ОТМЕНИТЬ",  "negative"),
+}
+
 
 async def send_max_message(
     user_id: int,
@@ -26,7 +34,7 @@ async def send_max_message(
     attachments: list[dict[str, Any]] | None = None,
 ) -> bool:
     """
-    Отправляет сообщение одному пользователю MAX.
+    Отправляет сообщение одному пользователю MAX через /messages.
     attachments — опциональный список (inline_keyboard и т.д.).
     Возвращает True при успехе.
     """
@@ -46,35 +54,35 @@ async def send_max_message(
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(
-                MAX_ANSWERS_URL, params=params, json=body, headers=headers
+                MAX_MESSAGES_URL, params=params, json=body, headers=headers
             )
             resp.raise_for_status()
             data = resp.json()
             if not data.get("success", False):
                 logger.error(
-                    "MAX answers API returned success=false for callback_id=%s: %s",
-                    callback_id,
+                    "MAX messages API returned success=false for user_id=%s: %s",
+                    user_id,
                     data,
                 )
                 return False
             logger.info(
-                "MAX answers OK for callback_id=%s: %s",
-                callback_id,
+                "MAX messages OK for user_id=%s: %s",
+                user_id,
                 data,
             )
         return True
     except httpx.HTTPStatusError as e:
         logger.error(
-            "MAX answers HTTP error for callback_id=%s: %s",
-            callback_id,
+            "MAX messages HTTP error for user_id=%s: %s",
+            user_id,
             e.response.text,
         )
     except ValueError as e:
         logger.error(
-            "MAX answers JSON parse error for callback_id=%s: %s", callback_id, e
+            "MAX messages JSON parse error for user_id=%s: %s", user_id, e
         )
     except httpx.RequestError as e:
-        logger.error("MAX answers request error for callback_id=%s: %s", callback_id, e)
+        logger.error("MAX messages request error for user_id=%s: %s", user_id, e)
     return False
 
 
@@ -113,12 +121,29 @@ async def answer_max_callback(
                 MAX_ANSWERS_URL, params=params, json=body, headers=headers
             )
             resp.raise_for_status()
+            data = resp.json()
+            if not data.get("success", False):
+                logger.error(
+                    "MAX answers API returned success=false for callback_id=%s: %s",
+                    callback_id,
+                    data,
+                )
+                return False
+            logger.info(
+                "MAX answers OK for callback_id=%s: %s",
+                callback_id,
+                data,
+            )
         return True
     except httpx.HTTPStatusError as e:
         logger.error(
             "MAX answers HTTP error for callback_id=%s: %s",
             callback_id,
             e.response.text,
+        )
+    except ValueError as e:
+        logger.error(
+            "MAX answers JSON parse error for callback_id=%s: %s", callback_id, e
         )
     except httpx.RequestError as e:
         logger.error("MAX answers request error for callback_id=%s: %s", callback_id, e)
@@ -132,10 +157,14 @@ def build_order_status_keyboard(
     """
     Строит inline_keyboard для сообщения о заказе.
     Кнопки — допустимые следующие статусы из VALID_STATUS_TRANSITIONS.
+    Метки на русском языке с эмодзи-цветами.
     Возвращает пустой список если переходов нет (delivered / cancelled).
     """
     buttons_row: list[dict[str, Any]] = []
     for next_status in get_next_statuses(current_status):
+        label, intent = _STATUS_LABEL.get(
+            next_status, (next_status.value.upper(), "default")
+        )
         payload = json.dumps(
             {"order_id": order_id, "status": next_status.value},
             ensure_ascii=False,
@@ -143,7 +172,8 @@ def build_order_status_keyboard(
         buttons_row.append(
             {
                 "type": "callback",
-                "text": next_status.value,
+                "text": label,
+                "intent": intent,
                 "payload": payload,
             }
         )
