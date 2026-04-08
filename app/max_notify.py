@@ -21,12 +21,12 @@ _TIMEOUT = 10.0
 
 # Русские метки и цвета кнопок (intent: positive=зелёный, negative=красный, default=синий/серый)
 _STATUS_LABEL: dict[OrderStatus, tuple[str, str]] = {
-    OrderStatus.new:       ("🟠 НОВЫЙ",     "default"),
-    OrderStatus.accepted:  ("🔵 ПРИНЯТ",    "default"),
-    OrderStatus.cooking:   ("👨‍🍳 ГОТОВИТСЯ", "default"),
-    OrderStatus.on_the_way:("🛵 В ПУТИ",    "default"),
-    OrderStatus.delivered: ("✅ ДОСТАВЛЕН", "positive"),
-    OrderStatus.cancelled: ("❌ ОТМЕНИТЬ",  "negative"),
+    OrderStatus.new:        ("🟠 НОВЫЙ",      "default"),
+    OrderStatus.accepted:   ("🔵 ПРИНЯТ",     "default"),
+    OrderStatus.cooking:    ("👨‍🍳 ГОТОВИТСЯ", "default"),
+    OrderStatus.on_the_way: ("🛵 В ПУТИ",     "default"),
+    OrderStatus.delivered:  ("✅ ДОСТАВЛЕН",  "positive"),
+    OrderStatus.cancelled:  ("❌ ОТМЕНИТЬ",   "negative"),
 }
 
 
@@ -60,7 +60,12 @@ async def send_max_message(
             )
             resp.raise_for_status()
             data = resp.json()
-            if not data.get("success", False):
+            # MAX иногда возвращает success=false, но сообщение доставлено —
+            # это видно по наличию message.body.mid в ответе (баг MAX API
+            # при отправке сообщений с inline_keyboard).
+            mid = (data.get("message") or {}).get("body", {}).get("mid")
+            delivered = data.get("success") or bool(mid)
+            if not delivered:
                 logger.error(
                     "MAX messages API returned success=false for user_id=%s: %s",
                     user_id,
@@ -68,9 +73,9 @@ async def send_max_message(
                 )
                 return False
             logger.info(
-                "MAX messages OK for user_id=%s: %s",
+                "MAX messages OK for user_id=%s mid=%s",
                 user_id,
-                data,
+                mid or "?",
             )
         return True
     except httpx.HTTPStatusError as e:

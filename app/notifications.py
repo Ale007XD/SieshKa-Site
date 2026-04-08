@@ -11,7 +11,12 @@ import asyncio
 from datetime import datetime
 from typing import Optional
 
-from .max_notify import notify_max_staff, notify_max_staff_order, send_max_message
+from .max_notify import (
+    notify_max_staff,
+    notify_max_staff_order,
+    send_max_message,
+    build_order_status_keyboard,
+)
 from .models import OrderStatus
 from .sms import notify_sms_staff
 
@@ -27,7 +32,11 @@ def init_notifications(redis_client) -> None:
     _redis = redis_client
 
 
-async def _push_failed_max_to_dlq(failed_uids: list[int], text: str) -> None:
+async def _push_failed_max_to_dlq(
+    failed_uids: list[int],
+    text: str,
+    attachments: list | None = None,
+) -> None:
     """Пушит неудавшиеся MAX-доставки в DLQ."""
     if not failed_uids or not _redis:
         return
@@ -36,6 +45,7 @@ async def _push_failed_max_to_dlq(failed_uids: list[int], text: str) -> None:
             {
                 "user_id": uid,
                 "text": text,
+                "attachments": attachments or [],
                 "timestamp": datetime.now().isoformat(),
                 "retries": 0,
             }
@@ -56,7 +66,7 @@ async def notify_both(text: str) -> None:
     )
     if failed_phones:
         logger.warning("SMS failed for phones=%s", failed_phones)
-    await _push_failed_max_to_dlq(failed_uids, text)
+    await _push_failed_max_to_dlq(failed_uids, text, attachments=None)
 
 
 async def notify_order_to_staff(
@@ -68,13 +78,14 @@ async def notify_order_to_staff(
     Уведомление о заказе с кнопками смены статуса (MAX) + SMS параллельно.
     Используется вместо notify_both при создании/обновлении заказа.
     """
+    attachments = build_order_status_keyboard(order_id, current_status) or None
     failed_uids, failed_phones = await asyncio.gather(
         notify_max_staff_order(text, order_id, current_status),
         notify_sms_staff(text),
     )
     if failed_phones:
         logger.warning("SMS failed for phones=%s", failed_phones)
-    await _push_failed_max_to_dlq(failed_uids, text)
+    await _push_failed_max_to_dlq(failed_uids, text, attachments=attachments)
 
 
 async def get_failed_notifications_count() -> int:
@@ -102,9 +113,15 @@ async def _dlq_worker() -> None:
                 try:
                     data = json.loads(item)
                     if data.get("retries", 0) >= 5:
-                        logger.error("DLQ: dropping after 5 retries for uid=%s", data["user_id"])
+                        logger.error(
+                            "DLQ: dropping after 5 retries for uid=%s",
+                            data.get("user_id"),
+                        )
                         break
-                    ok = await send_max_message(data["user_id"], data["text"])
+                    attachments = data.get("attachments") or None
+                    ok = await send_max_message(
+                        data["user_id"], data["text"], attachments=attachments
+                    )
                     if ok:
                         retried += 1
                     else:
