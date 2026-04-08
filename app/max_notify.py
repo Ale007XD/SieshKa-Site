@@ -23,6 +23,8 @@ _TIMEOUT = 10.0
 _STATUS_LABEL: dict[OrderStatus, tuple[str, str]] = {
     OrderStatus.new:       ("🟠 НОВЫЙ",     "default"),
     OrderStatus.accepted:  ("🔵 ПРИНЯТ",    "default"),
+    OrderStatus.cooking:   ("👨‍🍳 ГОТОВИТСЯ", "default"),
+    OrderStatus.on_the_way:("🛵 В ПУТИ",    "default"),
     OrderStatus.delivered: ("✅ ДОСТАВЛЕН", "positive"),
     OrderStatus.cancelled: ("❌ ОТМЕНИТЬ",  "negative"),
 }
