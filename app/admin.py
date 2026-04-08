@@ -1069,6 +1069,7 @@ async def update_order_status_endpoint(request: Request):
         print(f"UPDATE STATUS EXCEPTION: {e!r}")
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
+
 async def update_payment_status_endpoint(request: Request):
     """AJAX endpoint to update order payment status"""
     try:

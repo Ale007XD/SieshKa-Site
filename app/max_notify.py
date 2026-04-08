@@ -70,10 +70,13 @@ async def send_max_message(
             e.response.text,
         )
     except ValueError as e:
-        logger.error("MAX answers JSON parse error for callback_id=%s: %s", callback_id, e)
+        logger.error(
+            "MAX answers JSON parse error for callback_id=%s: %s", callback_id, e
+        )
     except httpx.RequestError as e:
         logger.error("MAX answers request error for callback_id=%s: %s", callback_id, e)
     return False
+
 
 async def answer_max_callback(
     callback_id: str,
