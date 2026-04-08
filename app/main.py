@@ -55,6 +55,7 @@ from .models import (
     Product,
     Order,
     OrderItem,
+    OrderStatus,
     PaymentMethod,
     DeliveryMode,
     MenuPeriod,
@@ -70,7 +71,8 @@ from .notifications import (
     start_dlq_worker,
     stop_dlq_worker,
 )
-from .max_notify import answer_max_callback
+from .max_notify import answer_max_callback, build_order_status_keyboard
+from .models import OrderStatus
 from .payments import (
     create_yookassa_payment,
     handle_webhook as handle_yookassa_webhook,
@@ -1434,6 +1436,15 @@ async def max_callback(request: Request):
     if callback_id:
         if body.get("success"):
             new_st = body.get("new_status", status_str)
+            new_attachments = []
+            try:
+                new_attachments = build_order_status_keyboard(
+                    int(order_id),
+                    OrderStatus(new_st),
+                )
+            except Exception as e:
+                print(f"MAX KEYBOARD BUILD ERROR: {e!r}")
+                
             print(
                 f"MAX SUCCESS: order_id={order_id!r} "
                 f"status={status_str!r} new_status={new_st!r}"
