@@ -1387,17 +1387,22 @@ async def max_callback(request: Request):
 
     try:
         body = json.loads(resp.body.decode("utf-8"))
+        logger.info("MAX callback DEBUG: order_id=%r status=%r body=%r", order_id, status_str, body)
+        
     except Exception:
         body = {"success": False, "error": "Unknown response"}
+        logger.error("MAX callback JSON parse ERROR: %s", e)
 
     if callback_id:
         if body.get("success"):
             new_st = body.get("new_status", status_str)
+            logger.info("MAX callback SUCCESS: order_id=%r new_status=%r", order_id, new_st)
             await answer_max_callback(
                 callback_id,
                 notification=f"Статус обновлён: {new_st}",
             )
         else:
+            logger.error("MAX callback FAILED: order_id=%r status=%r error=%r", order_id, status_str, body.get("error"))
             await answer_max_callback(
                 callback_id,
                 notification=body.get("error", "Не удалось обновить статус"),
