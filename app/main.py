@@ -1437,6 +1437,9 @@ async def max_callback(request: Request):
         if body.get("success"):
             new_st = body.get("new_status", status_str)
             new_attachments = []
+            current_text = (
+                ((update.get("message") or {}).get("body") or {}).get("text")
+            )
             try:
                 new_attachments = build_order_status_keyboard(
                     int(order_id),
@@ -1452,6 +1455,8 @@ async def max_callback(request: Request):
             await answer_max_callback(
                 callback_id,
                 notification=f"Статус обновлён: {new_st}",
+                message_text=current_text,
+                attachments=new_attachments,
             )
         else:
             print(
