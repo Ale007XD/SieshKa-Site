@@ -1383,6 +1383,7 @@ async def max_callback(request: Request):
     print(f"MAX CALLBACK PAYLOAD RAW: {raw_payload!r}")
 
     try:
+        raw_payload = callback.get("payload") or callback.get("data")
         payload = json.loads(raw_payload or "")
     except (TypeError, json.JSONDecodeError) as e:
         print(f"MAX CALLBACK PAYLOAD JSON ERROR: {e!r}")
