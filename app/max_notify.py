@@ -46,31 +46,34 @@ async def send_max_message(
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(
-                MAX_MESSAGES_URL, params=params, json=body, headers=headers
+                MAX_ANSWERS_URL, params=params, json=body, headers=headers
             )
             resp.raise_for_status()
-                data = resp.json()
-                if not data.get("success", False):
-                    logger.error(
-                        "MAX answers API returned success=false for callback_id=%s: %s",
-                        callback_id,
-                        data,
-                    )
-                    return False
-                logger.info(
-                    "MAX answers OK for callback_id=%s: %s",
+            data = resp.json()
+            if not data.get("success", False):
+                logger.error(
+                    "MAX answers API returned success=false for callback_id=%s: %s",
                     callback_id,
                     data,
                 )
-            return True
+                return False
+            logger.info(
+                "MAX answers OK for callback_id=%s: %s",
+                callback_id,
+                data,
+            )
+        return True
     except httpx.HTTPStatusError as e:
-        logger.error("MAX API HTTP error for user_id=%s: %s", user_id, e.response.text)
+        logger.error(
+            "MAX answers HTTP error for callback_id=%s: %s",
+            callback_id,
+            e.response.text,
+        )
     except ValueError as e:
         logger.error("MAX answers JSON parse error for callback_id=%s: %s", callback_id, e)
     except httpx.RequestError as e:
-        logger.error("MAX API request error for user_id=%s: %s", user_id, e)
+        logger.error("MAX answers request error for callback_id=%s: %s", callback_id, e)
     return False
-
 
 async def answer_max_callback(
     callback_id: str,
