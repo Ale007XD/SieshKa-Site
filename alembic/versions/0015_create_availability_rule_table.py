@@ -1,6 +1,6 @@
 """create availability_rule table
 
-Revision ID: 0015_create_availability_rule_table
+Revision ID: 0015_availability_rule
 Revises: 0014_add_delivery_fee_rub
 Create Date: 2026-04-07 18:54:00.000000
 
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
-revision = '0015_create_availability_rule_table'
+revision = '0015_availability_rule'
 down_revision = '0014_add_delivery_fee_rub'
 branch_labels = None
 depends_on = None
