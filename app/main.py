@@ -1335,7 +1335,7 @@ async def max_callback(request: Request):
     Документация: https://dev.max.ru/docs/api-bots#tag/Callbacks
     """
     # Проверка секрета (опционально, настраивается через MAX_WEBHOOK_SECRET)
-    secret = request.headers.get("X-Max-Webhook-Secret")
+    secret = request.headers.get("X-Max-Bot-Api-Secret")
     if settings.MAX_WEBHOOK_SECRET and secret != settings.MAX_WEBHOOK_SECRET:
         logger.warning("MAX callback: invalid webhook secret")
         raise HTTPException(status_code=403, detail="Forbidden")
