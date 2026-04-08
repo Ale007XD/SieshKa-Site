@@ -1352,16 +1352,16 @@ async def max_callback(request: Request):
 
     print(f"MAX PARSED UPDATE: {update!r}")
 
-    if update.get("type") != "message_callback":
-        print(f"MAX IGNORED UPDATE TYPE: {update.get('type')!r}")
+    if update.get("update_type") != "message_callback":
+        print(f"MAX IGNORED UPDATE TYPE: {update.get('update_type')!r}")
         return JSONResponse({"ok": True, "ignored": True})
 
-    callback = update.get("message_callback") or {}
+    callback = update.get("callback") or {}
     print(f"MAX CALLBACK OBJECT: {callback!r}")
 
     callback_id: str | None = callback.get("callback_id")
 
-    sender = callback.get("from") or {}
+    sender = callback.get("user") or {}
     try:
         sender_id: int | None = int(sender.get("user_id"))
     except (TypeError, ValueError):
@@ -1383,7 +1383,6 @@ async def max_callback(request: Request):
     print(f"MAX CALLBACK PAYLOAD RAW: {raw_payload!r}")
 
     try:
-        raw_payload = callback.get("payload") or callback.get("data")
         payload = json.loads(raw_payload or "")
     except (TypeError, json.JSONDecodeError) as e:
         print(f"MAX CALLBACK PAYLOAD JSON ERROR: {e!r}")
