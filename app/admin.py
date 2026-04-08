@@ -990,10 +990,13 @@ async def update_order_status_endpoint(request: Request):
     """AJAX endpoint to update order status"""
     try:
         data = await request.json()
+        print(f"UPDATE STATUS INPUT: {data!r}")
+
         order_id = data.get("order_id")
         new_status_str = data.get("status")
 
         if not order_id or not new_status_str:
+            print("UPDATE STATUS FAIL: missing order_id or status")
             return JSONResponse(
                 {"success": False, "error": "Missing order_id or status"},
                 status_code=400,
@@ -1002,13 +1005,16 @@ async def update_order_status_endpoint(request: Request):
         with SessionLocal() as db:
             order = db.query(Order).filter(Order.id == order_id).first()
             if not order:
+                print(f"UPDATE STATUS FAIL: order not found order_id={order_id!r}")
                 return JSONResponse(
-                    {"success": False, "error": "Order not found"}, status_code=404
+                    {"success": False, "error": "Order not found"},
+                    status_code=404,
                 )
 
             try:
                 new_status = parse_status(new_status_str)
             except ValueError:
+                print(f"UPDATE STATUS FAIL: invalid status={new_status_str!r}")
                 return JSONResponse(
                     {"success": False, "error": f"Invalid status: {new_status_str}"},
                     status_code=400,
@@ -1017,12 +1023,26 @@ async def update_order_status_endpoint(request: Request):
             try:
                 old_status, changed = update_order_status(order, new_status)
             except ValueError as e:
+                print(
+                    f"UPDATE STATUS FAIL: transition error "
+                    f"order_id={order_id!r} "
+                    f"old_status={getattr(order.status, 'value', order.status)!r} "
+                    f"new_status={new_status.value!r} "
+                    f"error={str(e)!r}"
+                )
                 return JSONResponse(
                     {"success": False, "error": str(e)},
                     status_code=400,
                 )
 
             db.commit()
+
+            print(
+                f"UPDATE STATUS OK: order_id={order.id!r} "
+                f"old_status={old_status.value!r} "
+                f"new_status={new_status.value!r} "
+                f"changed={changed!r}"
+            )
 
             if changed:
                 log_admin_action(
@@ -1046,8 +1066,8 @@ async def update_order_status_endpoint(request: Request):
 
     except Exception as e:
         logger.error(f"Error updating order status: {e}")
+        print(f"UPDATE STATUS EXCEPTION: {e!r}")
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
-
 
 async def update_payment_status_endpoint(request: Request):
     """AJAX endpoint to update order payment status"""
