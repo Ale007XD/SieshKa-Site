@@ -1464,7 +1464,7 @@ async def max_callback(request: Request):
         if body.get("success"):
             new_st = body.get("new_status", status_str)
             new_attachments = []
-            msg_body = ((update.get("message") or {}).get("body") or {})
+            msg_body = (update.get("message") or {}).get("body") or {}
             current_text = msg_body.get("text") or f"Заказ #{order_id}"
             try:
                 new_attachments = build_order_status_keyboard(
