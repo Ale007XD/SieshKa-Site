@@ -216,19 +216,11 @@ def get_slots(
     if target_day == "today":
         base_time = ceil_to_interval(now, interval_minutes)
 
-    # Generate slots for MORNING and EVENING windows
-    windows = get_daypart_windows()
-    all_slots = []
-
-    for daypart in [Daypart.MORNING, Daypart.EVENING]:
-        window = windows[daypart]
-        slots = generate_slots_for_window(
-            window, base_time, interval_minutes, base_buffer_minutes
-        )
-        all_slots.extend(slots)
-
-    # Sort by time
-    all_slots.sort(key=lambda s: s.time)
+    # Generate slots for the full day window
+    window = get_daypart_windows()[Daypart.ALLDAY]
+    all_slots = generate_slots_for_window(
+        window, base_time, interval_minutes, base_buffer_minutes
+    )
 
     return all_slots, None
 
