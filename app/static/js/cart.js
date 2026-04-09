@@ -1213,7 +1213,7 @@ function setupCheckoutForm() {
     };
     
     if (deliveryMode === 'slot') {
-      formData.delivery_slot = document.getElementById('delivery_slot').value;
+      formData.delivery_slot = document.getElementById('slot_time_select').value;
       formData.delivery_date = document.getElementById('delivery_date').value;
       
       if (!formData.delivery_slot) {
