@@ -105,8 +105,8 @@
                      min="{{ today }}" onchange="loadSlotAvailability()">
             </div>
             
-            <label for="delivery_slot" class="form-label">Время доставки *</label>
-            <select class="form-select" id="delivery_slot" name="delivery_slot" onchange="checkSlotAvailability()">
+            <label for="slot_time_select" class="form-label">Время доставки *</label>
+            <select class="form-select" id="slot_time_select" name="delivery_slot" onchange="checkSlotAvailability()">
               <option value="">Выберите время</option>
             </select>
             <div id="slotAvailability" class="form-text mt-2"></div>
@@ -170,12 +170,13 @@
     document.getElementById('delivery_date').value = today;
   });
   
+  // Map time -> slot object from /api/slots response
   let slotAvailability = {};
-  
+
   function toggleSlot() {
     const slotSelector = document.getElementById('slotSelector');
-    const isSlot = document.getElementById('delivery_slot').checked;
-    
+    const isSlot = document.querySelector('input[name="delivery_mode"][value="slot"]').checked;
+
     if (isSlot) {
       slotSelector.classList.remove('d-none');
       loadSlotAvailability();
@@ -183,51 +184,104 @@
       slotSelector.classList.add('d-none');
     }
   }
-  
+
   async function loadSlotAvailability() {
     const dateInput = document.getElementById('delivery_date');
-    const slotSelect = document.getElementById('delivery_slot');
+    const slotSelect = document.getElementById('slot_time_select');
     const availabilityDiv = document.getElementById('slotAvailability');
-    
+
     if (!dateInput.value) return;
-    
+
+    // Determine day param: today or tomorrow
+    const today = new Date().toISOString().split('T')[0];
+    const selectedDate = dateInput.value;
+    const day = selectedDate === today ? 'today' : 'tomorrow';
+
+    // Only today/tomorrow supported
+    const todayDate = new Date();
+    const tomorrowDate = new Date(todayDate);
+    tomorrowDate.setDate(todayDate.getDate() + 1);
+    const tomorrow = tomorrowDate.toISOString().split('T')[0];
+
+    if (selectedDate !== today && selectedDate !== tomorrow) {
+      slotSelect.innerHTML = '<option value="">Доставка доступна только на сегодня/завтра</option>';
+      availabilityDiv.textContent = '';
+      return;
+    }
+
+    availabilityDiv.textContent = 'Загрузка…';
+    slotSelect.innerHTML = '<option value="">Загрузка…</option>';
+    slotSelect.disabled = true;
+
     try {
-      const response = await fetch(`/api/slots/availability?target_date=${dateInput.value}`);
+      const response = await fetch(`/api/slots?day=${day}&method=delivery`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
-      
+
       slotAvailability = {};
       slotSelect.innerHTML = '<option value="">Выберите время</option>';
-      
-      data.slots.forEach(slot => {
-        slotAvailability[slot.slot_time] = slot;
+
+      if (data.error) {
+        slotSelect.innerHTML = `<option value="">${data.error}</option>`;
+        availabilityDiv.textContent = '';
+        return;
+      }
+
+      const available = data.slots.filter(s => s.available);
+      const unavailable = data.slots.filter(s => !s.available);
+
+      if (available.length === 0) {
+        slotSelect.innerHTML = '<option value="">Нет доступных слотов</option>';
+        availabilityDiv.textContent = 'Все слоты на этот день уже прошли';
+        return;
+      }
+
+      available.forEach(slot => {
+        slotAvailability[slot.time] = slot;
         const option = document.createElement('option');
-        option.value = slot.slot_time;
-        option.textContent = `${slot.slot_time} (${slot.current_orders}/${slot.max_orders})`;
-        if (!slot.available) {
-          option.disabled = true;
-          option.textContent += ' - Заполнено';
-        }
+        option.value = slot.time;
+        option.textContent = slot.label;
         slotSelect.appendChild(option);
       });
-      
-      availabilityDiv.textContent = 'Выберите доступный слот';
+
+      // Add unavailable slots as disabled for context
+      if (unavailable.length > 0) {
+        const sep = document.createElement('option');
+        sep.disabled = true;
+        sep.textContent = '── прошедшие ──';
+        slotSelect.appendChild(sep);
+        unavailable.forEach(slot => {
+          const option = document.createElement('option');
+          option.value = slot.time;
+          option.textContent = slot.label;
+          option.disabled = true;
+          slotSelect.appendChild(option);
+        });
+      }
+
+      availabilityDiv.textContent = 'Выберите удобное время';
     } catch (error) {
-      console.error('Error loading slot availability:', error);
-      availabilityDiv.textContent = 'Ошибка загрузки слотов';
+      console.error('Error loading slots:', error);
+      slotSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+      availabilityDiv.textContent = 'Не удалось загрузить слоты. Попробуйте обновить страницу.';
+    } finally {
+      slotSelect.disabled = false;
     }
   }
-  
+
   function checkSlotAvailability() {
-    const slotSelect = document.getElementById('delivery_slot');
+    const slotSelect = document.getElementById('slot_time_select');
     const availabilityDiv = document.getElementById('slotAvailability');
     const selectedSlot = slotSelect.value;
-    
+
     if (selectedSlot && slotAvailability[selectedSlot]) {
       const slot = slotAvailability[selectedSlot];
       if (slot.available) {
-        availabilityDiv.innerHTML = `<span class="slot-available"><i class="bi bi-check-circle me-1"></i>Доступно (${slot.max_orders - slot.current_orders} мест)</span>`;
+        availabilityDiv.innerHTML = '<span class="slot-available"><i class="bi bi-check-circle me-1"></i>Слот доступен</span>';
       } else {
-        availabilityDiv.innerHTML = '<span class="slot-full"><i class="bi bi-x-circle me-1"></i>Слот заполнен</span>';
+        availabilityDiv.innerHTML = '<span class="slot-full"><i class="bi bi-x-circle me-1"></i>Слот недоступен</span>';
       }
     }
   }
