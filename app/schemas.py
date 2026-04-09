@@ -16,7 +16,7 @@ class OrderCreate(BaseModel):
     comment: Optional[str] = Field(None, max_length=500)
     delivery_mode: str = Field(default="asap", pattern="^(asap|slot)$")
     delivery_slot: Optional[str] = Field(
-        None, pattern="^(10:00-12:00|12:00-14:00|14:00-16:00|16:00-18:00|18:00-20:00)$"
+        None, pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
     )
     delivery_date: Optional[date] = None  # Medium Priority Fix
     payment_method: str = Field(
