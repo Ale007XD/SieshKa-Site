@@ -40,6 +40,9 @@ class SlotResponse(BaseModel):
     time: str
     available: bool
     label: str
+    orders_count: int = 0
+    max_orders: int = 0
+    is_full: bool = False
 
 
 class SlotsResponse(BaseModel):
@@ -325,12 +328,40 @@ async def get_available_slots(
             else time(0, 0),
         )
 
+        # Count existing orders for this day per slot in one query
+        from app.models import Order
+        from sqlalchemy import func
+        import datetime as _datetime
+
+        target_date = now.date() if day == "today" else now.date() + _datetime.timedelta(days=1)
+
+        order_counts: dict[str, int] = {}
+        with SessionLocal() as db:
+            rows = (
+                db.query(Order.delivery_slot, func.count(Order.id))
+                .filter(
+                    Order.delivery_date == target_date,
+                    Order.status.notin_(["cancelled"]),
+                    Order.delivery_slot.isnot(None),
+                )
+                .group_by(Order.delivery_slot)
+                .all()
+            )
+            order_counts = {slot_time: cnt for slot_time, cnt in rows}
+
+        max_orders = config.max_orders_per_slot
+
         response = SlotsResponse(
             day=day,
             method=method,
             slots=[
                 SlotResponse(
-                    time=s.time.strftime("%H:%M"), available=s.available, label=s.label
+                    time=s.time.strftime("%H:%M"),
+                    available=s.available and order_counts.get(s.time.strftime("%H:%M"), 0) < max_orders,
+                    label=s.label,
+                    orders_count=order_counts.get(s.time.strftime("%H:%M"), 0),
+                    max_orders=max_orders,
+                    is_full=order_counts.get(s.time.strftime("%H:%M"), 0) >= max_orders,
                 )
                 for s in slots
             ],

@@ -162,6 +162,7 @@ class MenuConfiguration(Base):
     # Default slot generation
     slot_interval_minutes: Mapped[int] = mapped_column(Integer, default=15)
     base_buffer_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    max_orders_per_slot: Mapped[int] = mapped_column(Integer, default=10)
 
     # Feature flags
     enable_tomorrow_orders: Mapped[bool] = mapped_column(Boolean, default=True)

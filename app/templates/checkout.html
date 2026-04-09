@@ -242,7 +242,8 @@
         slotAvailability[slot.time] = slot;
         const option = document.createElement('option');
         option.value = slot.time;
-        option.textContent = slot.label;
+        const spotsLeft = slot.max_orders - slot.orders_count;
+        option.textContent = `${slot.label} — осталось мест: ${spotsLeft}`;
         slotSelect.appendChild(option);
       });
 
@@ -250,12 +251,14 @@
       if (unavailable.length > 0) {
         const sep = document.createElement('option');
         sep.disabled = true;
-        sep.textContent = '── прошедшие ──';
+        sep.textContent = '── прошедшие / заполненные ──';
         slotSelect.appendChild(sep);
         unavailable.forEach(slot => {
           const option = document.createElement('option');
           option.value = slot.time;
-          option.textContent = slot.label;
+          option.textContent = slot.is_full
+            ? `${slot.label} — заполнено`
+            : slot.label;
           option.disabled = true;
           slotSelect.appendChild(option);
         });

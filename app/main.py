@@ -762,8 +762,8 @@ def is_delivery_available(now: datetime) -> bool:
 
 def check_slot_availability(db, slot_time: str, delivery_date: date) -> bool:
     """
-    Validate slot_time (HH:MM) against the timefirst virtual slot grid.
-    Returns True if the slot exists and is still in the future (with buffer).
+    Validate slot_time (HH:MM) against the timefirst virtual slot grid
+    and check that the per-slot order cap has not been reached.
     """
     from datetime import datetime as _dt
     from app.timefirst_core import get_slots, DeliveryMethod as _DM
@@ -776,8 +776,8 @@ def check_slot_availability(db, slot_time: str, delivery_date: date) -> bool:
 
     tz = ZoneInfo(config.business_tz)
     now = _dt.now(tz)
-
     today = now.date()
+
     if delivery_date < today:
         return False
 
@@ -795,7 +795,20 @@ def check_slot_availability(db, slot_time: str, delivery_date: date) -> bool:
     )
 
     available_times = {s.time.strftime("%H:%M") for s in slots if s.available}
-    return slot_time in available_times
+    if slot_time not in available_times:
+        return False
+
+    # Check per-slot order cap
+    current_orders = (
+        db.query(Order)
+        .filter(
+            Order.delivery_slot == slot_time,
+            Order.delivery_date == delivery_date,
+            Order.status.notin_(["cancelled"]),
+        )
+        .count()
+    )
+    return current_orders < config.max_orders_per_slot
 
 
 def get_slot_availability(db, target_date: date) -> list:
