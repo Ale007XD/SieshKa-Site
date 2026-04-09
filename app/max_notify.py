@@ -21,12 +21,12 @@ _TIMEOUT = 10.0
 
 # Русские метки и цвета кнопок (intent: positive=зелёный, negative=красный, default=синий/серый)
 _STATUS_LABEL: dict[OrderStatus, tuple[str, str]] = {
-    OrderStatus.new:        ("🟠 НОВЫЙ",      "default"),
-    OrderStatus.accepted:   ("🔵 ПРИНЯТ",     "default"),
-    OrderStatus.cooking:    ("👨‍🍳 ГОТОВИТСЯ", "default"),
-    OrderStatus.on_the_way: ("🛵 В ПУТИ",     "default"),
-    OrderStatus.delivered:  ("✅ ДОСТАВЛЕН",  "positive"),
-    OrderStatus.cancelled:  ("❌ ОТМЕНИТЬ",   "negative"),
+    OrderStatus.new: ("🟠 НОВЫЙ", "default"),
+    OrderStatus.accepted: ("🔵 ПРИНЯТ", "default"),
+    OrderStatus.cooking: ("👨‍🍳 ГОТОВИТСЯ", "default"),
+    OrderStatus.on_the_way: ("🛵 В ПУТИ", "default"),
+    OrderStatus.delivered: ("✅ ДОСТАВЛЕН", "positive"),
+    OrderStatus.cancelled: ("❌ ОТМЕНИТЬ", "negative"),
 }
 
 
@@ -85,9 +85,7 @@ async def send_max_message(
             e.response.text,
         )
     except ValueError as e:
-        logger.error(
-            "MAX messages JSON parse error for user_id=%s: %s", user_id, e
-        )
+        logger.error("MAX messages JSON parse error for user_id=%s: %s", user_id, e)
     except httpx.RequestError as e:
         logger.error("MAX messages request error for user_id=%s: %s", user_id, e)
     return False
