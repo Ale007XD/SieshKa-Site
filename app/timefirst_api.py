@@ -333,9 +333,7 @@ async def get_available_slots(
         from sqlalchemy import func
         import datetime as _datetime
 
-        target_date = (
-            now.date() if day == "today" else now.date() + _datetime.timedelta(days=1)
-        )
+        target_date = now.date() if day == "today" else now.date() + _datetime.timedelta(days=1)
 
         order_counts: dict[str, int] = {}
         with SessionLocal() as db:
@@ -359,8 +357,7 @@ async def get_available_slots(
             slots=[
                 SlotResponse(
                     time=s.time.strftime("%H:%M"),
-                    available=s.available
-                    and order_counts.get(s.time.strftime("%H:%M"), 0) < max_orders,
+                    available=s.available and order_counts.get(s.time.strftime("%H:%M"), 0) < max_orders,
                     label=s.label,
                     orders_count=order_counts.get(s.time.strftime("%H:%M"), 0),
                     max_orders=max_orders,

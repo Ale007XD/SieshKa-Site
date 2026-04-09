@@ -1595,6 +1595,7 @@ class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
         "evening_end",
         "slot_interval_minutes",
         "base_buffer_minutes",
+        "max_orders_per_slot",
         "enable_tomorrow_orders",
         "tomorrow_order_cutoff",
         "allowed_methods",
@@ -1607,6 +1608,10 @@ class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
         MenuConfiguration.delivery_fee: "Стоимость доставки (₽)",
         MenuConfiguration.enable_tomorrow_orders: "Заказы на завтра",
         MenuConfiguration.allowed_methods: "Доступные способы (both/delivery/pickup)",
+        MenuConfiguration.slot_interval_minutes: "Шаг слотов (мин)",
+        MenuConfiguration.base_buffer_minutes: "Буфер от 'сейчас' (мин)",
+        MenuConfiguration.max_orders_per_slot: "Лимит заказов на слот",
+        MenuConfiguration.tomorrow_order_cutoff: "Приём заказов на завтра до",
     }
     name = "Настройки меню"
     name_plural = "Настройки меню"
