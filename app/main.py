@@ -1426,7 +1426,7 @@ async def max_callback(request: Request):
             or text_in.lower() in ("/start", "start")
         )
         if is_start and user_id:
-            menu_url = f"{settings.SITE_BASE_URL}/menu?max_uid={user_id}"
+            menu_url = f"{settings.SITE_BASE_URL}/?max_uid={user_id}"
             await send_max_start_reply(
                 user_id,
                 menu_url=menu_url,
@@ -1435,7 +1435,7 @@ async def max_callback(request: Request):
             logger.info("MAX /start reply sent to user_id=%s", user_id)
         elif user_id and update.get("update_type") == "message_created":
             # Fallback: любое другое сообщение — та же кнопка меню
-            menu_url = f"{settings.SITE_BASE_URL}/menu?max_uid={user_id}"
+            menu_url = f"{settings.SITE_BASE_URL}/?max_uid={user_id}"
             await send_max_start_reply(
                 user_id,
                 menu_url=menu_url,
