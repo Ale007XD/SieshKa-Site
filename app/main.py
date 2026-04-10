@@ -1215,6 +1215,7 @@ async def create_order(request: Request, payload: OrderCreate):
             for item_data in order_items:
                 order_item = OrderItem(order_id=order.id, **item_data)
                 db.add(order_item)
+            db.flush()  # populate order.items before YooKassa receipt build
 
             # YooKassa: создать платёж ДО commit, чтобы откатить при ошибке
             confirmation_url: str | None = None
