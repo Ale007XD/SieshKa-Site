@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Optional
 
 from .max_notify import (
-    # notify_max_staff,
+    notify_max_staff,
     notify_max_staff_order,
     send_max_message,
     build_order_status_keyboard,

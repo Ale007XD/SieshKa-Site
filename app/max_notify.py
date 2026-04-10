@@ -248,6 +248,8 @@ async def send_max_start_reply(user_id: int, menu_url: str, welcome_text: str) -
     ]
     return await send_max_message(user_id, welcome_text, attachments=attachments)
 
+
+async def notify_max_staff(text: str) -> list[int]:
     """
     Рассылка всем MAX_STAFF_CHAT_IDS (без кнопок).
     Возвращает список user_id которым не удалось отправить.
