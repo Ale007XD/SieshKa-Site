@@ -59,6 +59,50 @@ def _verify_webhook_signature(raw_body: bytes, signature: str | None) -> None:
         raise YooKassaWebhookError("Invalid webhook signature")
 
 
+def _build_receipt(order: Order) -> dict:
+    """
+    Формирует чек для ЮКассы (54-ФЗ).
+    Каждая позиция — товар с именем, ценой, количеством и НДС.
+    Доставка добавляется отдельной строкой если delivery_fee_rub > 0.
+    """
+    items = []
+
+    for item in order.items:
+        price = str(Decimal(str(item.price_rub_snapshot)).quantize(Decimal("0.01")))
+        items.append({
+            "description": item.name_snapshot[:128],
+            "quantity": str(item.qty),
+            "amount": {
+                "value": price,
+                "currency": "RUB",
+            },
+            "vat_code": 1,  # без НДС
+            "payment_mode": "full_prepayment",
+            "payment_subject": "commodity",
+        })
+
+    if order.delivery_fee_rub and order.delivery_fee_rub > 0:
+        fee = str(Decimal(str(order.delivery_fee_rub)).quantize(Decimal("0.01")))
+        items.append({
+            "description": "Доставка",
+            "quantity": "1",
+            "amount": {
+                "value": fee,
+                "currency": "RUB",
+            },
+            "vat_code": 1,
+            "payment_mode": "full_prepayment",
+            "payment_subject": "service",
+        })
+
+    return {
+        "customer": {
+            "phone": order.phone_e164,
+        },
+        "items": items,
+    }
+
+
 def create_yookassa_payment(order: Order, db: Session) -> str:
     _ensure_yookassa_config()
 
@@ -74,6 +118,7 @@ def create_yookassa_payment(order: Order, db: Session) -> str:
                 "return_url": _build_return_url(order),
             },
             "description": f"Оплата заказа #{order.id}",
+            "receipt": _build_receipt(order),
             "metadata": {
                 "order_id": str(order.id),
             },
