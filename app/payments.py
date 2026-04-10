@@ -68,8 +68,8 @@ def _build_receipt(order: Order) -> dict:
     items = []
 
     for item in order.items:
-        unit_price = Decimal(str(item.price_rub_snapshot)).quantize(Decimal("0.01"))
-        total = (unit_price * item.qty).quantize(Decimal("0.01"))
+        unit_price = Decimal(str(item.price_rub_snapshot)).quantize(Decimal("0.001"))
+        total = (unit_price * item.qty).quantize(Decimal("0.001"))
         items.append({
             "description": item.name_snapshot[:128],
             "quantity": str(item.qty),
