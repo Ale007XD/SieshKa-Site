@@ -392,8 +392,23 @@ def _parse_hhmm(s: str) -> time:
     return time(int(hh), int(mm))
 
 
-TZ_NAME = settings.TZ_NAME
-LOCAL_TZ = ZoneInfo(TZ_NAME)
+TZ_NAME = settings.TZ_NAME  # fallback
+
+
+def get_local_tz() -> ZoneInfo:
+    """
+    Single source of truth for business timezone.
+    Reads from MenuConfiguration in DB; falls back to settings.TZ_NAME
+    if the DB is unavailable or the record doesn't exist yet.
+    """
+    try:
+        with SessionLocal() as db:
+            config = db.query(MenuConfiguration).first()
+            if config and config.business_tz:
+                return ZoneInfo(config.business_tz)
+    except Exception:
+        pass
+    return ZoneInfo(TZ_NAME)
 
 MORNING_START = _parse_hhmm(settings.MORNING_START)
 MORNING_END = _parse_hhmm(settings.MORNING_END)
@@ -895,7 +910,7 @@ async def diagnostics():
         # [ШАГ 3] get_failed_notifications_count теперь async (читает dlq:max из Redis)
         "failed_notifications": await get_failed_notifications_count(),
         "time": datetime.now(timezone.utc).isoformat(),
-        "menu_available": is_menu_available(datetime.now(LOCAL_TZ)),
+        "menu_available": is_menu_available(datetime.now(get_local_tz())),
     }
 
 
@@ -929,7 +944,7 @@ async def get_delivery_fee():
 @app.get("/", response_class=HTMLResponse, tags=["Menu"])
 async def index(request: Request, preview_period: str = Query(None)):
     """Main menu page"""
-    now = datetime.now(LOCAL_TZ)
+    now = datetime.now(get_local_tz())
 
     if preview_period in ("morning", "evening"):
         current_period = preview_period
@@ -1039,7 +1054,7 @@ async def cart_page(request: Request):
 @app.get("/checkout", response_class=HTMLResponse, tags=["Orders"])
 async def checkout_page(request: Request):
     """Checkout page"""
-    now = datetime.now(LOCAL_TZ)
+    now = datetime.now(get_local_tz())
     current_menu_period = get_current_menu_period(now)
     current_delivery_period = get_current_period_label(now)
     preorder_info = get_preorder_info(now)
@@ -1322,7 +1337,7 @@ async def thanks_page(request: Request, order_id: int):
         if order.delivery_mode.value == "asap" and order.created_at:
             # Конвертируем UTC в локальное время
             order_local_time = order.created_at.replace(tzinfo=None).replace(
-                tzinfo=LOCAL_TZ
+                tzinfo=get_local_tz()
             )
             order_time = order_local_time.time()
             # Если заказ сделан между 10:00 и 15:00 - это предзаказ вечернего меню

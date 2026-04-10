@@ -242,7 +242,7 @@ function renderMenu(data) {
 
         category.products.forEach(product => {
             updateProductCard(product);
-            if (product.available) {
+            if (product.available || product.cta_type === 'preorder') {
                 hasVisibleProducts = true;
             }
         });
@@ -273,12 +273,10 @@ function updateProductCard(product) {
     card.dataset.available = product.available;
     card.classList.toggle('unavailable', !product.available);
 
-    // HIDE/SHOW entire card based on availability
-    if (!product.available) {
-        card.style.display = 'none';
-    } else {
-        card.style.display = '';
-    }
+    // Visibility: hide only truly unavailable (OUTSIDE_WINDOW, NO_RULE, etc.)
+    // Products with cta_type='preorder' stay visible — they can be ordered in advance
+    const isHidden = !product.available && product.cta_type !== 'preorder';
+    card.style.display = isHidden ? 'none' : '';
 
     // Update badge
     const badgeContainer = card.querySelector('.availability-badge');
@@ -294,19 +292,28 @@ function updateProductCard(product) {
         badgeContainer.innerHTML = badgeHtml;
     }
 
-    // Update CTA button based on availability
+    // Update CTA button
     const addBtn = card.querySelector('.btn-add-to-cart');
     const qtyControl = card.querySelector('.product-controls');
 
     if (!product.available) {
-        if (addBtn) {
-            addBtn.style.display = 'none';
-        }
-        if (qtyControl) {
-            qtyControl.style.display = 'none';
+        // preorder: show button, hide qty control
+        if (product.cta_type === 'preorder') {
+            if (addBtn) {
+                addBtn.style.display = 'block';
+                addBtn.disabled = false;
+                addBtn.dataset.action = 'preorder';
+                addBtn.dataset.productId = product.product_id;
+                addBtn.innerHTML = CTA_LABELS['preorder'];
+            }
+            if (qtyControl) qtyControl.style.display = 'none';
+        } else {
+            // Truly unavailable — hide both
+            if (addBtn) addBtn.style.display = 'none';
+            if (qtyControl) qtyControl.style.display = 'none';
         }
     } else {
-        // Product is available - let CartManager handle the visibility
+        // Available — let CartManager decide btn vs qty control
         if (typeof CartManager !== 'undefined') {
             const qty = CartManager.getItemQty(product.product_id);
             if (qty > 0) {
@@ -318,11 +325,11 @@ function updateProductCard(product) {
             } else {
                 if (addBtn) {
                     addBtn.style.display = 'block';
+                    addBtn.disabled = false;
+                    addBtn.dataset.action = '';
                     addBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i>Добавить';
                 }
-                if (qtyControl) {
-                    qtyControl.style.display = 'none';
-                }
+                if (qtyControl) qtyControl.style.display = 'none';
             }
         }
     }
