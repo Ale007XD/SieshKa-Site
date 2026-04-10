@@ -25,6 +25,7 @@ class OrderCreate(BaseModel):
     items: List[OrderItemIn]
     idempotency_key: Optional[str] = Field(None, min_length=8, max_length=64)
     csrf_token: Optional[str] = Field(None, min_length=32, max_length=128)
+    client_max_uid: Optional[int] = Field(None, gt=0)
 
     @field_validator("name")
     @classmethod

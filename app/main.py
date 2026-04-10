@@ -71,7 +71,12 @@ from .notifications import (
     start_dlq_worker,
     stop_dlq_worker,
 )
-from .max_notify import answer_max_callback, build_order_status_keyboard
+from .max_notify import (
+    answer_max_callback,
+    build_order_status_keyboard,
+    send_max_start_reply,
+    notify_client_status_update,
+)
 from .payments import (
     create_yookassa_payment,
     handle_webhook as handle_yookassa_webhook,
@@ -1190,6 +1195,7 @@ async def create_order(request: Request, payload: OrderCreate):
                 delivery_date=payload.delivery_date
                 if payload.delivery_mode == "slot"
                 else None,
+                client_max_uid=payload.client_max_uid,
             )
 
             db.add(order)
@@ -1396,9 +1402,49 @@ async def max_callback(request: Request):
 
     print(f"MAX PARSED UPDATE: {update!r}")
 
-    if update.get("update_type") != "message_callback":
+    if update.get("update_type") not in ("message_callback", "bot_started", "message_created"):
         print(f"MAX IGNORED UPDATE TYPE: {update.get('update_type')!r}")
         return JSONResponse({"ok": True, "ignored": True})
+
+    # ── Клиентский /start ──────────────────────────────────────────────────────
+    if update.get("update_type") in ("bot_started", "message_created"):
+        sender = (update.get("message") or {}).get("sender") or {}
+        # bot_started кладёт user прямо в update
+        if not sender:
+            sender = update.get("user") or {}
+        try:
+            user_id = int(sender.get("user_id") or 0)
+        except (TypeError, ValueError):
+            user_id = 0
+
+        message_body = ((update.get("message") or {}).get("body") or {})
+        text_in = (message_body.get("text") or "").strip()
+
+        # Реагируем только на /start (или bot_started без текста)
+        is_start = (
+            update.get("update_type") == "bot_started"
+            or text_in.lower() in ("/start", "start")
+        )
+        if is_start and user_id:
+            menu_url = f"{settings.SITE_BASE_URL}/menu?max_uid={user_id}"
+            await send_max_start_reply(
+                user_id,
+                menu_url=menu_url,
+                welcome_text=settings.MAX_CLIENT_WELCOME,
+            )
+            logger.info("MAX /start reply sent to user_id=%s", user_id)
+        elif user_id and update.get("update_type") == "message_created":
+            # Fallback: любое другое сообщение — та же кнопка меню
+            menu_url = f"{settings.SITE_BASE_URL}/menu?max_uid={user_id}"
+            await send_max_start_reply(
+                user_id,
+                menu_url=menu_url,
+                welcome_text="Нажмите кнопку ниже, чтобы открыть меню. 🍱",
+            )
+            logger.info("MAX fallback reply sent to user_id=%s", user_id)
+        return JSONResponse({"ok": True})
+
+    # ── Операторский callback (смена статуса) ──────────────────────────────────
 
     callback = update.get("callback") or {}
     print(f"MAX CALLBACK OBJECT: {callback!r}")

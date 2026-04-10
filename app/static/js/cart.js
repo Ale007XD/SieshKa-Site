@@ -1209,7 +1209,11 @@ function setupCheckoutForm() {
         product_id: item.product_id,
         qty: item.qty
       })),
-      idempotency_key: generateIdempotencyKey()
+      idempotency_key: generateIdempotencyKey(),
+      client_max_uid: (() => {
+        const uid = new URLSearchParams(window.location.search).get('max_uid');
+        return uid ? parseInt(uid, 10) || null : null;
+      })()
     };
     
     if (deliveryMode === 'slot') {

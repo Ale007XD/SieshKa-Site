@@ -203,7 +203,51 @@ async def send_max_order_message(
     return await send_max_message(user_id, text, attachments=attachments)
 
 
-async def notify_max_staff(text: str) -> list[int]:
+async def notify_client_status_update(
+    client_max_uid: int,
+    order_number: str,
+    new_status: "OrderStatus",
+) -> bool:
+    """
+    Уведомляет клиента о смене статуса заказа.
+    Вызывается из update_order_status_endpoint после успешного перехода.
+    """
+    _STATUS_CLIENT_TEXT: dict[OrderStatus, str] = {
+        OrderStatus.accepted:   "✅ Ваш заказ #{num} принят и передан на кухню.",
+        OrderStatus.cooking:    "👨‍🍳 Ваш заказ #{num} готовится.",
+        OrderStatus.on_the_way: "🛵 Ваш заказ #{num} уже в пути!",
+        OrderStatus.delivered:  "🎉 Ваш заказ #{num} доставлен. Приятного аппетита!",
+        OrderStatus.cancelled:  "❌ Ваш заказ #{num} отменён. Свяжитесь с нами если это ошибка.",
+    }
+    text = _STATUS_CLIENT_TEXT.get(new_status)
+    if not text:
+        return False  # new/промежуточные статусы клиенту не шлём
+    return await send_max_message(client_max_uid, text.format(num=order_number))
+
+
+async def send_max_start_reply(user_id: int, menu_url: str, welcome_text: str) -> bool:
+    """
+    Отвечает на /start клиентским приветствием и кнопкой-ссылкой на меню.
+    link-кнопка открывает menu_url во встроенном браузере MAX.
+    """
+    attachments = [
+        {
+            "type": "inline_keyboard",
+            "payload": {
+                "buttons": [
+                    [
+                        {
+                            "type": "link",
+                            "text": "🍱 Открыть меню",
+                            "url": menu_url,
+                        }
+                    ]
+                ]
+            },
+        }
+    ]
+    return await send_max_message(user_id, welcome_text, attachments=attachments)
+
     """
     Рассылка всем MAX_STAFF_CHAT_IDS (без кнопок).
     Возвращает список user_id которым не удалось отправить.

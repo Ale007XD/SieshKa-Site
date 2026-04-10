@@ -468,6 +468,30 @@
   }
 </script>
 
+<script nonce="{{ csp_nonce }}">
+  // MAX mini-app: сохраняем max_uid из URL в sessionStorage и пробрасываем на /checkout
+  (function () {
+    const uid = new URLSearchParams(window.location.search).get('max_uid');
+    if (uid && /^\d+$/.test(uid)) {
+      sessionStorage.setItem('max_uid', uid);
+    }
+    const stored = sessionStorage.getItem('max_uid');
+    if (!stored) return;
+    function patchCheckoutLinks() {
+      document.querySelectorAll('a[href="/checkout"], a[href^="/checkout?"]').forEach(function (el) {
+        const url = new URL(el.href, window.location.origin);
+        url.searchParams.set('max_uid', stored);
+        el.href = url.toString();
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', patchCheckoutLinks);
+    } else {
+      patchCheckoutLinks();
+    }
+  })();
+</script>
+
 {% block scripts %}{% endblock %}
 </body>
 </html>

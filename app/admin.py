@@ -30,6 +30,7 @@ from .order_status import (
     parse_status,
     update_order_status,
 )
+from .max_notify import notify_client_status_update
 
 logger = logging.getLogger(__name__)
 
@@ -1053,6 +1054,16 @@ async def update_order_status_endpoint(request: Request):
                     {"status": old_status.value},
                     {"status": new_status.value},
                 )
+                # Уведомляем клиента в MAX если он пришёл через бота
+                if order.client_max_uid:
+                    import asyncio
+                    asyncio.create_task(
+                        notify_client_status_update(
+                            order.client_max_uid,
+                            order.order_number or str(order.id),
+                            new_status,
+                        )
+                    )
 
             return JSONResponse(
                 {

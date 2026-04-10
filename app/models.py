@@ -139,6 +139,7 @@ class Order(Base):
         String(64), unique=True, nullable=True
     )
     yookassa_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    client_max_uid: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     delivery_mode: Mapped[DeliveryMode] = mapped_column(
         Enum(DeliveryMode), default=DeliveryMode.asap
     )

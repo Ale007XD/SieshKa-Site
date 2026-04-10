@@ -65,12 +65,16 @@ class Settings(BaseSettings):
     BASE_BUFFER_MINUTES: int = 15
     MENU_VERSION: int = 1
 
-    # MAX Messenger
+    # MAX Messenger (staff / admin bot)
     MAX_BOT_TOKEN: Optional[str] = None
     MAX_STAFF_CHAT_IDS: List[int] = []
-    # --- новые поля (MAX webhook security) ---
     MAX_WEBHOOK_SECRET: Optional[str] = None
     MAX_ALLOWED_USER_IDS: List[int] = []
+    # MAX клиентский бот (тот же токен — один бот, два сценария)
+    # Приветственное сообщение при /start
+    MAX_CLIENT_WELCOME: str = "Привет! 👋 Нажмите кнопку ниже, чтобы открыть меню и сделать заказ."
+    # Базовый URL сайта (без слеша на конце) — для формирования ссылки на меню
+    SITE_BASE_URL: str = "https://example.com"
 
     # SMS (smsc.ru)
     SMSC_API_KEY: Optional[str] = None
