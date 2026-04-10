@@ -68,12 +68,13 @@ def _build_receipt(order: Order) -> dict:
     items = []
 
     for item in order.items:
-        price = str(Decimal(str(item.price_rub_snapshot)).quantize(Decimal("0.01")))
+        unit_price = Decimal(str(item.price_rub_snapshot)).quantize(Decimal("0.01"))
+        total = (unit_price * item.qty).quantize(Decimal("0.01"))
         items.append({
             "description": item.name_snapshot[:128],
             "quantity": str(item.qty),
             "amount": {
-                "value": price,
+                "value": str(total),
                 "currency": "RUB",
             },
             "vat_code": 1,  # без НДС
