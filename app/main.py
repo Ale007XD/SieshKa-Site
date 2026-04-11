@@ -1202,7 +1202,7 @@ async def create_order(request: Request, payload: OrderCreate):
             db.flush()
 
             # Генерация номера заказа: ГГ-ММ-ДД-00N
-            biz_tz = get_business_timezone()
+            biz_tz = get_local_tz()
             now_local = datetime.now(biz_tz)
             today = now_local.date()
             prefix = today.strftime("%y-%m-%d")
