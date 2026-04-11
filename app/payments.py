@@ -118,7 +118,7 @@ def create_yookassa_payment(order: Order, db: Session) -> str:
                 "type": "redirect",
                 "return_url": _build_return_url(order),
             },
-            "description": f"Оплата заказа #{order.id}",
+            "description": f"Оплата заказа #{order.order_number or order.id}",
             "receipt": _build_receipt(order),
             "metadata": {
                 "order_id": str(order.id),

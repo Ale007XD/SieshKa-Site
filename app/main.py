@@ -1202,11 +1202,20 @@ async def create_order(request: Request, payload: OrderCreate):
             db.flush()
 
             # Генерация номера заказа: ГГ-ММ-ДД-00N
-            today = date.today()
+            biz_tz = get_business_timezone()
+            now_local = datetime.now(biz_tz)
+            today = now_local.date()
             prefix = today.strftime("%y-%m-%d")
+            day_start_utc = datetime(
+                today.year, today.month, today.day, tzinfo=biz_tz
+            ).astimezone(timezone.utc).replace(tzinfo=None)
+            day_end_utc = day_start_utc + timedelta(days=1)
             count_today = (
                 db.query(func.count(Order.id))
-                .filter(func.date(Order.created_at) == today)
+                .filter(
+                    Order.created_at >= day_start_utc,
+                    Order.created_at < day_end_utc,
+                )
                 .scalar()
                 or 0
             )
