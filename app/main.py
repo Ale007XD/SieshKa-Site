@@ -1206,20 +1206,25 @@ async def create_order(request: Request, payload: OrderCreate):
             now_local = datetime.now(biz_tz)
             today = now_local.date()
             prefix = today.strftime("%y-%m-%d")
-            day_start_utc = datetime(
-                today.year, today.month, today.day, tzinfo=biz_tz
-            ).astimezone(timezone.utc).replace(tzinfo=None)
-            day_end_utc = day_start_utc + timedelta(days=1)
-            count_today = (
-                db.query(func.count(Order.id))
-                .filter(
-                    Order.created_at >= day_start_utc,
-                    Order.created_at < day_end_utc,
-                )
+            # Use MAX over existing order_numbers for this day prefix to avoid
+            # race condition: COUNT could return the same value to concurrent
+            # requests, causing a UniqueViolation on flush().
+            like_pattern = f"{prefix}-%"
+            max_number = (
+                db.query(func.max(Order.order_number))
+                .filter(Order.order_number.like(like_pattern))
+                .with_for_update()
                 .scalar()
-                or 0
             )
-            order.order_number = f"{prefix}-{count_today:03d}"
+            if max_number:
+                try:
+                    last_seq = int(max_number.rsplit("-", 1)[-1])
+                except ValueError:
+                    last_seq = 0
+                next_seq = last_seq + 1
+            else:
+                next_seq = 0
+            order.order_number = f"{prefix}-{next_seq:03d}"
 
             for item_data in order_items:
                 order_item = OrderItem(order_id=order.id, **item_data)
