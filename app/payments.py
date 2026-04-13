@@ -52,7 +52,7 @@ def _verify_webhook_signature(raw_body: bytes, signature: str | None) -> None:
     if not secret:
         raise YooKassaConfigError("YooKassa secret key is not configured")
 
-    digest = hmac.new(secret.encode(), raw_body, hashlib.sha256).digest()
+    digest = hmac.HMAC(secret.encode(), raw_body, hashlib.sha256).digest()
     expected = base64.b64encode(digest).decode()
 
     if not hmac.compare_digest(expected, signature):
