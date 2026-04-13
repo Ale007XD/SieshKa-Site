@@ -1206,13 +1206,12 @@ async def create_order(request: Request, payload: OrderCreate):
             now_local = datetime.now(biz_tz)
             today = now_local.date()
             prefix = today.strftime("%y-%m-%d")
-            # Use MAX over existing order_numbers for this day prefix to avoid
-            # race condition: COUNT could return the same value to concurrent
-            # requests, causing a UniqueViolation on flush().
             like_pattern = f"{prefix}-%"
             max_number = (
-                db.query(func.max(Order.order_number))
+                db.query(Order.order_number)
                 .filter(Order.order_number.like(like_pattern))
+                .order_by(Order.order_number.desc())
+                .limit(1)
                 .with_for_update()
                 .scalar()
             )
