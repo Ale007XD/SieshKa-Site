@@ -1334,7 +1334,7 @@ async def payments_webhook(request: Request):
     except Exception:
         raise HTTPException(400, "Invalid JSON")
 
-    try:
+    def _process_webhook():
         with SessionLocal.begin() as db:
             handle_yookassa_webhook(
                 payload=payload,
@@ -1342,6 +1342,10 @@ async def payments_webhook(request: Request):
                 raw_body=raw_body,
                 db=db,
             )
+
+    try:
+        import asyncio
+        await asyncio.to_thread(_process_webhook)
     except YooKassaWebhookError as e:
         logger.warning(f"YooKassa webhook rejected: {e}")
         raise HTTPException(400, str(e))
