@@ -1210,15 +1210,17 @@ async def create_order(request: Request, payload: OrderCreate):
             # race condition: COUNT could return the same value to concurrent
             # requests, causing a UniqueViolation on flush().
             like_pattern = f"{prefix}-%"
-            max_number = (
-                db.query(func.max(Order.order_number))
+            last_row = (
+                db.query(Order.order_number)
                 .filter(Order.order_number.like(like_pattern))
+                .order_by(Order.order_number.desc())
+                .limit(1)
                 .with_for_update()
                 .scalar()
             )
-            if max_number:
+            if last_row:
                 try:
-                    last_seq = int(max_number.rsplit("-", 1)[-1])
+                    last_seq = int(last_row.rsplit("-", 1)[-1])
                 except ValueError:
                     last_seq = 0
                 next_seq = last_seq + 1
