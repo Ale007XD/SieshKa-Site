@@ -113,6 +113,7 @@ def create_yookassa_payment(order: Order, db: Session) -> str:
                 "currency": "RUB",
             },
             "capture": True,
+            "payment_method_types": ["bank_card", "sbp"],
             "confirmation": {
                 "type": "redirect",
                 "return_url": _build_return_url(order),
