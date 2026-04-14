@@ -455,6 +455,8 @@ _YOOKASSA_NETWORKS = [
     ipaddress.ip_network("77.75.156.128/25"),
     ipaddress.ip_network("77.75.156.11/32"),
     ipaddress.ip_network("77.75.156.35/32"),
+    ipaddress.ip_network("77.75.154.0/24"),
+    ipaddress.ip_network("2a02:5180::/32"),
 ]
 
 
