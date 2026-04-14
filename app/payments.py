@@ -113,10 +113,9 @@ def create_yookassa_payment(order: Order, db: Session) -> str:
                 "currency": "RUB",
             },
             "capture": True,
-            "payment_method_types": ["bank_card", "sbp"],
+            "payment_method_types": ["bank_card", "sbp"],  # yoo_money исключён
             "confirmation": {
-                "type": "redirect",
-                "return_url": _build_return_url(order),
+                "type": "embedded",  # виджет; redirect показывал все методы
             },
             "description": f"Оплата заказа #{order.order_number or order.id}",
             "receipt": _build_receipt(order),
@@ -133,11 +132,11 @@ def create_yookassa_payment(order: Order, db: Session) -> str:
     db.flush()
 
     confirmation = getattr(payment, "confirmation", None)
-    confirmation_url = getattr(confirmation, "confirmation_url", None)
-    if not confirmation_url:
-        raise YooKassaWebhookError("YooKassa did not return confirmation_url")
+    confirmation_token = getattr(confirmation, "confirmation_token", None)
+    if not confirmation_token:
+        raise YooKassaWebhookError("YooKassa did not return confirmation_token")
 
-    return confirmation_url
+    return confirmation_token
 
 
 def handle_webhook(
