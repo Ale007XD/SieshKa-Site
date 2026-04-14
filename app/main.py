@@ -1355,7 +1355,7 @@ async def payments_webhook(request: Request):
         logger.error(f"YooKassa config error in webhook: {e}")
         raise HTTPException(500, "Internal error")
 
-    ***return {"ok": True}
+    return {"ok": True}
 
 @app.get("/thanks/{order_id}", response_class=HTMLResponse, tags=["Orders"])
 async def thanks_page(request: Request, order_id: int):
