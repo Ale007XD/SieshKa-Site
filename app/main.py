@@ -1318,8 +1318,8 @@ async def create_order(request: Request, payload: OrderCreate):
 async def payments_webhook(request: Request):
     """YooKassa IPN webhook: verify IP + signature, update order status."""
     client_ip = (
-        request.headers.get("X-Real-IP")
-        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        request.headers.get("x-real-ip")
+        or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
         or (request.client.host if request.client else "")
     )
     if not _is_yookassa_ip(client_ip):
@@ -1327,7 +1327,7 @@ async def payments_webhook(request: Request):
         raise HTTPException(403, "Forbidden")
 
     raw_body = await request.body()
-    signature = request.headers.get("X-Content-SHA256")
+    signature = request.headers.get("x-content-sha256")
 
     try:
         import json
@@ -1336,7 +1336,7 @@ async def payments_webhook(request: Request):
     except Exception:
         raise HTTPException(400, "Invalid JSON")
 
-    def _process_webhook():
+    def _process_webhook() -> None:
         with SessionLocal.begin() as db:
             handle_yookassa_webhook(
                 payload=payload,
@@ -1355,8 +1355,7 @@ async def payments_webhook(request: Request):
         logger.error(f"YooKassa config error in webhook: {e}")
         raise HTTPException(500, "Internal error")
 
-    return {"ok": True}
-
+    ***return {"ok": True}
 
 @app.get("/thanks/{order_id}", response_class=HTMLResponse, tags=["Orders"])
 async def thanks_page(request: Request, order_id: int):
