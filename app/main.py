@@ -163,7 +163,13 @@ async def security_headers_middleware(request: Request, call_next):
     )
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net https://r2cdn.perplexity.ai; connect-src 'self' https://cdn.jsdelivr.net;"
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://yookassa.ru https://static.yoomoney.ru; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://yookassa.ru https://static.yoomoney.ru; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' https://cdn.jsdelivr.net https://r2cdn.perplexity.ai https://static.yoomoney.ru; "
+        "connect-src 'self' https://cdn.jsdelivr.net https://api.yookassa.ru https://yookassa.ru https://static.yoomoney.ru; "
+        "frame-src https://yookassa.ru https://static.yoomoney.ru;"
     )
     return response
 
@@ -1234,10 +1240,10 @@ async def create_order(request: Request, payload: OrderCreate):
             db.flush()  # populate order.items before YooKassa receipt build
 
             # YooKassa: создать платёж ДО commit, чтобы откатить при ошибке
-            confirmation_url: str | None = None
+            confirmation_token: str | None = None
             if payload.payment_method == "yookassa_card":
                 try:
-                    confirmation_url = create_yookassa_payment(order, db)
+                    confirmation_token = create_yookassa_payment(order, db)
                 except (YooKassaConfigError, YooKassaWebhookError) as e:
                     logger.error(f"YooKassa payment creation failed: {e}")
                     ORDER_FAILURE_COUNT.labels(reason="yookassa_error").inc()
@@ -1295,7 +1301,7 @@ async def create_order(request: Request, payload: OrderCreate):
             return {
                 "ok": True,
                 "order_id": order.id,
-                "confirmation_url": confirmation_url,
+                "confirmation_token": confirmation_token,
             }
 
         except HTTPException:
