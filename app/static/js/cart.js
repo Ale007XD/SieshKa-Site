@@ -1250,9 +1250,11 @@ function setupCheckoutForm() {
       if (response.ok && data.ok) {
         // Clear cart on successful order
         localStorage.setItem("cart", "[]");
-        if (data.confirmation_url) {
-          window.location.href = data.confirmation_url;
-      } else {
+        if (data.confirmation_token) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalText;
+          showYooKassaWidget(data.confirmation_token, data.order_id);
+        } else {
           window.location.href = `/thanks/${data.order_id}`;
       }
       
@@ -1284,6 +1286,59 @@ function showError(message) {
   if (errorDiv) {
     errorDiv.textContent = message;
     errorDiv.classList.remove('d-none');
+  }
+}
+
+function showYooKassaWidget(confirmationToken, orderId) {
+  // Динамически загружаем CDN виджета, если ещё не загружен
+  function _renderWidget() {
+    // Создаём контейнер если нет
+    let container = document.getElementById('yookassa-widget-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'yookassa-widget-container';
+      container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      const inner = document.createElement('div');
+      inner.id = 'payment-form';
+      inner.style.cssText = 'background:#fff;border-radius:12px;padding:24px;width:100%;max-width:480px;max-height:90vh;overflow:auto;';
+      container.appendChild(inner);
+      document.body.appendChild(container);
+    }
+
+    const checkout = new window.YooMoneyCheckoutWidget({
+      confirmation_token: confirmationToken,
+      return_url: `${window.location.origin}/thanks/${orderId}`,
+      customization: {
+        payment_methods: ['bank_card', 'sbp'],
+      },
+      error_callback(error) {
+        console.error('YooKassa widget error:', error);
+        CartManager.showToast('Ошибка платёжного виджета. Попробуйте позже.', 'error');
+      },
+    });
+
+    checkout.render('payment-form').then(() => {
+      checkout.on('success', () => {
+        checkout.destroy();
+        document.getElementById('yookassa-widget-container')?.remove();
+        window.location.href = `/thanks/${orderId}`;
+      });
+      checkout.on('fail', () => {
+        checkout.destroy();
+        document.getElementById('yookassa-widget-container')?.remove();
+        CartManager.showToast('Оплата не прошла. Попробуйте ещё раз.', 'error');
+      });
+    });
+  }
+
+  if (window.YooMoneyCheckoutWidget) {
+    _renderWidget();
+  } else {
+    const script = document.createElement('script');
+    script.src = 'https://yookassa.ru/checkout-widget/v1/checkout-widget.js';
+    script.onload = _renderWidget;
+    script.onerror = () => CartManager.showToast('Не удалось загрузить платёжный виджет.', 'error');
+    document.head.appendChild(script);
   }
 }
 
