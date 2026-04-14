@@ -165,4 +165,4 @@ def handle_webhook(
         order.status = OrderStatus.accepted
 
     db.add(order)
-    db.commit()
+    db.flush()
