@@ -1308,9 +1308,6 @@ function showYooKassaWidget(confirmationToken, orderId) {
     const checkout = new window.YooMoneyCheckoutWidget({
       confirmation_token: confirmationToken,
       return_url: `${window.location.origin}/thanks/${orderId}`,
-      customization: {
-        payment_methods: ['bank_card', 'sbp'],
-      },
       error_callback(error) {
         console.error('YooKassa widget error:', error);
         CartManager.showToast('Ошибка платёжного виджета. Попробуйте позже.', 'error');
