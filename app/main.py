@@ -168,8 +168,8 @@ async def security_headers_middleware(request: Request, call_next):
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://yookassa.ru https://static.yoomoney.ru; "
         "img-src 'self' data: https:; "
         "font-src 'self' https://cdn.jsdelivr.net https://r2cdn.perplexity.ai https://static.yoomoney.ru; "
-        "connect-src 'self' https://cdn.jsdelivr.net https://api.yookassa.ru https://yookassa.ru https://static.yoomoney.ru; "
-        "frame-src https://yookassa.ru https://static.yoomoney.ru;"
+        "connect-src 'self' https://cdn.jsdelivr.net https://api.yookassa.ru https://yookassa.ru https://*.yookassa.ru https://static.yoomoney.ru https://yoomoney.ru https://*.yoomoney.ru; "
+        "frame-src https://yookassa.ru https://*.yookassa.ru https://static.yoomoney.ru https://yoomoney.ru https://*.yoomoney.ru;"
     )
     return response
 
