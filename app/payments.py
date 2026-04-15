@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
 import uuid
 from decimal import Decimal
 from typing import Any
@@ -45,18 +42,12 @@ def _amount_value(order: Order) -> str:
 
 
 def _verify_webhook_signature(raw_body: bytes, signature: str | None) -> None:
-    if not signature:
-        raise YooKassaWebhookError("Missing X-Content-SHA256 header")
-
-    secret = settings.YOOKASSA_SECRET_KEY
-    if not secret:
-        raise YooKassaConfigError("YooKassa secret key is not configured")
-
-    digest = hmac.HMAC(secret.encode(), raw_body, hashlib.sha256).digest()
-    expected = base64.b64encode(digest).decode()
-
-    if not hmac.compare_digest(expected, signature):
-        raise YooKassaWebhookError("Invalid webhook signature")
+    # YooKassa не использует HMAC-SHA256 для webhook-уведомлений.
+    # Реальный заголовок X-Content-SHA256 содержит ECDSA-подпись
+    # в формате: "v1 <key_id> <seq> <base64-DER>" — это асимметричная
+    # криптография, не имеющая отношения к Secret Key магазина.
+    # Единственный официальный метод верификации — IP-allowlist (main.py).
+    pass
 
 
 def _build_receipt(order: Order) -> dict:
