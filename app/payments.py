@@ -44,9 +44,11 @@ def _amount_value(order: Order) -> str:
 def _verify_webhook_signature(raw_body: bytes, signature: str | None) -> None:
     # YooKassa не использует HMAC-SHA256 для webhook-уведомлений.
     # Реальный заголовок X-Content-SHA256 содержит ECDSA-подпись
-    # в формате: "v1 <key_id> <seq> <base64-DER>" — это асимметричная
-    # криптография, не имеющая отношения к Secret Key магазина.
-    # Единственный официальный метод верификации — IP-allowlist (main.py).
+    # в формате: "v1 <key_id> <seq> <base64-DER>" — асимметричная
+    # криптография, не связанная с Secret Key магазина.
+    # Верификация выполняется двумя слоями:
+    #   1. IP-allowlist на уровне main.py (отсекает левый трафик)
+    #   2. API-перепроверка статуса в handle_webhook (исключает подмену данных)
     pass
 
 
@@ -140,10 +142,22 @@ def handle_webhook(
 
     obj = payload.get("object") or {}
     payment_id = obj.get("id")
-    status = obj.get("status")
 
     if not payment_id:
         raise YooKassaWebhookError("Missing payment id in webhook payload")
+
+    # Не доверяем статусу из тела webhook — перепроверяем через API.
+    # Это защита от подмены данных: даже если запрос прошёл IP-фильтр,
+    # статус платежа берётся из YooKassa, а не из входящего JSON.
+    _ensure_yookassa_config()
+    try:
+        actual_payment = Payment.find_one(payment_id)
+    except Exception as exc:
+        raise YooKassaWebhookError(
+            f"Failed to fetch payment from YooKassa API: {exc}"
+        ) from exc
+
+    status = getattr(actual_payment, "status", None)
 
     order = db.query(Order).filter(Order.yookassa_payment_id == payment_id).first()
     if not order:
