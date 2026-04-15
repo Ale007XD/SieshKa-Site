@@ -1327,7 +1327,7 @@ async def payments_webhook(request: Request):
         raise HTTPException(403, "Forbidden")
 
     raw_body = await request.body()
-    signature = request.headers.get("x-content-sha256")
+    signature = request.headers.get("signature") or request.headers.get("x-content-sha256")
 
     try:
         import json
