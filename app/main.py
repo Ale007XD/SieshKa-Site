@@ -76,6 +76,7 @@ from .max_notify import (
     build_order_status_keyboard,
     send_max_start_reply,
     notify_client_status_update,
+    edit_max_order_payment_status,
 )
 from .payments import (
     create_yookassa_payment,
@@ -1283,7 +1284,7 @@ async def create_order(request: Request, payload: OrderCreate):
                     else "\n🚚 Доставка: бесплатно"
                 )
 
-                await notify_order_to_staff(
+                _notify_text = (
                     f"🛒 Новый заказ #{order.order_number}\n"
                     f"👤 {order.customer_name}\n"
                     f"📞 {order.phone_e164}\n"
@@ -1292,10 +1293,21 @@ async def create_order(request: Request, payload: OrderCreate):
                     f"{delivery_info}"
                     f"{delivery_fee_line}\n\n"
                     f"📦 Состав:\n{items_text}\n\n"
-                    f"💵 Итого (с доставкой): {order.total_rub}₽",
+                    f"💵 Итого (с доставкой): {order.total_rub}₽"
+                )
+                _message_ids = await notify_order_to_staff(
+                    _notify_text,
                     order_id=order.id,
                     current_status=order.status,
+                    payment_confirmed=order.payment_confirmed,
+                    payment_method=order.payment_method,
                 )
+                if _message_ids:
+                    order.max_message_ids = json.dumps(
+                        {str(k): v for k, v in _message_ids.items()}
+                    )
+                    order.max_message_text = _notify_text
+                    db.add(order)
 
             except Exception as e:
                 logger.error(f"Failed to send staff notification: {e}")
@@ -1354,6 +1366,30 @@ async def payments_webhook(request: Request):
     except YooKassaConfigError as e:
         logger.error(f"YooKassa config error in webhook: {e}")
         raise HTTPException(500, "Internal error")
+
+    # После успешного коммита — обновить кнопку оплаты в MAX
+    try:
+        _wh_obj        = payload.get("object") or {}
+        _wh_payment_id = _wh_obj.get("id")
+        if _wh_payment_id:
+            _wh_oid = _wh_ost = _wh_pc = _wh_pm = _wh_mids = _wh_mtxt = None
+            with SessionLocal() as _wh_db:
+                _wh_o = _wh_db.query(Order).filter(
+                    Order.yookassa_payment_id == _wh_payment_id
+                ).first()
+                if _wh_o and _wh_o.payment_confirmed and _wh_o.max_message_ids:
+                    _wh_oid  = _wh_o.id
+                    _wh_ost  = _wh_o.status
+                    _wh_pc   = _wh_o.payment_confirmed
+                    _wh_pm   = _wh_o.payment_method
+                    _wh_mids = _wh_o.max_message_ids
+                    _wh_mtxt = _wh_o.max_message_text or f"Заказ #{_wh_o.order_number}"
+            if _wh_oid and _wh_mids:
+                await edit_max_order_payment_status(
+                    _wh_mids, _wh_mtxt, _wh_oid, _wh_ost, _wh_pc, _wh_pm
+                )
+    except Exception as _wh_e:
+        logger.warning(f"MAX edit after YooKassa webhook failed: {_wh_e}")
 
     return {"ok": True}
 
@@ -1512,10 +1548,67 @@ async def max_callback(request: Request):
 
     logger.debug("MAX CALLBACK PAYLOAD PARSED: %r", payload)
 
-    order_id = payload.get("order_id")
+    order_id   = payload.get("order_id")
     status_str = payload.get("status")
+    action     = payload.get("action")  # "pay_toggle" | "pay_info" | None
 
-    if not order_id or not status_str:
+    if not order_id:
+        logger.warning("MAX CALLBACK PAYLOAD MISSING order_id")
+        if callback_id:
+            await answer_max_callback(callback_id, notification="Недостаточно данных")
+        raise HTTPException(status_code=400, detail="Missing order_id")
+
+    # ── Обработка кнопки оплаты ──────────────────────────────────────────────
+    if action in ("pay_toggle", "pay_info"):
+        with SessionLocal() as _pay_db:
+            try:
+                _pay_o = _pay_db.query(Order).filter(Order.id == int(order_id)).first()
+            except (ValueError, TypeError):
+                _pay_o = None
+            if not _pay_o:
+                if callback_id:
+                    await answer_max_callback(callback_id, notification="❌ Заказ не найден")
+                raise HTTPException(status_code=404, detail="Order not found")
+
+            if action == "pay_info":
+                if callback_id:
+                    await answer_max_callback(
+                        callback_id,
+                        notification="💳 Оплата через ЮКассу — обновляется автоматически",
+                    )
+                return JSONResponse({"ok": True})
+
+            # pay_toggle — только для наличных
+            if _pay_o.payment_method != PaymentMethod.cash:
+                if callback_id:
+                    await answer_max_callback(
+                        callback_id,
+                        notification="❌ Ручное изменение только для наличной оплаты",
+                    )
+                return JSONResponse({"ok": True})
+
+            _pay_o.payment_confirmed = not _pay_o.payment_confirmed
+            _pay_db.add(_pay_o)
+            _pay_db.commit()
+            _pay_db.refresh(_pay_o)
+
+            _pay_note = "✅ Оплата подтверждена" if _pay_o.payment_confirmed else "🟠 Статус оплаты снят"
+            _pay_txt  = _pay_o.max_message_text or f"Заказ #{_pay_o.order_number}"
+            _pay_kbd  = build_order_status_keyboard(
+                _pay_o.id, _pay_o.status, _pay_o.payment_confirmed, _pay_o.payment_method
+            )
+
+        if callback_id:
+            await answer_max_callback(
+                callback_id,
+                notification=_pay_note,
+                message_text=_pay_txt,
+                attachments=_pay_kbd or None,
+            )
+        return JSONResponse({"ok": True})
+
+    # ── Смена статуса заказа ─────────────────────────────────────────────────
+    if not status_str:
         logger.warning(
             "MAX CALLBACK PAYLOAD MISSING FIELDS: order_id=%r status=%r",
             order_id, status_str,
@@ -1555,9 +1648,17 @@ async def max_callback(request: Request):
             msg_body = ((update.get("message") or {}).get("body") or {})
             current_text = msg_body.get("text") or f"Заказ #{order_id}"
             try:
+                _pc_upd = _pm_upd = None
+                with SessionLocal() as _upd_db:
+                    _upd_o = _upd_db.query(Order).filter(Order.id == int(order_id)).first()
+                    if _upd_o:
+                        _pc_upd = _upd_o.payment_confirmed
+                        _pm_upd = _upd_o.payment_method
                 new_attachments = build_order_status_keyboard(
                     int(order_id),
                     OrderStatus(new_st),
+                    _pc_upd or False,
+                    _pm_upd,
                 )
             except Exception as e:
                 logger.warning("MAX KEYBOARD BUILD ERROR: %r", e)
