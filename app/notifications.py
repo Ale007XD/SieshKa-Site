@@ -17,7 +17,7 @@ from .max_notify import (
     send_max_message,
     build_order_status_keyboard,
 )
-from .models import OrderStatus
+from .models import OrderStatus, PaymentMethod
 from .sms import notify_sms_staff
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ _dlq_task: Optional[asyncio.Task] = None
 
 
 def init_notifications(redis_client) -> None:
-    """Инжектирует Redis-клиент. Вызывается один раз из lifespan после инициализации Redis."""
+    """Инжектирует Redis-клиент. Вызывается один раз из lifespan."""
     global _redis
     _redis = redis_client
 
@@ -58,7 +58,6 @@ async def notify_both(text: str) -> None:
     """
     Drop-in replacement для telegram.notify_both(text).
     Отправляет уведомления через MAX и SMS параллельно.
-    Неудавшиеся MAX-доставки попадают в Redis dlq:max.
     """
     failed_uids, failed_phones = await asyncio.gather(
         notify_max_staff(text),
@@ -73,23 +72,36 @@ async def notify_order_to_staff(
     text: str,
     order_id: int,
     current_status: OrderStatus,
-) -> None:
+    payment_confirmed: bool = False,
+    payment_method: PaymentMethod | None = None,
+) -> dict[int, str]:
     """
-    Уведомление о заказе с кнопками смены статуса (MAX) + SMS параллельно.
-    Используется вместо notify_both при создании/обновлении заказа.
+    Уведомление о заказе с кнопками статуса + оплаты (MAX) + SMS параллельно.
+    Возвращает {user_id: mid} для сохранения в order.max_message_ids.
     """
-    attachments = build_order_status_keyboard(order_id, current_status) or None
-    failed_uids, failed_phones = await asyncio.gather(
-        notify_max_staff_order(text, order_id, current_status),
+    attachments = (
+        build_order_status_keyboard(
+            order_id, current_status, payment_confirmed, payment_method
+        )
+        or None
+    )
+
+    (message_ids, failed_uids), failed_phones = await asyncio.gather(
+        notify_max_staff_order(
+            text, order_id, current_status, payment_confirmed, payment_method
+        ),
         notify_sms_staff(text),
     )
+
     if failed_phones:
         logger.warning("SMS failed for phones=%s", failed_phones)
     await _push_failed_max_to_dlq(failed_uids, text, attachments=attachments)
 
+    return message_ids
+
 
 async def get_failed_notifications_count() -> int:
-    """Размер DLQ из Redis. Async-замена sync get_failed_notifications_count() из telegram.py."""
+    """Размер DLQ из Redis."""
     if _redis:
         try:
             return await _redis.llen("dlq:max")
@@ -119,10 +131,10 @@ async def _dlq_worker() -> None:
                         )
                         break
                     attachments = data.get("attachments") or None
-                    ok = await send_max_message(
+                    mid = await send_max_message(
                         data["user_id"], data["text"], attachments=attachments
                     )
-                    if ok:
+                    if mid is not None:
                         retried += 1
                     else:
                         data["retries"] = data.get("retries", 0) + 1
