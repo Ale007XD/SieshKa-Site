@@ -1,6 +1,7 @@
 """
 MAX messenger notifications (platform-api.max.ru).
 Расширение: inline_keyboard для смены статуса заказа + /answers callback.
+Расширение v2: кнопка статуса оплаты (🟠/🟢), редактирование сообщений.
 """
 
 import json
@@ -10,7 +11,7 @@ from typing import Any
 import httpx
 
 from config.settings import settings
-from .models import OrderStatus
+from .models import OrderStatus, PaymentMethod
 from .order_status import get_next_statuses
 
 logger = logging.getLogger(__name__)
@@ -21,12 +22,12 @@ _TIMEOUT = 10.0
 
 # Русские метки и цвета кнопок (intent: positive=зелёный, negative=красный, default=синий/серый)
 _STATUS_LABEL: dict[OrderStatus, tuple[str, str]] = {
-    OrderStatus.new: ("🟠 НОВЫЙ", "default"),
-    OrderStatus.accepted: ("🔵 ПРИНЯТ", "default"),
-    OrderStatus.cooking: ("👨‍🍳 ГОТОВИТСЯ", "default"),
-    OrderStatus.on_the_way: ("🛵 В ПУТИ", "default"),
-    OrderStatus.delivered: ("✅ ДОСТАВЛЕН", "positive"),
-    OrderStatus.cancelled: ("❌ ОТМЕНИТЬ", "negative"),
+    OrderStatus.new:        ("🟠 НОВЫЙ",       "default"),
+    OrderStatus.accepted:   ("🔵 ПРИНЯТ",      "default"),
+    OrderStatus.cooking:    ("👨‍🍳 ГОТОВИТСЯ",  "default"),
+    OrderStatus.on_the_way: ("🛵 В ПУТИ",      "default"),
+    OrderStatus.delivered:  ("✅ ДОСТАВЛЕН",   "positive"),
+    OrderStatus.cancelled:  ("❌ ОТМЕНИТЬ",    "negative"),
 }
 
 
@@ -34,15 +35,14 @@ async def send_max_message(
     user_id: int,
     text: str,
     attachments: list[dict[str, Any]] | None = None,
-) -> bool:
+) -> str | None:
     """
-    Отправляет сообщение одному пользователю MAX через /messages.
-    attachments — опциональный список (inline_keyboard и т.д.).
-    Возвращает True при успехе.
+    Отправляет сообщение пользователю MAX через /messages.
+    Возвращает message_id (mid) при успехе, None при ошибке.
     """
     if not settings.MAX_BOT_TOKEN:
         logger.warning("MAX_BOT_TOKEN not set, skipping MAX notify")
-        return False
+        return None
 
     headers = {
         "Authorization": settings.MAX_BOT_TOKEN,
@@ -71,13 +71,13 @@ async def send_max_message(
                     user_id,
                     data,
                 )
-                return False
+                return None
             logger.info(
                 "MAX messages OK for user_id=%s mid=%s",
                 user_id,
                 mid or "?",
             )
-        return True
+        return mid  # str | None
     except httpx.HTTPStatusError as e:
         logger.error(
             "MAX messages HTTP error for user_id=%s: %s",
@@ -88,7 +88,7 @@ async def send_max_message(
         logger.error("MAX messages JSON parse error for user_id=%s: %s", user_id, e)
     except httpx.RequestError as e:
         logger.error("MAX messages request error for user_id=%s: %s", user_id, e)
-    return False
+    return None
 
 
 async def answer_max_callback(
@@ -134,12 +134,8 @@ async def answer_max_callback(
                     data,
                 )
                 return False
-            logger.info(
-                "MAX answers OK for callback_id=%s: %s",
-                callback_id,
-                data,
-            )
-        return True
+            logger.info("MAX answers OK for callback_id=%s: %s", callback_id, data)
+            return True
     except httpx.HTTPStatusError as e:
         logger.error(
             "MAX answers HTTP error for callback_id=%s: %s",
@@ -155,17 +151,52 @@ async def answer_max_callback(
     return False
 
 
+def build_payment_button(
+    order_id: int,
+    payment_confirmed: bool,
+    payment_method: PaymentMethod,
+) -> dict[str, Any]:
+    """
+    Заметная кнопка статуса оплаты.
+    cash — кликабельна (toggle). ЮКасса/СБП — индикатор (pay_info).
+    """
+    if payment_confirmed:
+        text = "🟢 ОПЛАЧЕНО"
+        intent = "positive"
+    else:
+        text = "🟠 ОЖИДАЕТ ОПЛАТЫ"
+        intent = "default"
+
+    action = "pay_toggle" if payment_method == PaymentMethod.cash else "pay_info"
+    return {
+        "type": "callback",
+        "text": text,
+        "intent": intent,
+        "payload": json.dumps({"order_id": order_id, "action": action}),
+    }
+
+
 def build_order_status_keyboard(
     order_id: int,
     current_status: OrderStatus,
+    payment_confirmed: bool = False,
+    payment_method: PaymentMethod | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Строит inline_keyboard для сообщения о заказе.
-    Кнопки — допустимые следующие статусы из VALID_STATUS_TRANSITIONS.
-    Метки на русском языке с эмодзи-цветами.
-    Возвращает пустой список если переходов нет (delivered / cancelled).
+    Строит inline_keyboard с двумя рядами кнопок:
+      - Ряд 1 (если payment_method передан): заметная кнопка статуса оплаты
+      - Ряд 2: кнопки допустимых переходов статуса заказа
     """
-    buttons_row: list[dict[str, Any]] = []
+    buttons_rows: list[list[dict[str, Any]]] = []
+
+    # Ряд 1 — кнопка оплаты
+    if payment_method is not None:
+        buttons_rows.append(
+            [build_payment_button(order_id, payment_confirmed, payment_method)]
+        )
+
+    # Ряд 2 — смена статуса заказа
+    status_row: list[dict[str, Any]] = []
     for next_status in get_next_statuses(current_status):
         label, intent = _STATUS_LABEL.get(
             next_status, (next_status.value.upper(), "default")
@@ -174,22 +205,16 @@ def build_order_status_keyboard(
             {"order_id": order_id, "status": next_status.value},
             ensure_ascii=False,
         )
-        buttons_row.append(
-            {
-                "type": "callback",
-                "text": label,
-                "intent": intent,
-                "payload": payload,
-            }
+        status_row.append(
+            {"type": "callback", "text": label, "intent": intent, "payload": payload}
         )
-    if not buttons_row:
+    if status_row:
+        buttons_rows.append(status_row)
+
+    if not buttons_rows:
         return []
-    return [
-        {
-            "type": "inline_keyboard",
-            "payload": {"buttons": [buttons_row]},
-        }
-    ]
+
+    return [{"type": "inline_keyboard", "payload": {"buttons": buttons_rows}}]
 
 
 async def send_max_order_message(
@@ -197,9 +222,16 @@ async def send_max_order_message(
     text: str,
     order_id: int,
     current_status: OrderStatus,
-) -> bool:
-    """Отправляет сообщение о заказе с кнопками смены статуса."""
-    attachments = build_order_status_keyboard(order_id, current_status) or None
+    payment_confirmed: bool = False,
+    payment_method: PaymentMethod | None = None,
+) -> str | None:
+    """Отправляет сообщение о заказе с кнопками статуса и оплаты. Возвращает mid."""
+    attachments = (
+        build_order_status_keyboard(
+            order_id, current_status, payment_confirmed, payment_method
+        )
+        or None
+    )
     return await send_max_message(user_id, text, attachments=attachments)
 
 
@@ -222,31 +254,26 @@ async def notify_client_status_update(
     text = _STATUS_CLIENT_TEXT.get(new_status)
     if not text:
         return False  # new/промежуточные статусы клиенту не шлём
-    return await send_max_message(client_max_uid, text.format(num=order_number))
+    mid = await send_max_message(client_max_uid, text.format(num=order_number))
+    return mid is not None
 
 
 async def send_max_start_reply(user_id: int, menu_url: str, welcome_text: str) -> bool:
     """
     Отвечает на /start клиентским приветствием и кнопкой-ссылкой на меню.
-    link-кнопка открывает menu_url во встроенном браузере MAX.
     """
     attachments = [
         {
             "type": "inline_keyboard",
             "payload": {
                 "buttons": [
-                    [
-                        {
-                            "type": "link",
-                            "text": "🍱 Открыть меню",
-                            "url": menu_url,
-                        }
-                    ]
+                    [{"type": "link", "text": "🍱 Открыть меню", "url": menu_url}]
                 ]
             },
         }
     ]
-    return await send_max_message(user_id, welcome_text, attachments=attachments)
+    mid = await send_max_message(user_id, welcome_text, attachments=attachments)
+    return mid is not None
 
 
 async def notify_max_staff(text: str) -> list[int]:
@@ -256,8 +283,8 @@ async def notify_max_staff(text: str) -> list[int]:
     """
     failed: list[int] = []
     for uid in settings.MAX_STAFF_CHAT_IDS:
-        ok = await send_max_message(uid, text)
-        if not ok:
+        mid = await send_max_message(uid, text)
+        if mid is None:
             failed.append(uid)
     return failed
 
@@ -266,14 +293,91 @@ async def notify_max_staff_order(
     text: str,
     order_id: int,
     current_status: OrderStatus,
-) -> list[int]:
+    payment_confirmed: bool = False,
+    payment_method: PaymentMethod | None = None,
+) -> tuple[dict[int, str], list[int]]:
     """
-    Рассылка всем MAX_STAFF_CHAT_IDS с кнопками смены статуса.
-    Возвращает список user_id которым не удалось отправить.
+    Рассылка всем MAX_STAFF_CHAT_IDS с кнопками статуса и оплаты.
+    Возвращает (message_ids_map, failed_uids).
+    message_ids_map: {user_id: mid} — для последующего редактирования.
     """
+    message_ids: dict[int, str] = {}
     failed: list[int] = []
     for uid in settings.MAX_STAFF_CHAT_IDS:
-        ok = await send_max_order_message(uid, text, order_id, current_status)
-        if not ok:
+        mid = await send_max_order_message(
+            uid, text, order_id, current_status, payment_confirmed, payment_method
+        )
+        if mid is not None:
+            message_ids[uid] = mid
+        else:
             failed.append(uid)
-    return failed
+    return message_ids, failed
+
+
+async def edit_max_message(
+    message_id: str,
+    text: str,
+    attachments: list[dict[str, Any]] | None = None,
+) -> bool:
+    """Редактирует существующее MAX-сообщение через PUT /messages."""
+    if not settings.MAX_BOT_TOKEN:
+        logger.warning("MAX_BOT_TOKEN not set, skipping message edit")
+        return False
+
+    headers = {
+        "Authorization": settings.MAX_BOT_TOKEN,
+        "Content-Type": "application/json",
+    }
+    params: dict[str, Any] = {"message_id": message_id}
+    body: dict[str, Any] = {"text": text}
+    if attachments:
+        body["attachments"] = attachments
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.put(
+                MAX_MESSAGES_URL, params=params, json=body, headers=headers
+            )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success", False):
+            logger.error(
+                "MAX PUT messages success=false for mid=%s: %s", message_id, data
+            )
+        return data.get("success", False)
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "MAX PUT messages HTTP error for mid=%s: %s", message_id, e.response.text
+        )
+    except Exception as e:
+        logger.error("MAX PUT messages error for mid=%s: %s", message_id, e)
+    return False
+
+
+async def edit_max_order_payment_status(
+    max_message_ids_json: str,
+    message_text: str,
+    order_id: int,
+    current_status: OrderStatus,
+    payment_confirmed: bool,
+    payment_method: PaymentMethod,
+) -> None:
+    """
+    Обновляет кнопку оплаты во всех MAX-сообщениях заказа.
+    Вызывается: при YooKassa webhook succeeded + при ручном pay_toggle (cash).
+    max_message_ids_json: JSON {"<user_id>": "<mid>", ...} из order.max_message_ids.
+    """
+    try:
+        mids: dict[str, str] = json.loads(max_message_ids_json)
+    except (ValueError, TypeError):
+        logger.warning("edit_max_order_payment_status: некорректный max_message_ids_json")
+        return
+
+    keyboard = build_order_status_keyboard(
+        order_id, current_status, payment_confirmed, payment_method
+    )
+    attachments = keyboard or None
+
+    for mid in mids.values():
+        if mid:
+            await edit_max_message(mid, message_text, attachments)
