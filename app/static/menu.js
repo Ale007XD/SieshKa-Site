@@ -581,8 +581,8 @@ function showPreorderInfo(productId) {
     let leadText = 'предзаказ';
     if (MenuState.menuData) {
         for (const cat of MenuState.menuData.categories) {
-            const p = cat.products.find(p => p.productid === productId);
-            if (p && p.badgetext) { leadText = p.badgetext; break; }
+            const p = cat.products.find(p => p.product_id === productId);
+            if (p && p.badge_text) { leadText = p.badge_text; break; }
         }
     }
     showNotification(`Этот товар требует предзаказа минимум за ${leadText}. Выберите время доставки.`, 'info');
