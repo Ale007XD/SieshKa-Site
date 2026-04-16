@@ -578,7 +578,6 @@ function scrollToSlotSelector() {
 }
 
 function showPreorderInfo(productId) {
-    showNotification(
     let leadText = 'предзаказ';
     if (MenuState.menuData) {
         for (const cat of MenuState.menuData.categories) {
