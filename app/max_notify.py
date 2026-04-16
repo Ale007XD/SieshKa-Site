@@ -22,12 +22,12 @@ _TIMEOUT = 10.0
 
 # Русские метки и цвета кнопок (intent: positive=зелёный, negative=красный, default=синий/серый)
 _STATUS_LABEL: dict[OrderStatus, tuple[str, str]] = {
-    OrderStatus.new:        ("🟠 НОВЫЙ",       "default"),
-    OrderStatus.accepted:   ("🔵 ПРИНЯТ",      "default"),
-    OrderStatus.cooking:    ("👨‍🍳 ГОТОВИТСЯ",  "default"),
-    OrderStatus.on_the_way: ("🛵 В ПУТИ",      "default"),
-    OrderStatus.delivered:  ("✅ ДОСТАВЛЕН",   "positive"),
-    OrderStatus.cancelled:  ("❌ ОТМЕНИТЬ",    "negative"),
+    OrderStatus.new: ("🟠 НОВЫЙ", "default"),
+    OrderStatus.accepted: ("🔵 ПРИНЯТ", "default"),
+    OrderStatus.cooking: ("👨‍🍳 ГОТОВИТСЯ", "default"),
+    OrderStatus.on_the_way: ("🛵 В ПУТИ", "default"),
+    OrderStatus.delivered: ("✅ ДОСТАВЛЕН", "positive"),
+    OrderStatus.cancelled: ("❌ ОТМЕНИТЬ", "negative"),
 }
 
 
@@ -245,11 +245,11 @@ async def notify_client_status_update(
     Вызывается из update_order_status_endpoint после успешного перехода.
     """
     _STATUS_CLIENT_TEXT: dict[OrderStatus, str] = {
-        OrderStatus.accepted:   "✅ Ваш заказ #{num} принят и передан на кухню.",
-        OrderStatus.cooking:    "👨‍🍳 Ваш заказ #{num} готовится.",
+        OrderStatus.accepted: "✅ Ваш заказ #{num} принят и передан на кухню.",
+        OrderStatus.cooking: "👨‍🍳 Ваш заказ #{num} готовится.",
         OrderStatus.on_the_way: "🛵 Ваш заказ #{num} уже в пути!",
-        OrderStatus.delivered:  "🎉 Ваш заказ #{num} доставлен. Приятного аппетита!",
-        OrderStatus.cancelled:  "❌ Ваш заказ #{num} отменён. Свяжитесь с нами если это ошибка.",
+        OrderStatus.delivered: "🎉 Ваш заказ #{num} доставлен. Приятного аппетита!",
+        OrderStatus.cancelled: "❌ Ваш заказ #{num} отменён. Свяжитесь с нами если это ошибка.",
     }
     text = _STATUS_CLIENT_TEXT.get(new_status)
     if not text:
@@ -370,7 +370,9 @@ async def edit_max_order_payment_status(
     try:
         mids: dict[str, str] = json.loads(max_message_ids_json)
     except (ValueError, TypeError):
-        logger.warning("edit_max_order_payment_status: некорректный max_message_ids_json")
+        logger.warning(
+            "edit_max_order_payment_status: некорректный max_message_ids_json"
+        )
         return
 
     keyboard = build_order_status_keyboard(

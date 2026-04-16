@@ -75,7 +75,6 @@ from .max_notify import (
     answer_max_callback,
     build_order_status_keyboard,
     send_max_start_reply,
-    notify_client_status_update,
     edit_max_order_payment_status,
 )
 from .payments import (
@@ -421,6 +420,7 @@ def get_local_tz() -> ZoneInfo:
     except Exception:
         pass
     return ZoneInfo(TZ_NAME)
+
 
 MORNING_START = _parse_hhmm(settings.MORNING_START)
 MORNING_END = _parse_hhmm(settings.MORNING_END)
@@ -1339,7 +1339,9 @@ async def payments_webhook(request: Request):
         raise HTTPException(403, "Forbidden")
 
     raw_body = await request.body()
-    signature = request.headers.get("signature") or request.headers.get("x-content-sha256")
+    signature = request.headers.get("signature") or request.headers.get(
+        "x-content-sha256"
+    )
 
     try:
         import json
@@ -1359,6 +1361,7 @@ async def payments_webhook(request: Request):
 
     try:
         import asyncio
+
         await asyncio.to_thread(_process_webhook)
     except YooKassaWebhookError as e:
         logger.warning(f"YooKassa webhook rejected: {e}")
@@ -1369,19 +1372,21 @@ async def payments_webhook(request: Request):
 
     # После успешного коммита — обновить кнопку оплаты в MAX
     try:
-        _wh_obj        = payload.get("object") or {}
+        _wh_obj = payload.get("object") or {}
         _wh_payment_id = _wh_obj.get("id")
         if _wh_payment_id:
             _wh_oid = _wh_ost = _wh_pc = _wh_pm = _wh_mids = _wh_mtxt = None
             with SessionLocal() as _wh_db:
-                _wh_o = _wh_db.query(Order).filter(
-                    Order.yookassa_payment_id == _wh_payment_id
-                ).first()
+                _wh_o = (
+                    _wh_db.query(Order)
+                    .filter(Order.yookassa_payment_id == _wh_payment_id)
+                    .first()
+                )
                 if _wh_o and _wh_o.payment_confirmed and _wh_o.max_message_ids:
-                    _wh_oid  = _wh_o.id
-                    _wh_ost  = _wh_o.status
-                    _wh_pc   = _wh_o.payment_confirmed
-                    _wh_pm   = _wh_o.payment_method
+                    _wh_oid = _wh_o.id
+                    _wh_ost = _wh_o.status
+                    _wh_pc = _wh_o.payment_confirmed
+                    _wh_pm = _wh_o.payment_method
                     _wh_mids = _wh_o.max_message_ids
                     _wh_mtxt = _wh_o.max_message_text or f"Заказ #{_wh_o.order_number}"
             if _wh_oid and _wh_mids:
@@ -1392,6 +1397,7 @@ async def payments_webhook(request: Request):
         logger.warning(f"MAX edit after YooKassa webhook failed: {_wh_e}")
 
     return {"ok": True}
+
 
 @app.get("/thanks/{order_id}", response_class=HTMLResponse, tags=["Orders"])
 async def thanks_page(request: Request, order_id: int):
@@ -1465,7 +1471,11 @@ async def max_callback(request: Request):
 
     logger.debug("MAX PARSED UPDATE: %r", update)
 
-    if update.get("update_type") not in ("message_callback", "bot_started", "message_created"):
+    if update.get("update_type") not in (
+        "message_callback",
+        "bot_started",
+        "message_created",
+    ):
         logger.debug("MAX IGNORED UPDATE TYPE: %r", update.get("update_type"))
         return JSONResponse({"ok": True, "ignored": True})
 
@@ -1480,13 +1490,13 @@ async def max_callback(request: Request):
         except (TypeError, ValueError):
             user_id = 0
 
-        message_body = ((update.get("message") or {}).get("body") or {})
+        message_body = (update.get("message") or {}).get("body") or {}
         text_in = (message_body.get("text") or "").strip()
 
         # Реагируем только на /start (или bot_started без текста)
-        is_start = (
-            update.get("update_type") == "bot_started"
-            or text_in.lower() in ("/start", "start")
+        is_start = update.get("update_type") == "bot_started" or text_in.lower() in (
+            "/start",
+            "start",
         )
         if is_start and user_id:
             menu_url = f"{settings.SITE_BASE_URL}/?max_uid={user_id}"
@@ -1548,9 +1558,9 @@ async def max_callback(request: Request):
 
     logger.debug("MAX CALLBACK PAYLOAD PARSED: %r", payload)
 
-    order_id   = payload.get("order_id")
+    order_id = payload.get("order_id")
     status_str = payload.get("status")
-    action     = payload.get("action")  # "pay_toggle" | "pay_info" | None
+    action = payload.get("action")  # "pay_toggle" | "pay_info" | None
 
     if not order_id:
         logger.warning("MAX CALLBACK PAYLOAD MISSING order_id")
@@ -1567,7 +1577,9 @@ async def max_callback(request: Request):
                 _pay_o = None
             if not _pay_o:
                 if callback_id:
-                    await answer_max_callback(callback_id, notification="❌ Заказ не найден")
+                    await answer_max_callback(
+                        callback_id, notification="❌ Заказ не найден"
+                    )
                 raise HTTPException(status_code=404, detail="Order not found")
 
             if action == "pay_info":
@@ -1592,10 +1604,17 @@ async def max_callback(request: Request):
             _pay_db.commit()
             _pay_db.refresh(_pay_o)
 
-            _pay_note = "✅ Оплата подтверждена" if _pay_o.payment_confirmed else "🟠 Статус оплаты снят"
-            _pay_txt  = _pay_o.max_message_text or f"Заказ #{_pay_o.order_number}"
-            _pay_kbd  = build_order_status_keyboard(
-                _pay_o.id, _pay_o.status, _pay_o.payment_confirmed, _pay_o.payment_method
+            _pay_note = (
+                "✅ Оплата подтверждена"
+                if _pay_o.payment_confirmed
+                else "🟠 Статус оплаты снят"
+            )
+            _pay_txt = _pay_o.max_message_text or f"Заказ #{_pay_o.order_number}"
+            _pay_kbd = build_order_status_keyboard(
+                _pay_o.id,
+                _pay_o.status,
+                _pay_o.payment_confirmed,
+                _pay_o.payment_method,
             )
 
         if callback_id:
@@ -1611,7 +1630,8 @@ async def max_callback(request: Request):
     if not status_str:
         logger.warning(
             "MAX CALLBACK PAYLOAD MISSING FIELDS: order_id=%r status=%r",
-            order_id, status_str,
+            order_id,
+            status_str,
         )
         if callback_id:
             await answer_max_callback(
@@ -1638,19 +1658,23 @@ async def max_callback(request: Request):
 
     logger.debug(
         "MAX UPDATE RESULT: order_id=%r status=%r response=%r",
-        order_id, status_str, body,
+        order_id,
+        status_str,
+        body,
     )
 
     if callback_id:
         if body.get("success"):
             new_st = body.get("new_status", status_str)
             new_attachments = []
-            msg_body = ((update.get("message") or {}).get("body") or {})
+            msg_body = (update.get("message") or {}).get("body") or {}
             current_text = msg_body.get("text") or f"Заказ #{order_id}"
             try:
                 _pc_upd = _pm_upd = None
                 with SessionLocal() as _upd_db:
-                    _upd_o = _upd_db.query(Order).filter(Order.id == int(order_id)).first()
+                    _upd_o = (
+                        _upd_db.query(Order).filter(Order.id == int(order_id)).first()
+                    )
                     if _upd_o:
                         _pc_upd = _upd_o.payment_confirmed
                         _pm_upd = _upd_o.payment_method
@@ -1665,7 +1689,9 @@ async def max_callback(request: Request):
 
             logger.info(
                 "MAX SUCCESS: order_id=%r status=%r new_status=%r",
-                order_id, status_str, new_st,
+                order_id,
+                status_str,
+                new_st,
             )
             await answer_max_callback(
                 callback_id,
@@ -1676,7 +1702,9 @@ async def max_callback(request: Request):
         else:
             logger.warning(
                 "MAX ERROR: order_id=%r status=%r error=%r",
-                order_id, status_str, body.get("error"),
+                order_id,
+                status_str,
+                body.get("error"),
             )
             await answer_max_callback(
                 callback_id,

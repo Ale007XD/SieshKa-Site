@@ -62,31 +62,35 @@ def _build_receipt(order: Order) -> dict:
 
     for item in order.items:
         unit_price = Decimal(str(item.price_rub_snapshot)).quantize(Decimal("0.01"))
-        items.append({
-            "description": item.name_snapshot[:128],
-            "quantity": str(Decimal(str(item.qty)).quantize(Decimal("0.001"))),
-            "amount": {
-                "value": str(unit_price),
-                "currency": "RUB",
-            },
-            "vat_code": 1,  # без НДС
-            "payment_mode": "full_prepayment",
-            "payment_subject": "commodity",
-        })
+        items.append(
+            {
+                "description": item.name_snapshot[:128],
+                "quantity": str(Decimal(str(item.qty)).quantize(Decimal("0.001"))),
+                "amount": {
+                    "value": str(unit_price),
+                    "currency": "RUB",
+                },
+                "vat_code": 1,  # без НДС
+                "payment_mode": "full_prepayment",
+                "payment_subject": "commodity",
+            }
+        )
 
     if order.delivery_fee_rub and order.delivery_fee_rub > 0:
         fee = str(Decimal(str(order.delivery_fee_rub)).quantize(Decimal("0.01")))
-        items.append({
-            "description": "Доставка",
-            "quantity": "1",
-            "amount": {
-                "value": fee,
-                "currency": "RUB",
-            },
-            "vat_code": 1,
-            "payment_mode": "full_prepayment",
-            "payment_subject": "service",
-        })
+        items.append(
+            {
+                "description": "Доставка",
+                "quantity": "1",
+                "amount": {
+                    "value": fee,
+                    "currency": "RUB",
+                },
+                "vat_code": 1,
+                "payment_mode": "full_prepayment",
+                "payment_subject": "service",
+            }
+        )
 
     return {
         "customer": {

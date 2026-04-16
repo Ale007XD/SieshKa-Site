@@ -1057,6 +1057,7 @@ async def update_order_status_endpoint(request: Request):
                 # Уведомляем клиента в MAX если он пришёл через бота
                 if order.client_max_uid:
                     import asyncio
+
                     asyncio.create_task(
                         notify_client_status_update(
                             order.client_max_uid,

@@ -143,7 +143,9 @@ class Order(Base):
     max_message_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Текст последнего уведомления (для редактирования сообщений в MAX)
     max_message_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    client_max_uid: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    client_max_uid: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, index=True
+    )
     delivery_mode: Mapped[DeliveryMode] = mapped_column(
         Enum(DeliveryMode), default=DeliveryMode.asap
     )
