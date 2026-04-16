@@ -579,9 +579,14 @@ function scrollToSlotSelector() {
 
 function showPreorderInfo(productId) {
     showNotification(
-        'Этот товар требует предзаказа минимум за 3 часа. Выберите время доставки.',
-        'info'
-    );
+    let leadText = 'предзаказ';
+    if (MenuState.menuData) {
+        for (const cat of MenuState.menuData.categories) {
+            const p = cat.products.find(p => p.productid === productId);
+            if (p && p.badgetext) { leadText = p.badgetext; break; }
+        }
+    }
+    showNotification(`Этот товар требует предзаказа минимум за ${leadText}. Выберите время доставки.`, 'info');
 }
 
 function triggerCartAnimation() {
