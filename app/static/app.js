@@ -82,7 +82,7 @@ function cartSetQty(productId, priceRub, name, qty) {
   return true;
 }
 
-function cartInc(productId, priceRub, name) {
+function cartInc(productId, priceRub, name, leadTimeMinutes = 0) {
   const items = cartLoad();
   const idx = cartFind(items, productId);
   const cur = idx >= 0 ? items[idx].qty : 0;
