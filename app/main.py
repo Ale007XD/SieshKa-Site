@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, Request, HTTPException, Query
+from fastapi import FastAPI, Request, HTTPException, Query, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
