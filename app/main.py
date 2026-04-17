@@ -438,42 +438,51 @@ ASAP_TEXT = settings.ASAP_TEXT
 MAX_QTY = MAX_QTY_PER_ITEM
 MAX_ITEMS = MAX_ITEMS_IN_CART
 
+
 def _get_product_lead_time_minutes(db, product: Product) -> int:
     """Return effective lead time for a product, preferring product rule over category rule."""
-        product_rule = (
-            db.query(AvailabilityRule)
-            .filter(
-                AvailabilityRule.scope_type == "product",
-                AvailabilityRule.scope_id == product.id,
-                AvailabilityRule.is_active == True,
-            )
-            .order_by(AvailabilityRule.id.desc())
-            .first()
+    product_rule = (
+        db.query(AvailabilityRule)
+        .filter(
+            AvailabilityRule.scope_type == "product",
+            AvailabilityRule.scope_id == product.id,
+            AvailabilityRule.is_active == True,  # noqa: E712
         )
-        if product_rule:
-            return max(0, product_rule.lead_time_minutes or 0)
+        .order_by(AvailabilityRule.id.desc())
+        .first()
+    )
+    if product_rule:
+        return max(0, product_rule.lead_time_minutes or 0)
 
-        category_rule = (
-            db.query(AvailabilityRule)
-            .filter(
-                AvailabilityRule.scope_type == "category",
-                AvailabilityRule.scope_id == product.category_id,
-                AvailabilityRule.is_active == True,
-            )
-            .order_by(AvailabilityRule.id.desc())
-            .first()
+    category_rule = (
+        db.query(AvailabilityRule)
+        .filter(
+            AvailabilityRule.scope_type == "category",
+            AvailabilityRule.scope_id == product.category_id,
+            AvailabilityRule.is_active == True,  # noqa: E712
         )
-        if category_rule:
-            return max(0, category_rule.lead_time_minutes or 0)
+        .order_by(AvailabilityRule.id.desc())
+        .first()
+    )
+    if category_rule:
+        return max(0, category_rule.lead_time_minutes or 0)
 
-        return 0
+    return 0
 
-def _build_delivery_window(now_local: datetime, lead_time_minutes: int, zone_minutes: int) -> tuple[str, str]:
+
+def _build_delivery_window(
+    now_local: datetime,
+    lead_time_minutes: int,
+    zone_minutes: int,
+) -> tuple[str, str]:
     """Build delivery window string using lead time + zone delivery time ±10 minutes."""
-    base_dt = now_local + timedelta(minutes=max(0, lead_time_minutes) + max(0, zone_minutes))
+    base_dt = now_local + timedelta(
+        minutes=max(0, lead_time_minutes) + max(0, zone_minutes)
+    )
     delivery_from = base_dt - timedelta(minutes=10)
     delivery_to = base_dt + timedelta(minutes=10)
     return delivery_from.strftime("%H:%M"), delivery_to.strftime("%H:%M")
+
 
 # Setup admin
 setup_admin(app, engine)
@@ -1273,8 +1282,12 @@ async def create_order(request: Request, payload: OrderCreate):
                 total_rub=total_with_delivery,
                 payment_method=PaymentMethod(payload.payment_method),
                 delivery_mode=DeliveryMode(payload.delivery_mode),
-                delivery_slot=payload.delivery_slot if payload.delivery_mode == "slot" else estimated_delivery_window,
-                delivery_date=payload.delivery_date if payload.delivery_mode == "slot" else now_local.date(),
+                delivery_slot=payload.delivery_slot
+                if payload.delivery_mode == "slot"
+                else estimated_delivery_window,
+                delivery_date=payload.delivery_date
+                if payload.delivery_mode == "slot"
+                else now_local.date(),
                 client_max_uid=payload.client_max_uid,
                 zone_id=getattr(payload, "zone_id", None),
             )
