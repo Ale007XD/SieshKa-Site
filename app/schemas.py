@@ -3,9 +3,11 @@ from typing import List, Optional
 from datetime import date
 import re
 
+
 class OrderItemIn(BaseModel):
     product_id: int = Field(..., gt=0)
     qty: int = Field(..., gt=0, le=20)
+
 
 class OrderCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
@@ -84,6 +86,7 @@ class OrderCreate(BaseModel):
                 raise ValueError("Delivery date cannot be in the past")
         return v
 
+
 class HealthResponse(BaseModel):
     status: str
     version: str
@@ -91,11 +94,13 @@ class HealthResponse(BaseModel):
     redis: Optional[str] = None
     timestamp: str
 
+
 class DeliverySlotResponse(BaseModel):
     slot_time: str
     max_orders: int
     current_orders: int
     available: bool
+
 
 class DeliverySlotsAvailability(BaseModel):
     date: date

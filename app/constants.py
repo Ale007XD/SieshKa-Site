@@ -1,6 +1,7 @@
 """
 Low Priority Fix: Application constants
 """
+
 from datetime import time
 
 # Version
@@ -75,7 +76,7 @@ HTTP_SERVICE_UNAVAILABLE = 503
 # Dayparts
 DAYPART_MORNING = "MORNING"  # 07:00-10:00
 DAYPART_EVENING = "EVENING"  # 14:00-21:00
-DAYPART_ALLDAY = "ALLDAY"   # Always available
+DAYPART_ALLDAY = "ALLDAY"  # Always available
 
 # Default daypart time windows
 MORNING_WINDOW_START = time(7, 0)

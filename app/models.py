@@ -4,6 +4,7 @@ from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Text, Enu
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
+
 class OrderStatus(str, enum.Enum):
     new = "new"
     accepted = "accepted"
@@ -12,19 +13,23 @@ class OrderStatus(str, enum.Enum):
     delivered = "delivered"
     cancelled = "cancelled"
 
+
 class PaymentMethod(str, enum.Enum):
     cash = "cash"
     sbp_transfer = "sbp_transfer"
     yookassa_card = "yookassa_card"
 
+
 class DeliveryMode(str, enum.Enum):
     asap = "asap"
     slot = "slot"
+
 
 class MenuPeriod(str, enum.Enum):
     morning = "morning"
     evening = "evening"
     both = "both"
+
 
 class Category(Base):
     __tablename__ = "categories"
@@ -65,6 +70,7 @@ class Category(Base):
     def is_leaf_category(self) -> bool:
         return len(self.children) == 0
 
+
 class Product(Base):
     __tablename__ = "products"
 
@@ -88,6 +94,7 @@ class Product(Base):
 
     category: Mapped["Category"] = relationship(back_populates="products")
 
+
 class DeliverySlot(Base):
     __tablename__ = "delivery_slots"
 
@@ -99,6 +106,7 @@ class DeliverySlot(Base):
         DateTime, default=datetime.now(timezone.utc)
     )
 
+
 class DeliveryZone(Base):
     __tablename__ = "delivery_zones"
 
@@ -106,6 +114,7 @@ class DeliveryZone(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     delivery_time_minutes: Mapped[int] = mapped_column(Integer, default=30)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
 
 class Order(Base):
     __tablename__ = "orders"
@@ -143,9 +152,7 @@ class Order(Base):
         Enum(DeliveryMode), default=DeliveryMode.asap
     )
     delivery_slot: Mapped[str | None] = mapped_column(String(20), index=True)
-    delivery_date: Mapped[date | None] = mapped_column(
-        Date, nullable=True
-    ) 
+    delivery_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # FK for Delivery Zone
     zone_id: Mapped[int | None] = mapped_column(
@@ -165,6 +172,7 @@ class Order(Base):
         back_populates="order", cascade="all, delete-orphan"
     )
 
+
 class OrderItem(Base):
     __tablename__ = "order_items"
 
@@ -178,6 +186,7 @@ class OrderItem(Base):
     qty: Mapped[int] = mapped_column(Integer)
 
     order: Mapped["Order"] = relationship(back_populates="items")
+
 
 class AdminAuditLog(Base):
     __tablename__ = "admin_audit_log"
