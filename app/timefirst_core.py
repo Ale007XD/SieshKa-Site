@@ -352,19 +352,32 @@ def _check_rule_availability(
         slot_time = desired_slot
     else:
         # For ASAP, use next available slot
+        # NOTE: Для обычного режима (без слота) товар доступен, lead_time влияет только на ETA
         slot_time = window.start
 
     # Check if slot is within window
     if not window.contains(slot_time):
         # Calculate next available slot in window
         next_slot = _calculate_next_available(window, rule.lead_time_minutes, now)
-        return AvailabilityResult(
-            available=False,
-            next_available=next_slot,
-            reason_code=UnavailabilityReason.OUTSIDE_WINDOW,
-            badge_text="Вне времени работы",
-            cta_type="select_time",
-        )
+        # Для обычного режима (desired_slot is None) - товар доступен,
+        # lead_time только информирует о времени готовности
+        if desired_slot is None:
+            return AvailabilityResult(
+                available=True,
+                next_available=next_available,
+                reason_code=None,
+                badge_text=f"Готов через {rule.lead_time_minutes} мин",
+                cta_type="add_to_cart",
+            )
+        else:
+            # Конкретный слот выбран и он слишком рано - предзаказ
+            return AvailabilityResult(
+                available=False,
+                next_available=next_available,
+                reason_code=UnavailabilityReason.LEAD_TIME,
+                badge_text=f"Предзаказ за {rule.lead_time_minutes} мин",
+                cta_type="select_time",  # Не preorder, а выбор времени
+            )
 
     # Check lead time (skip if lead_time is 0)
     if rule.lead_time_minutes > 0:
