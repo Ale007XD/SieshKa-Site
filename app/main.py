@@ -1001,6 +1001,23 @@ async def get_delivery_fee():
             return {"delivery_fee": config.delivery_fee}
         return {"delivery_fee": 0}
 
+@app.get("/api/delivery-zones", tags=["Config"])
+def get_delivery_zones(db: Session = Depends(get_db)):
+    """Активные зоны доставки для отображения на checkout."""
+    zones = (
+        db.query(DeliveryZone)
+        .filter(DeliveryZone.is_active == True)
+        .order_by(DeliveryZone.id)
+        .all()
+    )
+    return [
+        {
+            "id": z.id,
+            "name": z.name,
+            "delivery_time_minutes": z.delivery_time_minutes,
+        }
+        for z in zones
+    ]
 
 @app.get("/", response_class=HTMLResponse, tags=["Menu"])
 async def index(request: Request, preview_period: str = Query(None)):
