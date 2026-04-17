@@ -56,7 +56,6 @@ class AvailabilityRule:
     allow_tomorrow: bool
     tomorrow_cutoff: time
     is_active: bool
-    # Optional explicit time window
     start_time: Optional[time] = None
     end_time: Optional[time] = None
 
@@ -65,12 +64,11 @@ class AvailabilityRule:
         if self.start_time and self.end_time:
             return TimeWindow(self.start_time, self.end_time)
 
-        # Default windows based on daypart
         if self.daypart == Daypart.MORNING:
             return TimeWindow(time(7, 0), time(10, 0))
         elif self.daypart == Daypart.EVENING:
             return TimeWindow(time(14, 0), time(21, 0))
-        else:  # ALLDAY
+        else:
             return TimeWindow(time(0, 0), time(23, 59))
 
     def allows_method(self, method: DeliveryMethod) -> bool:
@@ -111,11 +109,9 @@ def ceil_to_interval(dt: datetime, interval_minutes: int = 15) -> datetime:
     seconds = dt.second
     microseconds = dt.microsecond
 
-    # Total minutes to add
     total_minutes = minutes + seconds / 60 + microseconds / 3600000
     intervals = math.ceil(total_minutes / interval_minutes)
 
-    # Reset to hour start, then add intervals
     result = dt.replace(minute=0, second=0, microsecond=0)
     result += timedelta(minutes=intervals * interval_minutes)
 
@@ -142,26 +138,20 @@ def generate_slots_for_window(
     """
     slots = []
 
-    # Calculate minimum allowed time (base_time + buffer)
     min_time = base_time + timedelta(minutes=base_buffer_minutes)
 
-    # Start from window start or min_time, whichever is later
     current_date = base_time.date()
     window_start_dt = datetime.combine(current_date, window.start)
     window_end_dt = datetime.combine(current_date, window.end)
 
-    # Add timezone to window times (match base_time timezone)
     tz = base_time.tzinfo
     window_start_dt = window_start_dt.replace(tzinfo=tz)
     window_end_dt = window_end_dt.replace(tzinfo=tz)
 
-    # Round window start to interval
     slot_time = ceil_to_interval(window_start_dt, interval_minutes)
 
     while slot_time <= window_end_dt:
         slot_time_only = slot_time.time()
-
-        # Check if slot is in the future (with buffer)
         is_available = slot_time >= min_time
 
         slots.append(
@@ -187,7 +177,7 @@ def get_daypart_windows() -> dict[Daypart, TimeWindow]:
 
 
 def get_slots(
-    target_day: str,  # 'today' or 'tomorrow'
+    target_day: str,
     method: DeliveryMethod,
     now: datetime,
     interval_minutes: int = 15,
@@ -200,23 +190,18 @@ def get_slots(
     Returns:
         Tuple of (slots list, error message or None)
     """
-    # Check tomorrow cutoff
-    if target_day == "tomorrow":
-        if now.time() > tomorrow_cutoff:
-            return [], "Заказы на завтра принимаются до 23:00"
+    if target_day == "tomorrow" and now.time() > tomorrow_cutoff:
+        return [], "Заказы на завтра принимаются до 23:00"
 
-    # Calculate base time for slot generation
     if target_day == "today":
         base_date = now.date()
     else:
         base_date = now.date() + timedelta(days=1)
 
-    # Round now to interval for consistent slot boundaries
     base_time = datetime.combine(base_date, time(0, 0))
     if target_day == "today":
         base_time = ceil_to_interval(now, interval_minutes)
 
-    # Generate slots for the full day window
     window = get_daypart_windows()[Daypart.ALLDAY]
     all_slots = generate_slots_for_window(
         window, base_time, interval_minutes, base_buffer_minutes
@@ -233,7 +218,7 @@ def get_slots(
 def check_availability(
     product_rules: List[AvailabilityRule],
     category_rules: List[AvailabilityRule],
-    day: str,  # 'today' or 'tomorrow'
+    day: str,
     method: DeliveryMethod,
     now: datetime,
     desired_slot: Optional[time] = None,
@@ -247,7 +232,6 @@ def check_availability(
     logger = logging.getLogger(__name__)
 
     try:
-        # Check tomorrow cutoff
         if day == "tomorrow" and now.time() > tomorrow_cutoff:
             return AvailabilityResult(
                 available=False,
@@ -257,22 +241,22 @@ def check_availability(
                 cta_type="unavailable",
             )
 
-        # Sort and filter product rules - filter out None values
         active_product_rules = [
             r
             for r in product_rules
             if r is not None and r.is_active and r.allows_method(method)
         ]
 
-        # Sort by: is_active (already filtered), method match, daypart match, updated_at desc
-        # For now, we use daypart specificity: ALLDAY < MORNING/EVENING
         def rule_priority(r: AvailabilityRule) -> tuple:
-            daypart_order = {Daypart.MORNING: 0, Daypart.EVENING: 0, Daypart.ALLDAY: 1}
-            return (daypart_order.get(r.daypart, 2), r.id)  # Use id as tiebreaker
+            daypart_order = {
+                Daypart.MORNING: 0,
+                Daypart.EVENING: 0,
+                Daypart.ALLDAY: 1,
+            }
+            return (daypart_order.get(r.daypart, 2), r.id)
 
         active_product_rules.sort(key=rule_priority)
 
-        # Try product rules first
         applicable_rule = None
         for rule in active_product_rules:
             result = _check_rule_availability(rule, day, method, now, desired_slot)
@@ -280,7 +264,6 @@ def check_availability(
                 applicable_rule = rule
                 break
 
-        # If no product rule, try category rules
         if not applicable_rule:
             active_cat_rules = [
                 r
@@ -295,7 +278,6 @@ def check_availability(
                     applicable_rule = rule
                     break
 
-        # If still no rule, return NO_RULE
         if not applicable_rule:
             return AvailabilityResult(
                 available=False,
@@ -305,7 +287,6 @@ def check_availability(
                 cta_type="unavailable",
             )
 
-        # Return the check result for the applicable rule
         return _check_rule_availability(applicable_rule, day, method, now, desired_slot)
 
     except Exception as e:
@@ -328,7 +309,6 @@ def _check_rule_availability(
 ) -> AvailabilityResult:
     """Check availability against a single rule"""
 
-    # Check method
     if not rule.allows_method(method):
         return AvailabilityResult(
             available=False,
@@ -338,68 +318,57 @@ def _check_rule_availability(
             cta_type="unavailable",
         )
 
-    # Get effective window
     window = rule.get_effective_window()
 
-    # Calculate target datetime
     if day == "today":
         target_date = now.date()
     else:
         target_date = now.date() + timedelta(days=1)
 
-    # Determine slot time
     if desired_slot:
         slot_time = desired_slot
     else:
-        # For ASAP, use next available slot
-        # NOTE: Для обычного режима (без слота) товар доступен, lead_time влияет только на ETA
         slot_time = window.start
 
-    # Check if slot is within window
     if not window.contains(slot_time):
-        # Calculate next available slot in window
         next_slot = _calculate_next_available(window, rule.lead_time_minutes, now)
-        # Для обычного режима (desired_slot is None) - товар доступен,
-        # lead_time только информирует о времени готовности
-        if desired_slot is None:
-            return AvailabilityResult(
-                available=True,
-                next_available=next_available,
-                reason_code=None,
-                badge_text=f"Готов через {rule.lead_time_minutes} мин",
-                cta_type="add_to_cart",
-            )
-        else:
-            # Конкретный слот выбран и он слишком рано - предзаказ
-            return AvailabilityResult(
-                available=False,
-                next_available=next_available,
-                reason_code=UnavailabilityReason.LEAD_TIME,
-                badge_text=f"Предзаказ за {rule.lead_time_minutes} мин",
-                cta_type="select_time",  # Не preorder, а выбор времени
-            )
+        return AvailabilityResult(
+            available=False,
+            next_available=next_slot,
+            reason_code=UnavailabilityReason.OUTSIDE_WINDOW,
+            badge_text="Вне времени работы",
+            cta_type="select_time",
+        )
 
-    # Check lead time (skip if lead_time is 0)
     if rule.lead_time_minutes > 0:
         target_datetime = datetime.combine(target_date, slot_time)
-        # Add timezone info to target_datetime to match now (which has timezone)
         if now.tzinfo:
             target_datetime = target_datetime.replace(tzinfo=now.tzinfo)
+
         min_delivery_time = now + timedelta(minutes=rule.lead_time_minutes)
 
         if target_datetime < min_delivery_time:
             next_available = _calculate_next_available(
                 window, rule.lead_time_minutes, now
             )
+
+            if desired_slot is None:
+                return AvailabilityResult(
+                    available=True,
+                    next_available=next_available,
+                    reason_code=None,
+                    badge_text=f"Готов через {rule.lead_time_minutes} мин",
+                    cta_type="add_to_cart",
+                )
+
             return AvailabilityResult(
                 available=False,
                 next_available=next_available,
                 reason_code=UnavailabilityReason.LEAD_TIME,
                 badge_text=f"Предзаказ за {rule.lead_time_minutes} мин",
-                cta_type="preorder",
+                cta_type="select_time",
             )
 
-    # All checks passed - available
     return AvailabilityResult(
         available=True,
         next_available=None,
@@ -415,26 +384,23 @@ def _calculate_next_available(
     """Calculate next available datetime considering lead time"""
     min_time = now + timedelta(minutes=lead_time_minutes)
 
-    # Try today first
     today_window_start = datetime.combine(now.date(), window.start)
     today_window_end = datetime.combine(now.date(), window.end)
 
-    # Add timezone info if now has timezone
     if now.tzinfo:
         today_window_start = today_window_start.replace(tzinfo=now.tzinfo)
         today_window_end = today_window_end.replace(tzinfo=now.tzinfo)
 
     if min_time <= today_window_end:
-        # Available today
         if min_time < today_window_start:
             return today_window_start
         return min_time
 
-    # Next available is tomorrow
     tomorrow = now.date() + timedelta(days=1)
     tomorrow_start = datetime.combine(tomorrow, window.start)
     if now.tzinfo:
         tomorrow_start = tomorrow_start.replace(tzinfo=now.tzinfo)
+
     return tomorrow_start
 
 
