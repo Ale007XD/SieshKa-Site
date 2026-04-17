@@ -1,7 +1,7 @@
 /**
  * Unified Cart System for Sieshka Food Delivery
  * Compatible with: menu.html, cart.html, checkout.html
- * Storage format: [{product_id, price_rub, name, qty}, ...]
+ * Storage format: [{product_id, price_rub, name, qty, lead_time_minutes}, ...]
  */
 
 const CartManager = (function () {
@@ -80,11 +80,21 @@ const CartManager = (function () {
     return Math.round(price).toLocaleString('ru-RU') + ' ₽';
   }
 
+  function normalizeLeadTime(value) {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  }
+
   function loadCart() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       const cart = stored ? JSON.parse(stored) : [];
-      return Array.isArray(cart) ? cart : [];
+      if (!Array.isArray(cart)) return [];
+
+      return cart.map(item => ({
+        ...item,
+        lead_time_minutes: normalizeLeadTime(item.lead_time_minutes)
+      }));
     } catch (e) {
       console.error('Error loading cart:', e);
       return [];
@@ -111,6 +121,13 @@ const CartManager = (function () {
     return items.reduce((sum, item) => sum + (item.price_rub * item.qty), 0);
   }
 
+  function getMaxLeadTime() {
+    const items = loadCart();
+    return items.reduce((maxLead, item) => {
+      return Math.max(maxLead, normalizeLeadTime(item.lead_time_minutes));
+    }, 0);
+  }
+
   function trackDeleted(item) {
     const existing = recentlyDeleted.findIndex(x => x.product_id === item.product_id);
     if (existing >= 0) recentlyDeleted.splice(existing, 1);
@@ -125,10 +142,11 @@ const CartManager = (function () {
     saveHistory();
   }
 
-  function addItem(productId, priceRub, name) {
+  function addItem(productId, priceRub, name, leadTimeMinutes = 0) {
     const items = loadCart();
     const idx = findItemIndex(items, productId);
     const totalItems = getTotalItems(items);
+    const normalizedLeadTime = normalizeLeadTime(leadTimeMinutes);
 
     if (idx >= 0) {
       const newQty = items[idx].qty + 1;
@@ -137,6 +155,10 @@ const CartManager = (function () {
         return false;
       }
       items[idx].qty = newQty;
+      items[idx].lead_time_minutes = Math.max(
+        normalizeLeadTime(items[idx].lead_time_minutes),
+        normalizedLeadTime
+      );
     } else {
       if (totalItems >= MAX_ITEMS) {
         showToast(`Максимум ${MAX_ITEMS} товаров в корзине`, 'warning');
@@ -147,7 +169,8 @@ const CartManager = (function () {
         product_id: productId,
         price_rub: priceRub,
         name: name,
-        qty: 1
+        qty: 1,
+        lead_time_minutes: normalizedLeadTime
       });
 
       const rdIdx = recentlyDeleted.findIndex(x => x.product_id === productId);
@@ -194,11 +217,12 @@ const CartManager = (function () {
     return false;
   }
 
-  function setQty(productId, priceRub, name, qty) {
+  function setQty(productId, priceRub, name, qty, leadTimeMinutes = 0) {
     qty = Math.max(QTY_MIN, Math.min(QTY_MAX, parseInt(qty, 10) || 0));
 
     const items = loadCart();
     const idx = findItemIndex(items, productId);
+    const normalizedLeadTime = normalizeLeadTime(leadTimeMinutes);
 
     if (qty <= 0) {
       if (idx >= 0) {
@@ -207,12 +231,17 @@ const CartManager = (function () {
     } else {
       if (idx >= 0) {
         items[idx].qty = qty;
+        items[idx].lead_time_minutes = Math.max(
+          normalizeLeadTime(items[idx].lead_time_minutes),
+          normalizedLeadTime
+        );
       } else {
         items.push({
           product_id: productId,
           price_rub: priceRub,
           name: name,
-          qty: qty
+          qty: qty,
+          lead_time_minutes: normalizedLeadTime
         });
       }
     }
@@ -358,7 +387,7 @@ const CartManager = (function () {
       subtotal += itemTotal;
 
       html += `
-        <div class="cart-item" data-product-id="${item.product_id}" data-name="${escapeHtml(item.name)}" data-price="${item.price_rub}">
+        <div class="cart-item" data-product-id="${item.product_id}" data-name="${escapeHtml(item.name)}" data-price="${item.price_rub}" data-lead-time-minutes="${normalizeLeadTime(item.lead_time_minutes)}">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div style="flex: 1; min-width: 0;">
               <div class="cart-item-name text-truncate fw-bold">${escapeHtml(item.name)}</div>
@@ -392,7 +421,7 @@ const CartManager = (function () {
           <div class="small text-muted text-uppercase fw-bold mb-2" style="font-size: 0.7rem;">Не забудьте добавить:</div>
           <div class="d-flex flex-column gap-2">
             ${filteredUpsell.map(u => `
-              <div class="d-flex justify-content-between align-items-center" data-product-id="${u.product_id}" data-name="${escapeHtml(u.name)}" data-price="${u.price_rub}">
+              <div class="d-flex justify-content-between align-items-center" data-product-id="${u.product_id}" data-name="${escapeHtml(u.name)}" data-price="${u.price_rub}" data-lead-time-minutes="${normalizeLeadTime(u.lead_time_minutes)}">
                 <div style="flex: 1; min-width: 0;">
                   <div class="small text-truncate fw-semibold">${escapeHtml(u.name)}</div>
                   <div class="small text-brand">${formatPrice(u.price_rub)}</div>
@@ -418,7 +447,7 @@ const CartManager = (function () {
           </div>
           <div class="d-flex flex-column gap-2">
             ${laterItems.slice(0, 3).map(u => `
-              <div class="d-flex justify-content-between align-items-center" data-product-id="${u.product_id}" data-name="${escapeHtml(u.name)}" data-price="${u.price_rub}">
+              <div class="d-flex justify-content-between align-items-center" data-product-id="${u.product_id}" data-name="${escapeHtml(u.name)}" data-price="${u.price_rub}" data-lead-time-minutes="${normalizeLeadTime(u.lead_time_minutes)}">
                 <div style="flex: 1; min-width: 0;">
                   <div class="small text-truncate fw-semibold">${escapeHtml(u.name)}</div>
                   <div class="small text-brand">${formatPrice(u.price_rub)}</div>
@@ -487,7 +516,6 @@ const CartManager = (function () {
           addBtn.classList.add('d-none');
           qtyControl.classList.remove('d-none');
           qtyControl.classList.add('d-flex');
-
           const plusBtn = qtyControl.querySelector('.qty-btn:last-child');
           if (plusBtn) {
             plusBtn.disabled = qty >= QTY_MAX;
@@ -531,7 +559,7 @@ const CartManager = (function () {
       subtotal += itemTotal;
 
       html += `
-        <div class="d-flex justify-content-between align-items-center py-2 border-bottom" data-product-id="${item.product_id}" data-name="${escapeHtml(item.name)}" data-price="${item.price_rub}">
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom" data-product-id="${item.product_id}" data-name="${escapeHtml(item.name)}" data-price="${item.price_rub}" data-lead-time-minutes="${normalizeLeadTime(item.lead_time_minutes)}">
           <div style="flex: 1; min-width: 0;">
             <div class="fw-semibold text-truncate">${escapeHtml(item.name)}</div>
             <div class="text-muted small">${formatPrice(item.price_rub)}/шт</div>
@@ -829,6 +857,7 @@ const CartManager = (function () {
         const productId = parseInt(itemEl.dataset.productId, 10);
         const price = parseInt(itemEl.dataset.price, 10);
         const name = itemEl.dataset.name;
+        const leadTimeMinutes = parseInt(itemEl.dataset.leadTimeMinutes || '0', 10);
 
         switch (action) {
           case 'inc':
@@ -842,7 +871,7 @@ const CartManager = (function () {
             break;
           case 'add':
           case 'restore':
-            addItem(productId, price, name);
+            addItem(productId, price, name, leadTimeMinutes);
             break;
         }
       });
@@ -889,8 +918,9 @@ const CartManager = (function () {
         const productId = parseInt(itemEl.dataset.productId, 10);
         const price = parseInt(itemEl.dataset.price, 10);
         const name = itemEl.dataset.name;
+        const leadTimeMinutes = parseInt(itemEl.dataset.leadTimeMinutes || '0', 10);
 
-        addItem(productId, price, name);
+        addItem(productId, price, name, leadTimeMinutes);
       });
     }
   }
@@ -917,6 +947,7 @@ const CartManager = (function () {
     undoClearCart: undoClearCart,
     getItemQty: getItemQty,
     getItems: getItems,
+    getMaxLeadTime: getMaxLeadTime,
     loadCart: loadCart,
     updateAllUI: updateAllUI,
     updateNavbarCart: updateNavbarCart,
@@ -959,12 +990,12 @@ function getTotalPrice(items) {
   return items.reduce((sum, item) => sum + (item.price_rub * item.qty), 0);
 }
 
-function cartSetQty(productId, priceRub, name, qty) {
-  return CartManager.setQty(productId, priceRub, name, qty);
+function cartSetQty(productId, priceRub, name, qty, leadTimeMinutes) {
+  return CartManager.setQty(productId, priceRub, name, qty, leadTimeMinutes);
 }
 
-function cartInc(productId, priceRub, name) {
-  return CartManager.addItem(productId, priceRub, name);
+function cartInc(productId, priceRub, name, leadTimeMinutes) {
+  return CartManager.addItem(productId, priceRub, name, leadTimeMinutes);
 }
 
 function cartDec(productId) {
