@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, Request, HTTPException, Query, Depends
+from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1001,6 +1001,7 @@ async def get_delivery_fee():
             return {"delivery_fee": config.delivery_fee}
         return {"delivery_fee": 0}
 
+
 @app.get("/api/delivery-zones", tags=["Config"])
 async def get_delivery_zones():
     """Активные зоны доставки для отображения на checkout."""
@@ -1019,6 +1020,7 @@ async def get_delivery_zones():
             }
             for z in zones
         ]
+
 
 @app.get("/", response_class=HTMLResponse, tags=["Menu"])
 async def index(request: Request, preview_period: str = Query(None)):
