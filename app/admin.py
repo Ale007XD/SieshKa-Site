@@ -21,6 +21,7 @@ from .models import (
     OrderItem,
     OrderStatus,
     DeliverySlot,
+    DeliveryZone,
     AdminAuditLog,
 )
 from .availability_models import AvailabilityRule, MenuConfiguration
@@ -1666,6 +1667,46 @@ class MenuConfigurationAdmin(ModelView, model=MenuConfiguration):
         log_admin_action(request, action, "MenuConfiguration", model.id, None, data)
 
 
+class DeliveryZoneAdmin(ModelView, model=DeliveryZone):
+    """Admin for delivery zones"""
+
+    column_list = [
+        DeliveryZone.id,
+        DeliveryZone.name,
+        DeliveryZone.delivery_time_minutes,
+        DeliveryZone.is_active,
+    ]
+    column_sortable_list = [
+        DeliveryZone.name,
+        DeliveryZone.delivery_time_minutes,
+    ]
+    form_columns = [
+        "name",
+        "delivery_time_minutes",
+        "is_active",
+    ]
+    column_labels = {
+        DeliveryZone.name: "Название зоны",
+        DeliveryZone.delivery_time_minutes: "Время доставки (мин)",
+        DeliveryZone.is_active: "Активна",
+    }
+    name = "Зона доставки"
+    name_plural = "Зоны доставки"
+    icon = "fa-solid fa-map-location-dot"
+
+    async def on_model_change(
+        self, data: dict, model: DeliveryZone, is_created: bool, request: Request
+    ) -> None:
+        if "delivery_time_minutes" in data:
+            val = data["delivery_time_minutes"]
+            if val is not None and (not isinstance(val, int) or val < 0):
+                raise ValueError(
+                    "Время доставки должно быть неотрицательным целым числом"
+                )
+        action = "create" if is_created else "update"
+        log_admin_action(request, action, "DeliveryZone", model.id, None, data)
+
+
 def setup_admin(app, engine):
     import os
 
@@ -1676,6 +1717,7 @@ def setup_admin(app, engine):
     admin.add_view(OrderAdmin)
     admin.add_view(OrderItemAdmin)
     admin.add_view(DeliverySlotAdmin)
+    admin.add_view(DeliveryZoneAdmin)
     admin.add_view(AvailabilityRuleAdmin)
     admin.add_view(MenuConfigurationAdmin)
     admin.add_view(AdminAuditLogAdmin)
