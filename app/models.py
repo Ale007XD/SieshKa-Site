@@ -4,7 +4,6 @@ from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Text, Enu
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
-
 class OrderStatus(str, enum.Enum):
     new = "new"
     accepted = "accepted"
@@ -13,23 +12,19 @@ class OrderStatus(str, enum.Enum):
     delivered = "delivered"
     cancelled = "cancelled"
 
-
 class PaymentMethod(str, enum.Enum):
     cash = "cash"
     sbp_transfer = "sbp_transfer"
     yookassa_card = "yookassa_card"
 
-
 class DeliveryMode(str, enum.Enum):
     asap = "asap"
     slot = "slot"
-
 
 class MenuPeriod(str, enum.Enum):
     morning = "morning"
     evening = "evening"
     both = "both"
-
 
 class Category(Base):
     __tablename__ = "categories"
@@ -42,12 +37,10 @@ class Category(Base):
         Enum(MenuPeriod), default=MenuPeriod.both, index=True
     )
 
-    # Self-referential relationship for subcategories
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("categories.id"), nullable=True, index=True
     )
 
-    # Relationships
     products: Mapped[list["Product"]] = relationship(back_populates="category")
     parent: Mapped["Category | None"] = relationship(
         remote_side=[id], back_populates="children"
@@ -58,7 +51,6 @@ class Category(Base):
         return self.name
 
     def get_all_products(self) -> list["Product"]:
-        """Recursively get all products from category and its subcategories"""
         products = [p for p in self.products if p.is_active]
         for child in self.children:
             if child.is_active:
@@ -66,15 +58,12 @@ class Category(Base):
         return products
 
     def get_hierarchy_path(self) -> str:
-        """Get full path like 'Parent > Child > Subchild'"""
         if self.parent:
             return f"{self.parent.get_hierarchy_path()} > {self.name}"
         return self.name
 
     def is_leaf_category(self) -> bool:
-        """Check if category has no subcategories"""
         return len(self.children) == 0
-
 
 class Product(Base):
     __tablename__ = "products"
@@ -89,6 +78,7 @@ class Product(Base):
     menu_period_override: Mapped[MenuPeriod | None] = mapped_column(
         Enum(MenuPeriod), nullable=True
     )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now(timezone.utc)
     )
@@ -98,8 +88,6 @@ class Product(Base):
 
     category: Mapped["Category"] = relationship(back_populates="products")
 
-
-# Medium Priority Fix: Delivery slot capacity management
 class DeliverySlot(Base):
     __tablename__ = "delivery_slots"
 
@@ -111,6 +99,13 @@ class DeliverySlot(Base):
         DateTime, default=datetime.now(timezone.utc)
     )
 
+class DeliveryZone(Base):
+    __tablename__ = "delivery_zones"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    delivery_time_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 class Order(Base):
     __tablename__ = "orders"
@@ -139,9 +134,7 @@ class Order(Base):
         String(64), unique=True, nullable=True
     )
     yookassa_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    # JSON: {"<user_id>": "<mid>", ...}  — message_id каждого MAX-сообщения о заказе
     max_message_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Текст последнего уведомления (для редактирования сообщений в MAX)
     max_message_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     client_max_uid: Mapped[int | None] = mapped_column(
         Integer, nullable=True, index=True
@@ -152,7 +145,13 @@ class Order(Base):
     delivery_slot: Mapped[str | None] = mapped_column(String(20), index=True)
     delivery_date: Mapped[date | None] = mapped_column(
         Date, nullable=True
-    )  # Medium Priority Fix
+    ) 
+
+    # FK for Delivery Zone
+    zone_id: Mapped[int | None] = mapped_column(
+        ForeignKey("delivery_zones.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now(timezone.utc)
     )
@@ -165,7 +164,6 @@ class Order(Base):
     items: Mapped[list["OrderItem"]] = relationship(
         back_populates="order", cascade="all, delete-orphan"
     )
-
 
 class OrderItem(Base):
     __tablename__ = "order_items"
@@ -181,8 +179,6 @@ class OrderItem(Base):
 
     order: Mapped["Order"] = relationship(back_populates="items")
 
-
-# Medium Priority Fix: Admin audit log
 class AdminAuditLog(Base):
     __tablename__ = "admin_audit_log"
 

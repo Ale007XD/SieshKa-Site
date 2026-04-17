@@ -3,11 +3,9 @@ from typing import List, Optional
 from datetime import date
 import re
 
-
 class OrderItemIn(BaseModel):
     product_id: int = Field(..., gt=0)
     qty: int = Field(..., gt=0, le=20)
-
 
 class OrderCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
@@ -18,7 +16,7 @@ class OrderCreate(BaseModel):
     delivery_slot: Optional[str] = Field(
         None, pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
     )
-    delivery_date: Optional[date] = None  # Medium Priority Fix
+    delivery_date: Optional[date] = None
     payment_method: str = Field(
         default="cash", pattern="^(cash|sbp_transfer|yookassa_card)$"
     )
@@ -26,6 +24,7 @@ class OrderCreate(BaseModel):
     idempotency_key: Optional[str] = Field(None, min_length=8, max_length=64)
     csrf_token: Optional[str] = Field(None, min_length=32, max_length=128)
     client_max_uid: Optional[int] = Field(None, gt=0)
+    zone_id: Optional[int] = Field(None, gt=0, description="ID зоны доставки")
 
     @field_validator("name")
     @classmethod
@@ -77,7 +76,6 @@ class OrderCreate(BaseModel):
     @field_validator("delivery_date")
     @classmethod
     def validate_delivery_date(cls, v, info):
-        """Medium Priority Fix: Validate delivery date is not in the past"""
         delivery_mode = info.data.get("delivery_mode")
         if delivery_mode == "slot":
             if not v:
@@ -86,7 +84,6 @@ class OrderCreate(BaseModel):
                 raise ValueError("Delivery date cannot be in the past")
         return v
 
-
 class HealthResponse(BaseModel):
     status: str
     version: str
@@ -94,18 +91,12 @@ class HealthResponse(BaseModel):
     redis: Optional[str] = None
     timestamp: str
 
-
 class DeliverySlotResponse(BaseModel):
-    """Medium Priority Fix: Slot availability response"""
-
     slot_time: str
     max_orders: int
     current_orders: int
     available: bool
 
-
 class DeliverySlotsAvailability(BaseModel):
-    """Medium Priority Fix: All slots availability"""
-
     date: date
     slots: List[DeliverySlotResponse]
