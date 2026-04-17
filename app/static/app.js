@@ -44,57 +44,59 @@ function sanitizeInput(str) {
     .trim();
 }
 
-function cartSetQty(productId, priceRub, name, qty) {
-  qty = clampQty(parseInt(qty, 10));
-  name = sanitizeInput(name);
-  
-  const items = cartLoad();
-  const idx = cartFind(items, productId);
-  
-  const currentQty = idx >= 0 ? items[idx].qty : 0;
-  const diff = qty - currentQty;
-  const totalItems = getTotalItems(items);
-  
-  if (diff > 0 && totalItems + diff > MAX_ITEMS) {
-    if (typeof CartManager !== 'undefined') {
-      CartManager.showToast(`Максимум ${MAX_ITEMS} товаров в корзине`, 'warning');
-    }
-    return false;
-  }
-
-  if (qty <= 0) {
-    if (idx >= 0) items.splice(idx, 1);
-  } else {
-    if (idx >= 0) {
-      items[idx].qty = qty;
-      items[idx].price_rub = priceRub;
-      items[idx].name = name;
-    } else {
-      items.push({product_id: productId, price_rub: priceRub, name, qty});
-    }
-  }
-
-  cartSave(items);
-  updateQtyInput(productId);
-  updateAllQtyInputs();
-  updateCartBar();
-  updateCartBadge();
-  return true;
-}
+function cartSetQty(productId, priceRub, name, qty, leadTimeMinutes = 0) {
+   qty = clampQty(parseInt(qty, 10));
+   name = sanitizeInput(name);
+   leadTimeMinutes = parseInt(leadTimeMinutes, 10) || 0;
+   
+   const items = cartLoad();
+   const idx = cartFind(items, productId);
+   
+   const currentQty = idx >= 0 ? items[idx].qty : 0;
+   const diff = qty - currentQty;
+   const totalItems = getTotalItems(items);
+   
+   if (diff > 0 && totalItems + diff > MAX_ITEMS) {
+     if (typeof CartManager !== 'undefined') {
+       CartManager.showToast(`Максимум ${MAX_ITEMS} товаров в корзине`, 'warning');
+     }
+     return false;
+   }
+ 
+   if (qty <= 0) {
+     if (idx >= 0) items.splice(idx, 1);
+   } else {
+     if (idx >= 0) {
+       items[idx].qty = qty;
+       items[idx].price_rub = priceRub;
+       items[idx].name = name;
+       items[idx].lead_time_minutes = Math.max(parseInt(items[idx].lead_time_minutes, 10) || 0, leadTimeMinutes);
+     } else {
+       items.push({product_id: productId, price_rub: priceRub, name, qty, lead_time_minutes: leadTimeMinutes});
+     }
+   }
+ 
+   cartSave(items);
+   updateQtyInput(productId);
+   updateAllQtyInputs();
+   updateCartBar();
+   updateCartBadge();
+   return true;
+ }
 
 function cartInc(productId, priceRub, name, leadTimeMinutes = 0) {
-  const items = cartLoad();
-  const idx = cartFind(items, productId);
-  const cur = idx >= 0 ? items[idx].qty : 0;
-  return cartSetQty(productId, priceRub, name, cur + 1);
-}
+   const items = cartLoad();
+   const idx = cartFind(items, productId);
+   const cur = idx >= 0 ? items[idx].qty : 0;
+   return cartSetQty(productId, priceRub, name, cur + 1, leadTimeMinutes);
+ }
 
-function cartDec(productId, priceRub, name) {
-  const items = cartLoad();
-  const idx = cartFind(items, productId);
-  const cur = idx >= 0 ? items[idx].qty : 0;
-  return cartSetQty(productId, priceRub, name, cur - 1);
-}
+function cartDec(productId, priceRub, name, leadTimeMinutes = 0) {
+   const items = cartLoad();
+   const idx = cartFind(items, productId);
+   const cur = idx >= 0 ? items[idx].qty : 0;
+   return cartSetQty(productId, priceRub, name, cur - 1, leadTimeMinutes);
+ }
 
 function cartUpdateQty(productId, priceRub, name, delta) {
   const items = cartLoad();
