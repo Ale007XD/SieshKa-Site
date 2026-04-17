@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "0018"
-down_revision = "0017"
+down_revision = "0017_add_client_max_uid"
 branch_labels = None
 depends_on = None
 
