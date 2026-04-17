@@ -62,7 +62,7 @@
           <div>
             <label for="phone" class="form-label">Телефон (+7) *</label>
             <input type="tel" class="form-control" id="phone" name="phone" required
-                   pattern="[+]?[0-9\s\-\(\)]{10,20}"
+                   pattern="[+]?[0-9\\s\\-\\(\\)]{10,20}"
                    placeholder="+7 (XXX) XXX-XX-XX">
             <div class="form-text">Формат: +7XXXXXXXXXX</div>
           </div>
@@ -74,7 +74,6 @@
                       placeholder="Улица, дом, квартира, подъезд"></textarea>
           </div>
 
-          <!-- Зона доставки -->
           <div id="zoneBlock">
             <label for="zone_select" class="form-label">Зона доставки *</label>
             <select class="form-select" id="zone_select" required>
@@ -83,11 +82,12 @@
             <div id="zoneHint" class="form-text"></div>
           </div>
 
-          <div>
+          <!-- Временно скрыто: выбор способа доставки -->
+          <div class="d-none">
             <label class="form-label">Способ доставки *</label>
             <div class="form-check">
               <input class="form-check-input" type="radio" name="delivery_mode"
-                     id="delivery_asap" value="asap" checked onchange="toggleSlot()">
+                     id="delivery_asap" value="asap" checked>
               <label class="form-check-label" for="delivery_asap">
                 {% if preorder_info and preorder_info.is_preorder %}
                 Как можно скорее (в {{ morning_start }})
@@ -98,22 +98,22 @@
             </div>
             <div class="form-check">
               <input class="form-check-input" type="radio" name="delivery_mode"
-                     id="delivery_slot" value="slot" onchange="toggleSlot()">
+                     id="delivery_slot" value="slot">
               <label class="form-check-label" for="delivery_slot">
                 Выбрать время
               </label>
             </div>
           </div>
 
+          <!-- Временно скрыто: слоты доставки -->
           <div id="slotSelector" class="d-none">
             <div class="mb-3">
               <label for="delivery_date" class="form-label">Дата доставки *</label>
               <input type="date" class="form-control" id="delivery_date"
-                     name="delivery_date" min="{{ today }}" onchange="loadSlotAvailability()">
+                     name="delivery_date" min="{{ today }}">
             </div>
             <label for="slot_time_select" class="form-label">Время доставки *</label>
-            <select class="form-select" id="slot_time_select" name="delivery_slot"
-                    onchange="checkSlotAvailability()">
+            <select class="form-select" id="slot_time_select" name="delivery_slot">
               <option value="">Выберите время</option>
             </select>
             <div id="slotAvailability" class="form-text mt-2"></div>
@@ -167,28 +167,28 @@
 
 {% block scripts %}
 <script nonce="{{ csp_nonce }}">
-  // ── Зоны доставки ──────────────────────────────────────────────────────────
   let zonesData = [];
 
   async function loadDeliveryZones() {
     const select = document.getElementById('zone_select');
-    const hint   = document.getElementById('zoneHint');
+    const hint = document.getElementById('zoneHint');
+
     try {
       const res = await fetch('/api/delivery-zones');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      zonesData = await res.json();
 
+      zonesData = await res.json();
       select.innerHTML = '<option value="">— выберите зону —</option>';
-      zonesData.forEach(z => {
+
+      zonesData.forEach(zone => {
         const opt = document.createElement('option');
-        opt.value = z.id;
-        opt.textContent = `${z.name} (≈${z.delivery_time_minutes} мин)`;
+        opt.value = String(zone.id);
+        opt.textContent = `${zone.name} (≈${zone.delivery_time_minutes} мин)`;
         select.appendChild(opt);
       });
 
-      // Если зона одна — выбрать автоматически
       if (zonesData.length === 1) {
-        select.value = zonesData[0].id;
+        select.value = String(zonesData[0].id);
         updateZoneHint(zonesData[0]);
       }
     } catch (e) {
@@ -200,130 +200,30 @@
 
   function updateZoneHint(zone) {
     const hint = document.getElementById('zoneHint');
-    if (zone) {
-      hint.textContent = `Время доставки по зоне: ~${zone.delivery_time_minutes} мин`;
-    } else {
-      hint.textContent = '';
-    }
+    hint.textContent = zone
+      ? `Время доставки по зоне: ~${zone.delivery_time_minutes} мин`
+      : '';
   }
 
-  document.getElementById('zone_select').addEventListener('change', function () {
-    const zone = zonesData.find(z => z.id === parseInt(this.value));
-    updateZoneHint(zone || null);
-  });
-
-  // ── Слоты ──────────────────────────────────────────────────────────────────
-  let slotAvailability = {};
-
-  function toggleSlot() {
-    const slotSelector = document.getElementById('slotSelector');
-    const isSlot = document.querySelector('input[name="delivery_mode"][value="slot"]').checked;
-    if (isSlot) {
-      slotSelector.classList.remove('d-none');
-      loadSlotAvailability();
-    } else {
-      slotSelector.classList.add('d-none');
-    }
-  }
-
-  async function loadSlotAvailability() {
-    const dateInput      = document.getElementById('delivery_date');
-    const slotSelect     = document.getElementById('slot_time_select');
-    const availabilityDiv = document.getElementById('slotAvailability');
-
-    if (!dateInput.value) return;
-
-    const today    = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    const selected = dateInput.value;
-
-    if (selected !== today && selected !== tomorrow) {
-      slotSelect.innerHTML = '<option value="">Доставка доступна только на сегодня/завтра</option>';
-      availabilityDiv.textContent = '';
-      return;
-    }
-
-    const day = selected === today ? 'today' : 'tomorrow';
-    availabilityDiv.textContent = 'Загрузка…';
-    slotSelect.innerHTML = '<option value="">Загрузка…</option>';
-    slotSelect.disabled = true;
-    slotAvailability = {};
-
-    try {
-      const res = await fetch(`/api/slots?day=${day}&method=delivery`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      slotSelect.innerHTML = '<option value="">Выберите время</option>';
-
-      if (data.error) {
-        slotSelect.innerHTML = `<option value="">${data.error}</option>`;
-        availabilityDiv.textContent = '';
-        return;
-      }
-
-      const available   = (data.slots || []).filter(s => s.available);
-      const unavailable = (data.slots || []).filter(s => !s.available);
-
-      if (available.length === 0) {
-        slotSelect.innerHTML = '<option value="">Нет доступных слотов</option>';
-        availabilityDiv.textContent = unavailable.length
-          ? 'Все слоты на этот период уже прошли'
-          : 'Нет доступных слотов';
-        return;
-      }
-
-      available.forEach(slot => {
-        slotAvailability[slot.time] = slot;
-        const opt = document.createElement('option');
-        opt.value = slot.time;
-        opt.textContent = slot.label;
-        slotSelect.appendChild(opt);
-      });
-
-      if (unavailable.length > 0) {
-        const sep = document.createElement('option');
-        sep.disabled = true;
-        sep.textContent = '── прошедшее время ──';
-        slotSelect.appendChild(sep);
-        unavailable.forEach(slot => {
-          const opt = document.createElement('option');
-          opt.value = slot.time;
-          opt.textContent = slot.label;
-          opt.disabled = true;
-          slotSelect.appendChild(opt);
-        });
-      }
-
-      availabilityDiv.textContent = 'Выберите удобное время';
-    } catch (e) {
-      console.error('Ошибка загрузки слотов:', e);
-      slotSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
-      availabilityDiv.textContent = 'Не удалось загрузить слоты. Попробуйте обновить страницу.';
-    } finally {
-      slotSelect.disabled = false;
-    }
-  }
-
-  function checkSlotAvailability() {
-    const slotSelect     = document.getElementById('slot_time_select');
-    const availabilityDiv = document.getElementById('slotAvailability');
-    const selected       = slotSelect.value;
-    if (!selected) { availabilityDiv.textContent = 'Выберите удобное время'; return; }
-    const slot = slotAvailability[selected];
-    availabilityDiv.innerHTML = slot && slot.available
-      ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Слот доступен</span>'
-      : '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Слот недоступен</span>';
-  }
-
-  // ── Init ───────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
-    if (typeof initCheckoutPage === 'function') initCheckoutPage();
+    if (typeof initCheckoutPage === 'function') {
+      initCheckoutPage();
+    }
 
-    const today = new Date().toISOString().split('T')[0];
+    const zoneSelect = document.getElementById('zone_select');
+    if (zoneSelect) {
+      zoneSelect.addEventListener('change', function () {
+        const zone = zonesData.find(z => z.id === parseInt(this.value, 10));
+        updateZoneHint(zone || null);
+      });
+    }
+
     const dateInput = document.getElementById('delivery_date');
-    dateInput.min   = today;
-    dateInput.value = today;
+    if (dateInput) {
+      const today = new Date().toISOString().split('T')[0];
+      dateInput.min = today;
+      dateInput.value = today;
+    }
 
     loadDeliveryZones();
   });
