@@ -60,8 +60,9 @@ from .models import (
     DeliveryMode,
     MenuPeriod,
     DeliverySlot,
+    DeliveryZone,
 )
-from .availability_models import MenuConfiguration
+from .availability_models import MenuConfiguration, AvailabilityRule
 
 # [ШАГ 3] Заменён импорт из telegram на notifications-агрегатор
 from .notifications import (
@@ -436,6 +437,43 @@ ASAP_TEXT = settings.ASAP_TEXT
 
 MAX_QTY = MAX_QTY_PER_ITEM
 MAX_ITEMS = MAX_ITEMS_IN_CART
+
+def _get_product_lead_time_minutes(db, product: Product) -> int:
+    """Return effective lead time for a product, preferring product rule over category rule."""
+        product_rule = (
+            db.query(AvailabilityRule)
+            .filter(
+                AvailabilityRule.scope_type == "product",
+                AvailabilityRule.scope_id == product.id,
+                AvailabilityRule.is_active == True,
+            )
+            .order_by(AvailabilityRule.id.desc())
+            .first()
+        )
+        if product_rule:
+            return max(0, product_rule.lead_time_minutes or 0)
+
+        category_rule = (
+            db.query(AvailabilityRule)
+            .filter(
+                AvailabilityRule.scope_type == "category",
+                AvailabilityRule.scope_id == product.category_id,
+                AvailabilityRule.is_active == True,
+            )
+            .order_by(AvailabilityRule.id.desc())
+            .first()
+        )
+        if category_rule:
+            return max(0, category_rule.lead_time_minutes or 0)
+
+        return 0
+
+def _build_delivery_window(now_local: datetime, lead_time_minutes: int, zone_minutes: int) -> tuple[str, str]:
+    """Build delivery window string using lead time + zone delivery time ±10 minutes."""
+    base_dt = now_local + timedelta(minutes=max(0, lead_time_minutes) + max(0, zone_minutes))
+    delivery_from = base_dt - timedelta(minutes=10)
+    delivery_to = base_dt + timedelta(minutes=10)
+    return delivery_from.strftime("%H:%M"), delivery_to.strftime("%H:%M")
 
 # Setup admin
 setup_admin(app, engine)
@@ -1166,6 +1204,7 @@ async def create_order(request: Request, payload: OrderCreate):
 
             total = 0
             order_items = []
+            effective_lead_time_minutes = 0
 
             for item in payload.items:
                 product = pmap.get(item.product_id)
@@ -1182,11 +1221,47 @@ async def create_order(request: Request, payload: OrderCreate):
                         "qty": item.qty,
                     }
                 )
+                effective_lead_time_minutes = max(
+                    effective_lead_time_minutes,
+                    _get_product_lead_time_minutes(db, product),
+                )
 
             # Добавляем стоимость доставки к итоговой сумме заказа
             config = db.query(MenuConfiguration).first()
             delivery_fee = config.delivery_fee if config else 0
             total_with_delivery = total + delivery_fee
+
+            zone = None
+            zone_minutes = 0
+            if getattr(payload, "zone_id", None):
+                zone = (
+                    db.query(DeliveryZone)
+                    .filter(
+                        DeliveryZone.id == payload.zone_id,
+                        DeliveryZone.is_active == True,
+                    )
+                    .first()
+                )
+                if not zone:
+                    ORDER_FAILURE_COUNT.labels(reason="invalid_zone").inc()
+                    raise HTTPException(400, "Зона доставки не найдена или отключена")
+                zone_minutes = max(0, zone.delivery_time_minutes or 0)
+
+            biz_tz = get_local_tz()
+            now_local = datetime.now(biz_tz)
+
+            estimated_delivery_window = None
+            if payload.delivery_mode == "asap":
+                delivery_from, delivery_to = _build_delivery_window(
+                    now_local=now_local,
+                    lead_time_minutes=effective_lead_time_minutes,
+                    zone_minutes=zone_minutes,
+                )
+                estimated_delivery_window = f"{delivery_from}-{delivery_to}"
+                estimated_delivery_text = (
+                    f"Ваш заказ будет доставлен с {delivery_from} до {delivery_to} "
+                    f"(с учётом форс-мажоров ±10 минут)"
+                )
 
             order = Order(
                 customer_name=payload.name.strip(),
@@ -1198,13 +1273,10 @@ async def create_order(request: Request, payload: OrderCreate):
                 total_rub=total_with_delivery,
                 payment_method=PaymentMethod(payload.payment_method),
                 delivery_mode=DeliveryMode(payload.delivery_mode),
-                delivery_slot=payload.delivery_slot
-                if payload.delivery_mode == "slot"
-                else None,
-                delivery_date=payload.delivery_date
-                if payload.delivery_mode == "slot"
-                else None,
+                delivery_slot=payload.delivery_slot if payload.delivery_mode == "slot" else estimated_delivery_window,
+                delivery_date=payload.delivery_date if payload.delivery_mode == "slot" else now_local.date(),
                 client_max_uid=payload.client_max_uid,
+                zone_id=getattr(payload, "zone_id", None),
             )
 
             db.add(order)
@@ -1269,7 +1341,12 @@ async def create_order(request: Request, payload: OrderCreate):
                         f"\nСлот: {order.delivery_slot} ({order.delivery_date})"
                     )
                 else:
-                    delivery_info = "\nДоставка: как можно скорее"
+                    zone_name = zone.name if zone else "без зоны"
+                    delivery_info = (
+                        f"\nДоставка: как можно скорее"
+                        f"\nЗона: {zone_name}"
+                        f"\nОценка: {estimated_delivery_text}"
+                    )
 
                 payment_method_label = {
                     "cash": "Наличные",
@@ -1316,6 +1393,7 @@ async def create_order(request: Request, payload: OrderCreate):
                 "ok": True,
                 "order_id": order.id,
                 "confirmation_token": confirmation_token,
+                "estimated_delivery": estimated_delivery_text,
             }
 
         except HTTPException:
