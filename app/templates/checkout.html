@@ -200,10 +200,17 @@
 
   function updateZoneHint(zone) {
     const hint = document.getElementById('zoneHint');
-    hint.textContent = zone
-      ? `Время доставки по зоне: ~${zone.delivery_time_minutes} мин`
-      : '';
+    if (!zone || typeof CartManager === 'undefined') {
+      hint.textContent = '';
+      return;
   }
+
+  // Максимальный lead_time из корзины
+  const maxLeadTime = CartManager.getMaxLeadTime() || 0;
+  const totalMinutes = zone.delivery_time_minutes + maxLeadTime;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes %
 
   document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCheckoutPage === 'function') {
