@@ -93,13 +93,14 @@ function setupProductEventDelegation() {
                 return;
             }
             
-            // Standard add to cart
-            if (productCard) {
-                const productId = parseInt(productCard.dataset.productId);
-                const price = parseInt(productCard.dataset.price);
-                const name = productCard.dataset.name;
-                addToCartWithQty(productId, price, name);
-            }
+             // Standard add to cart
+             if (productCard) {
+                 const productId = parseInt(productCard.dataset.productId);
+                 const price = parseInt(productCard.dataset.price);
+                 const name = productCard.dataset.name;
+                 const leadTimeMinutes = parseInt(productCard.dataset.leadTimeMinutes || '0', 10);
+                 addToCartWithQty(productId, price, name, leadTimeMinutes);
+             }
         }
         
         // Handle Quantity +/- buttons
@@ -271,6 +272,7 @@ function updateProductCard(product) {
 
     // Update availability state
     card.dataset.available = product.available;
+    card.dataset.leadTimeMinutes = Number(product.lead_time_minutes || 0);
     card.classList.toggle('unavailable', !product.available);
 
     // Visibility: hide only truly unavailable (OUTSIDE_WINDOW, NO_RULE, etc.)
@@ -380,46 +382,49 @@ function createProductElement(product) {
     const col = document.createElement('div');
     col.className = 'col-6 col-md-4 col-lg-3';
     
-    const isAvailable = product.available;
-    const ctaType = product.cta_type;
-    
-    // Build product card with data attributes for cart integration
-    col.innerHTML = `
-        <div class="card h-100 product-card ${isAvailable ? '' : 'unavailable'}" 
-             data-product-id="${product.product_id}"
-             data-name="${escapeHtml(product.name)}"
-             data-price="${product.price_rub}"
-             data-available="${isAvailable}">
-            <div class="card-body">
-                <h5 class="card-title h6">${escapeHtml(product.name)}</h5>
-                <p class="card-text">
-                    <span class="price">${product.price_rub} ₽</span>
-                </p>
-                
-                ${product.badge_text ? `
-                    <span class="badge ${isAvailable ? 'bg-success' : 'bg-secondary'}">
-                        ${escapeHtml(product.badge_text)}
-                    </span>
-                ` : ''}
-                
-                ${product.next_available ? `
-                    <small class="d-block text-muted mt-1">
-                        ${escapeHtml(product.next_available)}
-                    </small>
-                ` : ''}
-                
-                ${product.reason_code ? `
-                    <small class="d-block text-muted mt-1 reason-code">
-                        ${REASON_LABELS[product.reason_code] || product.reason_code}
-                    </small>
-                ` : ''}
-            </div>
-            
-            <div class="card-footer">
-                ${renderProductControls(product, isAvailable, ctaType)}
-            </div>
-        </div>
-    `;
+     // Default: add to cart with quantity controls
+     const productId = product.product_id;
+     const priceRub = product.price_rub;
+     const name = product.name; // Will be read from data attribute
+     const leadTimeMinutes = Number(product.lead_time_minutes || 0);
+     
+     return `
+         <div class="card h-100 product-card ${isAvailable ? '' : 'unavailable'}" 
+              data-product-id="${product.product_id}"
+              data-name="${escapeHtml(product.name)}"
+              data-price="${product.price_rub}"
+              data-available="${isAvailable}"
+              data-lead-time-minutes="${leadTimeMinutes}">
+             <div class="card-body">
+                 <h5 class="card-title h6">${escapeHtml(product.name)}</h5>
+                 <p class="card-text">
+                     <span class="price">${product.price_rub} ₽</span>
+                 </p>
+                 
+                 ${product.badge_text ? `
+                     <span class="badge ${isAvailable ? 'bg-success' : 'bg-secondary'}">
+                         ${escapeHtml(product.badge_text)}
+                     </span>
+                 ` : ''}
+                 
+                 ${product.next_available ? `
+                     <small class="d-block text-muted mt-1">
+                         ${escapeHtml(product.next_available)}
+                     </small>
+                 ` : ''}
+                 
+                 ${product.reason_code ? `
+                     <small class="d-block text-muted mt-1 reason-code">
+                         ${REASON_LABELS[product.reason_code] || product.reason_code}
+                     </small>
+                 ` : ''}
+             </div>
+             
+             <div class="card-footer">
+                 ${renderProductControls(product, isAvailable, ctaType)}
+             </div>
+         </div>
+     `;
     
     // Add event listeners for quantity controls
     setupProductControls(col, product, isAvailable, ctaType);
@@ -456,31 +461,31 @@ function renderProductControls(product, isAvailable, ctaType) {
         `;
     }
     
-    // Default: add to cart with quantity controls
-    const productId = product.product_id;
-    const priceRub = product.price_rub;
-    const name = product.name; // Will be read from data attribute
-    
-    return `
-        <button class="btn btn-brand btn-add-to-cart btn-sm w-100" 
-                id="add-btn-${productId}"
-                onclick="addToCartWithQty(${productId}, ${priceRub}, '${escapeJs(name)}')">
-            ${CTA_LABELS[ctaType] || 'Добавить'}
-        </button>
-        <div class="product-controls d-none justify-content-center align-items-center gap-2" 
-             id="qty-control-${productId}"
-             data-product-id="${productId}" data-price="${priceRub}" data-name="${escapeHtml(name)}">
-            <button type="button" class="qty-btn qty-btn-minus" 
-                    aria-label="Уменьшить количество">
-                −
-            </button>
-            <span class="qty-display fw-bold" id="qty-display-${productId}" style="min-width: 24px; text-align: center;">0</span>
-            <button type="button" class="qty-btn" 
-                    aria-label="Увеличить количество">
-                +
-            </button>
-        </div>
-    `;
+     // Default: add to cart with quantity controls
+     const productId = product.product_id;
+     const priceRub = product.price_rub;
+     const name = product.name; // Will be read from data attribute
+     
+     return `
+         <button class="btn btn-brand btn-add-to-cart btn-sm w-100" 
+                 id="add-btn-${productId}"
+                 onclick="addToCartWithQty(${productId}, ${priceRub}, '${escapeJs(name)}', ${Number(product.lead_time_minutes || 0)})">
+             ${CTA_LABELS[ctaType] || 'Добавить'}
+         </button>
+         <div class="product-controls d-none justify-content-center align-items-center gap-2" 
+              id="qty-control-${productId}"
+              data-product-id="${productId}" data-price="${priceRub}" data-name="${escapeHtml(name)}">
+             <button type="button" class="qty-btn qty-btn-minus" 
+                     aria-label="Уменьшить количество">
+                 −
+             </button>
+             <span class="qty-display fw-bold" id="qty-display-${productId}" style="min-width: 24px; text-align: center;">0</span>
+             <button type="button" class="qty-btn" 
+                     aria-label="Увеличить количество">
+                 +
+             </button>
+         </div>
+     `;
 }
 
 function setupProductControls(col, product, isAvailable, ctaType) {
@@ -491,14 +496,14 @@ function setupProductControls(col, product, isAvailable, ctaType) {
 // Cart Integration Functions
 // ============================================================================
 
-function addToCartWithQty(productId, priceRub, name) {
+function addToCartWithQty(productId, priceRub, name, leadTimeMinutes = 0) {
     if (typeof CartManager === 'undefined') {
         console.error('CartManager not loaded');
         return;
     }
     
     // Add item to cart
-    const success = CartManager.addItem(productId, priceRub, name);
+    const success = CartManager.addItem(productId, priceRub, name, leadTimeMinutes);
     
     if (success) {
         // Update UI to show quantity controls
@@ -698,7 +703,8 @@ function getUnavailableForCurrentSlot() {
                     product_id: product.product_id,
                     name: product.name,
                     price_rub: product.price_rub,
-                    next_available: product.next_available
+                    next_available: product.next_available,
+                    lead_time_minutes: Number(product.lead_time_minutes || 0)
                 });
             }
         });
