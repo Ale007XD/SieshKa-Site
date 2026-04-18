@@ -61,6 +61,7 @@ class MenuItemAvailability(BaseModel):
     reason_code: Optional[str]
     badge_text: str
     cta_type: str
+    lead_time_minutes: int = 0
 
 
 class MenuCategoryResponse(BaseModel):
@@ -509,6 +510,18 @@ async def get_menu(
                                 else time(0, 0),
                             )
 
+                            # Compute effective lead_time_minutes:
+                            # prefer product-level rule, fall back to category rule
+                            effective_lead = 0
+                            if p_rules:
+                                effective_lead = max(
+                                    (r.lead_time_minutes or 0) for r in p_rules
+                                )
+                            elif c_rules:
+                                effective_lead = max(
+                                    (r.lead_time_minutes or 0) for r in c_rules
+                                )
+
                             cat_products.append(
                                 MenuItemAvailability(
                                     product_id=product.id,
@@ -525,6 +538,7 @@ async def get_menu(
                                     else None,
                                     badge_text=result.badge_text,
                                     cta_type=result.cta_type,
+                                    lead_time_minutes=effective_lead,
                                 )
                             )
                         except Exception as e:
