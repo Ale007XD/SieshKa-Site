@@ -684,6 +684,9 @@ const CartManager = (function () {
     await updateCheckoutTotal();
     renderRecentlyDeletedOnCheckout();
     renderRecentlyDeletedOnCart();
+    // Уведомить страницу оформления об изменении корзины
+    // (чтобы hint с временем доставки пересчитался)
+    document.dispatchEvent(new CustomEvent('cart:updated'));
   }
 
   function showToast(message, type = 'info') {
