@@ -169,46 +169,17 @@
 <script nonce="{{ csp_nonce }}">
   let zonesData = [];
 
-  async function loadDeliveryZones() {
-    const select = document.getElementById('zone_select');
-    const hint = document.getElementById('zoneHint');
-
-    try {
-      const res = await fetch('/api/delivery-zones');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      zonesData = await res.json();
-      select.innerHTML = '<option value="">— выберите зону —</option>';
-
-      zonesData.forEach(zone => {
-        const opt = document.createElement('option');
-        opt.value = String(zone.id);
-        opt.textContent = `${zone.name} (≈${zone.delivery_time_minutes} мин)`;
-        select.appendChild(opt);
-      });
-
-      if (zonesData.length === 1) {
-        select.value = String(zonesData[0].id);
-        updateZoneHint(zonesData[0]);
-      }
-    } catch (e) {
-      console.error('Ошибка загрузки зон:', e);
-      select.innerHTML = '<option value="">Ошибка загрузки зон</option>';
-      hint.textContent = 'Не удалось загрузить зоны доставки. Обновите страницу.';
-    }
-  }
-
+  // ─── Получить максимальный lead time из корзины ───────────────────────────
   function getCartMaxLeadTime() {
     try {
       if (typeof CartManager !== 'undefined') {
         if (typeof CartManager.getMaxLeadTime === 'function') {
           return Number(CartManager.getMaxLeadTime()) || 0;
         }
-
         if (typeof CartManager.loadCart === 'function') {
           const items = CartManager.loadCart() || [];
           return items.reduce((maxLead, item) => {
-            const lead = Number(item.leadTimeMinutes || item.lead_time_minutes || 0);
+            const lead = Number(item.lead_time_minutes || item.leadTimeMinutes || 0);
             return Math.max(maxLead, lead);
           }, 0);
         }
@@ -219,49 +190,87 @@
     return 0;
   }
 
+  // ─── Форматировать минуты в читаемую строку ───────────────────────────────
   function formatDeliveryEta(totalMinutes) {
-    if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
-      return '';
-    }
-
-    if (totalMinutes < 60) {
-      return `~${totalMinutes} мин`;
-    }
-
+    if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return '—';
+    if (totalMinutes < 60) return `~${totalMinutes} мин`;
     const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-
-    if (minutes === 0) {
-      return `~${hours} ч`;
-    }
-
-    return `~${hours} ч ${minutes} мин`;
+    const mins  = totalMinutes % 60;
+    return mins === 0 ? `~${hours} ч` : `~${hours} ч ${mins} мин`;
   }
 
+  // ─── Обновить подсказку под селектом зоны ────────────────────────────────
   function updateZoneHint(zone) {
     const hint = document.getElementById('zoneHint');
+    if (!hint) return;
 
     if (!zone) {
       hint.textContent = '';
       return;
     }
 
-    const zoneMinutes = Number(zone.delivery_time_minutes || 0);
-    const maxLeadTime = getCartMaxLeadTime();
-    const totalMinutes = zoneMinutes + maxLeadTime;
+    const zoneMinutes   = Number(zone.delivery_time_minutes || 0);
+    const maxLeadTime   = getCartMaxLeadTime();
+    const totalMinutes  = zoneMinutes + maxLeadTime;
 
     if (maxLeadTime > 0) {
-      hint.textContent = `Ориентировочное время доставки: ${formatDeliveryEta(totalMinutes)} (зона: ${zoneMinutes} мин + приготовление: ${maxLeadTime} мин)`;
+      hint.textContent =
+        `Ориентировочное время доставки: ${formatDeliveryEta(totalMinutes)} ` +
+        `(зона: ${zoneMinutes} мин + приготовление: ${maxLeadTime} мин)`;
     } else {
-      hint.textContent = `Ориентировочное время доставки: ${formatDeliveryEta(zoneMinutes)}`;
+      hint.textContent =
+        `Ориентировочное время доставки: ${formatDeliveryEta(zoneMinutes)}`;
     }
   }
 
+  // ─── Перечитать текущую выбранную зону и обновить hint ───────────────────
+  function refreshZoneHint() {
+    const select = document.getElementById('zone_select');
+    if (!select || !select.value) return;
+    const zone = zonesData.find(z => z.id === parseInt(select.value, 10));
+    updateZoneHint(zone || null);
+  }
+
+  // ─── Загрузить зоны с сервера и заполнить select ─────────────────────────
+  async function loadDeliveryZones() {
+    const select = document.getElementById('zone_select');
+    const hint   = document.getElementById('zoneHint');
+    if (!select) return;
+
+    try {
+      const res = await fetch('/api/delivery-zones');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      zonesData = await res.json();
+      select.innerHTML = '<option value="">— выберите зону —</option>';
+
+      zonesData.forEach(zone => {
+        const opt = document.createElement('option');
+        opt.value       = String(zone.id);
+        opt.textContent = `${zone.name} (≈${zone.delivery_time_minutes} мин)`;
+        select.appendChild(opt);
+      });
+
+      // Если зона одна — выбрать автоматически и показать hint
+      if (zonesData.length === 1) {
+        select.value = String(zonesData[0].id);
+        updateZoneHint(zonesData[0]);
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки зон:', e);
+      select.innerHTML = '<option value="">Ошибка загрузки зон</option>';
+      if (hint) hint.textContent = 'Не удалось загрузить зоны доставки. Обновите страницу.';
+    }
+  }
+
+  // ─── Инициализация ────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
+    // Инициализировать корзину на странице оформления
     if (typeof initCheckoutPage === 'function') {
       initCheckoutPage();
     }
 
+    // Обновлять hint при смене зоны пользователем
     const zoneSelect = document.getElementById('zone_select');
     if (zoneSelect) {
       zoneSelect.addEventListener('change', function () {
@@ -270,14 +279,25 @@
       });
     }
 
+    // Дата доставки: минимум сегодня
     const dateInput = document.getElementById('delivery_date');
     if (dateInput) {
       const today = new Date().toISOString().split('T')[0];
-      dateInput.min = today;
+      dateInput.min   = today;
       dateInput.value = today;
     }
 
+    // Загрузить зоны (async) — после загрузки hint обновится автоматически
     loadDeliveryZones();
+
+    // Обновить hint повторно после того как корзина отрендерится
+    // (cart.js рендерит корзину асинхронно, lead_time_minutes может
+    //  читаться до завершения renderCartPage)
+    setTimeout(refreshZoneHint, 300);
+
+    // Пересчитывать hint при каждом изменении корзины
+    // (пользователь убрал/добавил товар прямо на странице оформления)
+    document.addEventListener('cart:updated', refreshZoneHint);
   });
 </script>
 {% endblock %}
