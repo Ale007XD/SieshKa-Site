@@ -1074,6 +1074,35 @@ async def index(request: Request, preview_period: str = Query(None)):
                 products_by_category[p.category_id] = []
             products_by_category[p.category_id].append(p)
 
+        # Load lead times for all products in ONE query (no N+1)
+        # Prefer product-level rule over category-level rule
+        all_rules = (
+            db.query(AvailabilityRule)
+            .filter(AvailabilityRule.is_active == True)  # noqa: E712
+            .all()
+        )
+        product_lead: dict[int, int] = {}   # product_id → minutes
+        category_lead: dict[int, int] = {}  # category_id → minutes
+        for rule in all_rules:
+            lead = max(0, rule.lead_time_minutes or 0)
+            if rule.scope_type == "product":
+                # Keep the highest rule id (most recent wins, matches _get_product_lead_time_minutes)
+                existing = product_lead.get(rule.scope_id)
+                if existing is None or lead > existing:
+                    product_lead[rule.scope_id] = lead
+            elif rule.scope_type == "category":
+                existing = category_lead.get(rule.scope_id)
+                if existing is None or lead > existing:
+                    category_lead[rule.scope_id] = lead
+
+        def get_lead_time(product: Product) -> int:
+            if product.id in product_lead:
+                return product_lead[product.id]
+            return category_lead.get(product.category_id, 0)
+
+        # Build product_lead_times dict for the template
+        product_lead_times = {p.id: get_lead_time(p) for p in all_products}
+
         # Build hierarchical structure
         categories_data = []
 
@@ -1118,6 +1147,7 @@ async def index(request: Request, preview_period: str = Query(None)):
             "preview_period": preview_period,
             "preorder_info": preorder_info,
             "allowed_methods": allowed_methods,
+            "product_lead_times": product_lead_times,
         }
 
         if not preorder_info["is_preorder"]:
