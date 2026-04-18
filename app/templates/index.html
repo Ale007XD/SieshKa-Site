@@ -317,7 +317,7 @@
       <div class="vstack gap-2">
         {# Products directly in category #}
         {% for p in cat_data.products %}
-        <div class="card shadow-sm product-card" data-product-id="{{ p.id }}" data-name="{{ p.name | replace('"', '&quot;') }}" data-price="{{ p.price_rub }}" data-available="true">
+        <div class="card shadow-sm product-card" data-product-id="{{ p.id }}" data-name="{{ p.name | replace('"', '&quot;') }}" data-price="{{ p.price_rub }}" data-lead-time-minutes="{{ product_lead_times.get(p.id, 0) }}" data-available="true">
           <div class="card-body">
             <div class="d-flex gap-3">
               {% if p.photo_url %}
@@ -373,7 +373,7 @@
           <h3 class="h6 text-muted mb-2">{{ subcat_data.category.name }}</h3>
           <div class="vstack gap-2">
             {% for p in subcat_data.products %}
-            <div class="card shadow-sm product-card" data-product-id="{{ p.id }}" data-name="{{ p.name | replace('"', '&quot;') }}" data-price="{{ p.price_rub }}" data-available="true">
+            <div class="card shadow-sm product-card" data-product-id="{{ p.id }}" data-name="{{ p.name | replace('"', '&quot;') }}" data-price="{{ p.price_rub }}" data-lead-time-minutes="{{ product_lead_times.get(p.id, 0) }}" data-available="true">
               <div class="card-body">
                 <div class="d-flex gap-3">
                   {% if p.photo_url %}
