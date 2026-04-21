@@ -1287,7 +1287,8 @@ async def create_order(request: Request, payload: OrderCreate):
 
             # Добавляем стоимость доставки к итоговой сумме заказа
             config = db.query(MenuConfiguration).first()
-            delivery_fee = config.delivery_fee if config else 0
+            base_delivery_fee = config.delivery_fee if config else 0
+            delivery_fee = 0 if payload.delivery_mode == "pickup" else base_delivery_fee
             total_with_delivery = total + delivery_fee
 
             zone = None
