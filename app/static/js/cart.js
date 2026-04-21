@@ -1130,7 +1130,11 @@ function setupCheckoutForm() {
       return;
     }
 
-    if (address.length < 8) {
+    const deliveryModeInput = document.querySelector('input[name="delivery_mode"]:checked');
+    const deliveryMode = deliveryModeInput ? deliveryModeInput.value : 'asap';
+    const isPickup = deliveryMode === 'pickup';
+
+    if (!isPickup && address.length < 8) {
       CartManager.showToast('Введите полный адрес доставки', 'warning');
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalText;
@@ -1140,7 +1144,7 @@ function setupCheckoutForm() {
     const zoneSelect = document.getElementById('zone_select');
     const zoneId = zoneSelect ? parseInt(zoneSelect.value, 10) : null;
 
-    if (!zoneId) {
+    if (!isPickup && !zoneId) {
       CartManager.showToast('Выберите зону доставки', 'warning');
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalText;
@@ -1160,7 +1164,7 @@ function setupCheckoutForm() {
       phone: phone,
       address: address,
       comment: comment,
-      delivery_mode: 'asap',
+      delivery_mode: deliveryMode,
       delivery_slot: null,
       delivery_date: null,
       payment_method: paymentMethodInput.value,
