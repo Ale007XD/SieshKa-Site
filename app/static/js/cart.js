@@ -583,15 +583,15 @@ const CartManager = (function () {
       <div class="cart-totals mt-3 pt-3 border-top">
         <div class="d-flex justify-content-between mb-2">
           <span class="text-muted">Итого (товары):</span>
-          <span class="fw-semibold">${formatPrice(subtotal)}</span>
+          <span class="fw-semibold" id="checkoutSubtotal">${formatPrice(subtotal)}</span>
         </div>
         <div class="d-flex justify-content-between mb-2">
           <span class="text-muted">Доставка:</span>
-          <span class="fw-semibold">${formatPrice(currentDeliveryFee)} (фиксированная)</span>
+          <span class="fw-semibold" id="checkoutDeliveryFee">${formatPrice(currentDeliveryFee)} (фиксированная)</span>
         </div>
         <div class="d-flex justify-content-between fw-bold h5 mb-0 mt-2 pt-2 border-top">
           <span>Итого к оплате:</span>
-          <span class="text-brand">${formatPrice(grandTotal)}</span>
+          <span class="text-brand" id="checkoutGrandTotal">${formatPrice(grandTotal)}</span>
         </div>
       </div>
     `;
@@ -599,7 +599,7 @@ const CartManager = (function () {
     container.innerHTML = html;
   }
 
-  async function updateCheckoutTotal() {
+  async function updateCheckoutTotal(isPickup) {
     const subtotalEl = document.getElementById('checkoutSubtotal');
     const deliveryEl = document.getElementById('checkoutDeliveryFee');
     const grandTotalEl = document.getElementById('checkoutGrandTotal');
@@ -607,11 +607,14 @@ const CartManager = (function () {
     if (subtotalEl || deliveryEl || grandTotalEl) {
       const items = loadCart();
       const subtotal = getTotalPrice(items);
-      const currentDeliveryFee = await getDeliveryFee();
-      const grandTotal = subtotal + currentDeliveryFee;
+      const baseDeliveryFee = await getDeliveryFee();
+      const effectiveFee = isPickup ? 0 : baseDeliveryFee;
+      const grandTotal = subtotal + effectiveFee;
 
       if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
-      if (deliveryEl) deliveryEl.textContent = formatPrice(currentDeliveryFee) + ' (фиксированная)';
+      if (deliveryEl) deliveryEl.textContent = isPickup
+        ? '0 ₽ (самовывоз)'
+        : formatPrice(effectiveFee) + ' (фиксированная)';
       if (grandTotalEl) grandTotalEl.textContent = formatPrice(grandTotal);
     }
   }
@@ -681,7 +684,8 @@ const CartManager = (function () {
     await updateOffcanvasCart();
     updateProductControls();
     await renderCartPage();
-    await updateCheckoutTotal();
+    const _pickupEl = document.getElementById('delivery_pickup');
+    await updateCheckoutTotal(_pickupEl && _pickupEl.checked);
     renderRecentlyDeletedOnCheckout();
     renderRecentlyDeletedOnCart();
     // Уведомить страницу оформления об изменении корзины
@@ -1049,7 +1053,8 @@ function initCartPage() {
 
 function initCheckoutPage() {
   CartManager.renderCartPage();
-  CartManager.updateCheckoutTotal();
+  const _pu = document.getElementById('delivery_pickup');
+  CartManager.updateCheckoutTotal(_pu && _pu.checked);
   CartManager.renderRecentlyDeletedOnCheckout();
   setupCheckoutForm();
 }

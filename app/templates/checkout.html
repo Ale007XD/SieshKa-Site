@@ -300,6 +300,10 @@
       if (pickupNotice) pickupNotice.classList.toggle('d-none', !isPickup);
       if (addressInput) addressInput.required = !isPickup;
       if (zoneSelect) zoneSelect.required = !isPickup;
+      // Пересчитать итог в зависимости от режима доставки
+      if (typeof CartManager !== 'undefined') {
+        CartManager.updateCheckoutTotal(isPickup);
+      }
     }
 
     if (deliveryPickup) deliveryPickup.addEventListener('change', toggleDeliveryModeUI);
