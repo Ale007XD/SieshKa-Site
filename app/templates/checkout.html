@@ -74,6 +74,11 @@
                       placeholder="Улица, дом, квартира, подъезд"></textarea>
           </div>
 
+          <div class="alert alert-success py-2 d-none" id="pickupNotice">
+            <i class="bi bi-box-seam me-1"></i>
+            Самовывоз без ст��имости доставки.
+          </div>
+
           <div id="zoneBlock">
             <label for="zone_select" class="form-label">Зона доставки * 
               <strong>ВНИМАНИЕ! По направлениям Мельничный, Пролетарск, Сидорова доставка в настоящее время НЕ ОСУЩЕСТВЛЯЕТСЯ!</strong></label>
@@ -83,41 +88,22 @@
             <div id="zoneHint" class="form-text"></div>
           </div>
 
-          <!-- Временно скрыто: выбор способа доставки -->
-          <div class="d-none">
+          <div>
             <label class="form-label">Способ доставки *</label>
             <div class="form-check">
               <input class="form-check-input" type="radio" name="delivery_mode"
-                     id="delivery_asap" value="asap" checked>
-              <label class="form-check-label" for="delivery_asap">
-                {% if preorder_info and preorder_info.is_preorder %}
-                Как можно скорее (в {{ morning_start }})
-                {% else %}
-                Как можно скорее (15–25 минут)
-                {% endif %}
+                     id="delivery_delivery" value="delivery" checked>
+              <label class="form-check-label" for="delivery_delivery">
+                Доставка
               </label>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="radio" name="delivery_mode"
-                     id="delivery_slot" value="slot">
-              <label class="form-check-label" for="delivery_slot">
-                Выбрать время
+                     id="delivery_pickup" value="pickup">
+              <label class="form-check-label" for="delivery_pickup">
+                Самовывоз
               </label>
             </div>
-          </div>
-
-          <!-- Временно скрыто: слоты доставки -->
-          <div id="slotSelector" class="d-none">
-            <div class="mb-3">
-              <label for="delivery_date" class="form-label">Дата доставки *</label>
-              <input type="date" class="form-control" id="delivery_date"
-                     name="delivery_date" min="{{ today }}">
-            </div>
-            <label for="slot_time_select" class="form-label">Время доставки *</label>
-            <select class="form-select" id="slot_time_select" name="delivery_slot">
-              <option value="">Выберите время</option>
-            </select>
-            <div id="slotAvailability" class="form-text mt-2"></div>
           </div>
 
           <div>
@@ -299,6 +285,27 @@
     // Пересчитывать hint при каждом изменении корзины
     // (пользователь убрал/добавил товар прямо на странице оформления)
     document.addEventListener('cart:updated', refreshZoneHint);
+
+    const deliveryPickup = document.getElementById('delivery_pickup');
+    const deliveryDelivery = document.getElementById('delivery_delivery');
+    const addressBlock = document.getElementById('address').closest('div');
+    const zoneBlock = document.getElementById('zoneBlock');
+    const pickupNotice = document.getElementById('pickupNotice');
+    const addressInput = document.getElementById('address');
+    const zoneSelect = document.getElementById('zone_select');
+
+    function toggleDeliveryModeUI() {
+      const isPickup = deliveryPickup && deliveryPickup.checked;
+      if (addressBlock) addressBlock.classList.toggle('d-none', isPickup);
+      if (zoneBlock) zoneBlock.classList.toggle('d-none', isPickup);
+      if (pickupNotice) pickupNotice.classList.toggle('d-none', !isPickup);
+      if (addressInput) addressInput.required = !isPickup;
+      if (zoneSelect) zoneSelect.required = !isPickup;
+    }
+
+    if (deliveryPickup) deliveryPickup.addEventListener('change', toggleDeliveryModeUI);
+    if (deliveryDelivery) deliveryDelivery.addEventListener('change', toggleDeliveryModeUI);
+    toggleDeliveryModeUI();
   });
 </script>
 {% endblock %}
