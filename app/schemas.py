@@ -12,9 +12,9 @@ class OrderItemIn(BaseModel):
 class OrderCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     phone: str = Field(..., min_length=5, max_length=20)
+    delivery_mode: str = Field(default="asap", pattern="^(asap|slot|delivery|pickup)$")
     address: Optional[str] = Field(None, min_length=8, max_length=300)
     comment: Optional[str] = Field(None, max_length=500)
-    delivery_mode: str = Field(default="asap", pattern="^(asap|slot|delivery|pickup)$")
     delivery_slot: Optional[str] = Field(
         None, pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
     )
