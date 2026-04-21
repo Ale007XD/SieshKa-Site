@@ -1081,7 +1081,7 @@ async def index(request: Request, preview_period: str = Query(None)):
             .filter(AvailabilityRule.is_active == True)  # noqa: E712
             .all()
         )
-        product_lead: dict[int, int] = {}  # product_id → minutes
+        product_lead: dict[int, int] = {}   # product_id → minutes
         category_lead: dict[int, int] = {}  # category_id → minutes
         for rule in all_rules:
             lead = max(0, rule.lead_time_minutes or 0)
