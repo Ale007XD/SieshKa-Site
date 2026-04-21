@@ -62,14 +62,14 @@
           <div>
             <label for="phone" class="form-label">Телефон (+7) *</label>
             <input type="tel" class="form-control" id="phone" name="phone" required
-                   pattern="[+]?[0-9\\s\\-\\(\\)]{10,20}"
+                   pattern="[+]?[0-9s(){} -]{10,20}"
                    placeholder="+7 (XXX) XXX-XX-XX">
             <div class="form-text">Формат: +7XXXXXXXXXX</div>
           </div>
 
-          <div>
+          <div id="addressBlock">
             <label for="address" class="form-label">Адрес доставки *</label>
-            <textarea class="form-control" id="address" name="address" required
+            <textarea class="form-control" id="address" name="address"
                       minlength="8" maxlength="300" rows="2"
                       placeholder="Улица, дом, квартира, подъезд"></textarea>
           </div>
@@ -288,7 +288,7 @@
 
     const deliveryPickup = document.getElementById('delivery_pickup');
     const deliveryDelivery = document.getElementById('delivery_delivery');
-    const addressBlock = document.getElementById('address').closest('div');
+    const addressBlock = document.getElementById('addressBlock');
     const zoneBlock = document.getElementById('zoneBlock');
     const pickupNotice = document.getElementById('pickupNotice');
     const addressInput = document.getElementById('address');
@@ -298,8 +298,15 @@
       if (addressBlock) addressBlock.classList.toggle('d-none', isPickup);
       if (zoneBlock) zoneBlock.classList.toggle('d-none', isPickup);
       if (pickupNotice) pickupNotice.classList.toggle('d-none', !isPickup);
-      if (addressInput) addressInput.required = !isPickup;
-      if (zoneSelect) zoneSelect.required = !isPickup;
+      // required + disabled — двойная защита от браузерной валидации
+      if (addressInput) {
+        addressInput.required = !isPickup;
+        addressInput.disabled = isPickup;
+      }
+      if (zoneSelect) {
+        zoneSelect.required = !isPickup;
+        zoneSelect.disabled = isPickup;
+      }
       // Пересчитать итог в зависимости от режима доставки
       if (typeof CartManager !== 'undefined') {
         CartManager.updateCheckoutTotal(isPickup);
