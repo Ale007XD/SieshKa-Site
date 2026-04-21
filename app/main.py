@@ -1403,12 +1403,17 @@ async def create_order(request: Request, payload: OrderCreate):
                 delivery_info = ""
                 if order.delivery_mode.value == "slot":
                     delivery_info = (
+                        f"\nСпособ: Доставка (слот)"
                         f"\nСлот: {order.delivery_slot} ({order.delivery_date})"
+                    )
+                elif order.delivery_mode.value == "pickup":
+                    delivery_info = (
+                        f"\nСпособ: 🏃 Самовывоз"
                     )
                 else:
                     zone_name = zone.name if zone else "без зоны"
                     delivery_info = (
-                        f"\nДоставка: как можно скорее"
+                        f"\nСпособ: 🚗 Доставка (как можно скорее)"
                         f"\nЗона: {zone_name}"
                         f"\nОценка: {estimated_delivery_text}"
                     )
