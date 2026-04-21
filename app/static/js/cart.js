@@ -1162,7 +1162,7 @@ function setupCheckoutForm() {
     const formData = {
       name: name,
       phone: phone,
-      address: address,
+      address: isPickup ? null : address,
       comment: comment,
       delivery_mode: deliveryMode,
       delivery_slot: null,
