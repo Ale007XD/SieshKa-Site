@@ -23,6 +23,8 @@ class PaymentMethod(str, enum.Enum):
 class DeliveryMode(str, enum.Enum):
     asap = "asap"
     slot = "slot"
+    delivery = "delivery"
+    pickup = "pickup"
 
 
 class MenuPeriod(str, enum.Enum):

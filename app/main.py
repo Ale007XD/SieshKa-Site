@@ -1326,7 +1326,7 @@ async def create_order(request: Request, payload: OrderCreate):
             order = Order(
                 customer_name=payload.name.strip(),
                 phone_e164=phone_e164,
-                address=payload.address.strip(),
+                address=(payload.address.strip() if payload.address else ""),
                 comment=payload.comment.strip() if payload.comment else None,
                 idempotency_key=payload.idempotency_key,
                 delivery_fee_rub=delivery_fee,
