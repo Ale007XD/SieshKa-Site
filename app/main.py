@@ -1311,6 +1311,7 @@ async def create_order(request: Request, payload: OrderCreate):
             now_local = datetime.now(biz_tz)
 
             estimated_delivery_window = None
+            estimated_delivery_text = ""
             if payload.delivery_mode == "asap":
                 delivery_from, delivery_to = _build_delivery_window(
                     now_local=now_local,
