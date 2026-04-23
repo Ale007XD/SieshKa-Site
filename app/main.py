@@ -1431,6 +1431,12 @@ async def create_order(request: Request, payload: OrderCreate):
                     else "\n🚚 Доставка: бесплатно"
                 )
 
+                comment_line = (
+                    f"\n💬 Комментарий: {order.comment}"
+                    if order.comment
+                    else ""
+                )
+
                 _notify_text = (
                     f"🛒 Новый заказ #{order.order_number}\n"
                     f"👤 {order.customer_name}\n"
@@ -1438,7 +1444,8 @@ async def create_order(request: Request, payload: OrderCreate):
                     f"📍 {order.address}\n"
                     f"💰 Оплата: {payment_method_label}\n"
                     f"{delivery_info}"
-                    f"{delivery_fee_line}\n\n"
+                    f"{delivery_fee_line}"
+                    f"{comment_line}\n\n"
                     f"📦 Состав:\n{items_text}\n\n"
                     f"💵 Итого (с доставкой): {order.total_rub}₽"
                 )
