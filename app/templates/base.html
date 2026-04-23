@@ -60,6 +60,18 @@
       color: var(--color-text-inverse);
     }
     
+    /* Режим работы кнопка */
+    .navbar-work-hours-btn {
+      background-color: var(--color-bg-secondary) !important;
+      border-color: var(--color-accent-border) !important;
+    }
+    
+    .navbar-work-hours-btn:hover {
+      background-color: var(--color-success-bg, #d4edda) !important;
+      border-color: var(--color-success-border, #c3e6cb) !important;
+      color: var(--color-success-fg, #155724) !important;
+    }
+    
     .navbar-cart-btn .cart-badge {
       position: absolute;
       top: -6px;
@@ -341,6 +353,14 @@
 
     <!-- Right Side: Cart & Call -->
     <div class="ms-auto d-flex gap-2 align-items-center">
+      <!-- Режим работы -->
+      <a href="#" class="navbar-cart-btn navbar-work-hours-btn me-2" 
+         data-bs-toggle="modal" data-bs-target="#workHoursModal" 
+         title="Режим работы" aria-label="Режим работы">
+        <i class="bi bi-clock fs-5"></i>
+        <span class="cart-text d-none d-md-inline">Режим работы</span>
+      </a>
+      
       <!-- Cart Button with Badge -->
       <a href="#" class="navbar-cart-btn" id="navbarCartBtn" data-bs-toggle="offcanvas" data-bs-target="#offcanvasCart" aria-controls="offcanvasCart">
         <i class="bi bi-cart3 fs-5"></i>
@@ -397,6 +417,31 @@
     </div>
   </div>
 </footer>
+
+<!-- Модалка "Режим работы" -->
+<div class="modal fade" id="workHoursModal" tabindex="-1" aria-labelledby="workHoursModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-1">
+        <h5 class="modal-title fw-bold mb-0" id="workHoursModalLabel">
+          <i class="bi bi-clock me-2 text-primary"></i>Режим работы
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body text-center py-4 px-3">
+        <div class="mb-4">
+          <i class="bi bi-check-circle-fill fs-1 text-success mb-3"></i>
+        </div>
+        <p class="fs-5 fw-semibold mb-3 lh-lg">
+          Работаем для вас каждый день кроме воскресенья,
+        </p>
+        <p class="h4 fw-bold text-primary mb-0">
+          9:00 — 21:00
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Offcanvas Cart -->
 <div class="offcanvas offcanvas-end offcanvas-cart" tabindex="-1" id="offcanvasCart" aria-labelledby="offcanvasCartLabel">
