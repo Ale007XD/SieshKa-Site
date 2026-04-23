@@ -1,156 +1,120 @@
-# SieshKa-Site Quick Reference
+# SieshKa — Quick Reference (апрель 2026)
 
-## 🚀 One-Command Deployment
-
-```bash
-cd SieshKa-Site-final && ./deploy.sh
-```
-
-## 📋 Essential Commands
-
-### Docker Compose
-```bash
-docker compose build          # Build images
-docker compose up -d          # Start services
-docker compose down           # Stop services
-docker compose logs -f api    # View API logs
-docker compose ps             # Check status
-```
-
-### Make (if available)
-```bash
-make build    # Build
-docker compose up -d          # Start
-make migrate  # Run migrations
-make logs     # View logs
-make backup   # Create backup
-```
-
-### Database
-```bash
-# Run migrations
-docker compose run --rm api alembic upgrade head
-
-# Create new migration
-docker compose run --rm api alembic revision --autogenerate -m "description"
-
-# Backup
-docker compose exec -T db pg_dump -U food food | gzip > backup.sql.gz
-
-# Restore
-gunzip -c backup.sql.gz | docker compose exec -T db psql -U food -d food
-```
-
-## 🔧 Configuration
-
-### Critical Env Vars (edit .env)
-```bash
-POSTGRES_PASSWORD=your_secure_password
-BASE_URL=https://your-domain.com
-TELEGRAM_BOT_TOKEN=your_bot_token
-```
-
-### File Locations
-- Config: `.env` (create from `.env.example`)
-- Docker: `docker-compose.yml`
-- App: `app/main.py`
-- Models: `app/models.py`
-- Nginx: `nginx/default.conf`
-
-## 🌐 Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `/` | Menu page |
-| `/cart` | Shopping cart |
-| `/checkout` | Order checkout |
-| `/admin` | Admin panel (with auth) |
-| `/api/orders` | Create order (POST) |
-| `/health` | Health check |
-| `/version` | App version |
-| `/metrics` | Prometheus metrics |
-
-## 🐛 Troubleshooting
-
-### Services won't start
-```bash
-docker compose logs [service]
-docker compose restart [service]
-```
-
-### Database issues
-```bash
-docker compose exec db pg_isready -U food
-docker compose logs db
-```
-
-### Reset everything
-```bash
-docker compose down -v
-docker compose up -d
-```
-
-## 🔒 Security Setup
-
-### Create admin password
-```bash
-htpasswd -c nginx/.htpasswd admin
-```
-
-### SSL Certificates
-```bash
-# First time
-docker compose run --rm certbot certonly --webroot -w /var/www/certbot -d your-domain.com
-
-# Renew
-docker compose restart nginx
-```
-
-## 📊 Monitoring
+## Контейнеры и подключение
 
 ```bash
-# Health
-curl http://localhost/health
+# Статус
+docker compose ps
 
-# Version
-curl http://localhost/version
+# Логи приложения
+docker compose logs -f api_green
 
-# Metrics
-curl http://localhost/metrics
+# Подключение к БД
+docker compose exec db psql -U food -d food
+
+# Алembic — применить миграции
+docker compose exec api_green alembic upgrade head
+
+# Алembic — новая миграция
+docker compose exec api_green alembic revision --autogenerate -m "0021_описание"
 ```
 
-## 🧹 Cleanup
+## Переменные окружения — обязательные
 
 ```bash
-./cleanup.sh                    # Remove dev artifacts
-docker system prune -f         # Clean Docker
+DATABASE_URL=postgresql+psycopg://food:<pass>@db/food
+REDIS_URL=redis://redis:6379/0
+
+# YooKassa
+YOOKASSA_SHOP_ID=
+YOOKASSA_SECRET_KEY=
+
+# MAX Messenger
+MAX_BOT_TOKEN=
+MAX_STAFF_CHAT_IDS=[123456789]
+MAX_WEBHOOK_SECRET=
+MAX_ALLOWED_USER_IDS=[123456789]
+SITE_BASE_URL=https://siesh-ka.ru
+
+# SMS
+SMSC_API_KEY=
+STAFF_PHONES=["+79990000000"]
+
+# Таймзона (должна совпадать с MenuConfiguration.business_tz в БД)
+TZ_NAME=Asia/Irkutsk
+BUSINESS_TZ=Asia/Irkutsk
 ```
 
-## 📁 Project Files
+## Ключевые файлы
+
+| Файл | Ответственность |
+|---|---|
+| `app/main.py` | Монолит 1880 строк, все роуты |
+| `app/models.py` | SQLAlchemy-модели |
+| `app/payments.py` | YooKassa create + webhook |
+| `app/notifications.py` | Агрегатор MAX + SMS |
+| `app/max_notify.py` | MAX Messenger API |
+| `app/sms.py` | SMSC.ru API |
+| `app/order_status.py` | FSM переходов |
+| `app/timefirst_core.py` | Pure-функции слотов |
+| `app/timefirst_api.py` | APIRouter /api/slots, /api/menu |
+| `config/settings.py` | pydantic-settings |
+| `app/db.py` | engine, SessionLocal |
+
+## Статусы заказа
 
 ```
-SieshKa-Site-final/
-├── README.md              # Full documentation
-├── REPOSITORY_MANIFEST.json   # File inventory
-├── ASSEMBLY_REPORT.md     # Assembly details
-├── docker-compose.yml     # Services
-├── Dockerfile            # API image
-├── app/                  # Application code
-├── config/               # Configuration
-├── alembic/              # Migrations
-├── nginx/                # Proxy config
-└── scripts/              # Utilities
+new → accepted → cooking → on_the_way → delivered
+ └──────────────────────────────────────→ cancelled
 ```
 
-## 🆘 Emergency Contacts
+## API — основные эндпоинты
 
-- **Logs**: `docker compose logs -f`
-- **Shell**: `docker compose exec api /bin/sh`
-- **Database**: `docker compose exec db psql -U food`
+```
+POST /api/orders                    — создать заказ
+POST /api/payments/webhook          — YooKassa webhook
+POST /api/max/callback              — MAX Messenger webhook
+GET  /api/slots?day=today&method=delivery
+GET  /api/menu
+GET  /health
+GET  /metrics
+```
 
----
+## Smoke-тесты
 
-**Quick Links**:
-- [Full README](README.md)
-- [Assembly Report](ASSEMBLY_REPORT.md)
-- [File Manifest](REPOSITORY_MANIFEST.json)
+```bash
+# Здоровье
+curl http://localhost:8002/health
+
+# Слоты
+curl "http://localhost:8002/api/slots?day=today&method=delivery"
+
+# Меню (проверить snake_case полей)
+curl http://localhost:8002/api/menu | python3 -m json.tool | grep -E "product_id|cta_type"
+```
+
+## Миграции — история
+
+| Ревизия | Изменение |
+|---|---|
+| 0001 | Full schema |
+| 0011 | allowed_methods |
+| 0013 | order_number |
+| 0014 | delivery_fee_rub |
+| 0017 | client_max_uid |
+| 0018 | max_message_ids, max_message_text |
+| 0019 | delivery_zones |
+| 0020 | delivery_mode: pickup/delivery |
+
+## Технический долг — очередь
+
+| Приоритет | Задача | Файл |
+|---|---|---|
+| P0 | Smoke-тест MAX клиентского бота | max_notify.py, main.py |
+| P1 | Унифицировать таймзоны (убрать TZ_NAME из env) | main.py, settings.py |
+| P2 | menu.js snake_case fix | static/menu.js |
+| P3 | asyncio.to_thread для SessionLocal | main.py |
+| P4 | Вынести orders.py роутер | main.py → routers/orders.py |
+| P5 | Вынести admin_api.py роутер | main.py → routers/admin_api.py |
+| P6 | Вынести system.py роутер | main.py → routers/system.py |
+| P7 | Удалить мёртвый код (delivery_slots, get_slot_availability) | models.py, main.py |
