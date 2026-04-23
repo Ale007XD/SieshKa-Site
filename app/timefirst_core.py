@@ -178,8 +178,8 @@ def get_daypart_windows() -> dict[Daypart, TimeWindow]:
 
 def get_slots(
     target_day: str,
-    method: DeliveryMethod,
     now: datetime,
+    method: DeliveryMethod,
     interval_minutes: int = 15,
     base_buffer_minutes: int = 15,
     tomorrow_cutoff: time = time(23, 0),
@@ -192,6 +192,14 @@ def get_slots(
     """
     if target_day == "tomorrow" and now.time() > tomorrow_cutoff:
         return [], "Заказы на завтра принимаются до 23:00"
+
+    if target_day == "today":
+        target_date = now.date()
+    else:
+        target_date = now.date() + timedelta(days=1)
+
+    if target_date.weekday() == 6:
+        return [], "Воскресенье — выходной"
 
     if target_day == "today":
         base_date = now.date()
